@@ -31,6 +31,7 @@ export function defaultState() {
   let id = 1;
   const it = (def, room, x, y) => ({ id: id++, def, room, x, y });
   const items = [
+    it('tree', 'lawn', 300, 700), it('bush', 'lawn', 1000, 600), it('flowerbed', 'lawn', 1250, 800), it('bush', 'lawn', 60, 860),
     it('door', 'living', 150, 540),
     it('window', 'living', 1250, 260), it('picture', 'living', 700, 250), it('table', 'living', 1300, 760),
     it('window', 'kitchen', 1000, 260), it('table', 'kitchen', 1000, 780),
@@ -39,7 +40,7 @@ export function defaultState() {
     it('window', 'bedroom', 1300, 260), it('picture', 'bedroom', 560, 240),
   ];
   return {
-    schema: 2,
+    schema: 3,
     rooms, items: [...items, ...['picture', 'picture', 'table', 'window', 'door'].map((def) => ({ id: id++, def, inv: true }))], next: id,
     chars: [
       { id: 'girl', room: 'living', x: 900, y: 770 },

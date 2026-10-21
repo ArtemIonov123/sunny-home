@@ -54,6 +54,13 @@ def gray_texture(name, rel, height, white_point_pct, blend):
     save(im.convert('RGB'), rel)
 
 
+def color_texture(name, rel, height, blend):
+    """Фон в настоящих цветах (небо, трава): масштаб по высоте и бесшовный повтор."""
+    im = Image.open(os.path.join(SRC, name)).convert('RGB')
+    im = im.resize((round(im.width * height / im.height), height), Image.LANCZOS)
+    save(seamless(im, blend), rel)
+
+
 def keyed(name):
     im = Image.open(os.path.join(SRC, name)).convert('RGBA')
     px = im.load()
@@ -90,6 +97,13 @@ if __name__ == '__main__':
     sprite('living/living_baseboard.png', 'rooms/living/baseboard.webp', max_h=36)
     sprite('living/living_window.png', 'items/window.webp', max_w=760)
     sprite('living/door_frame.png', 'items/door_frame.webp', max_h=640)
+    # Лужайка: фон в настоящих цветах + предметы сада.
+    color_texture('lawn/lawn_sky.png', 'rooms/lawn/sky.webp', 560, 120)
+    color_texture('lawn/lawn_ground.png', 'rooms/lawn/ground.webp', 380, 120)
+    sprite('lawn/lawn_fence.png', 'rooms/lawn/fence.webp', max_h=200)
+    sprite('lawn/tree.png', 'items/tree.webp', max_h=760)
+    sprite('lawn/bush.png', 'items/bush.webp', max_w=520)
+    sprite('lawn/flowerbed.png', 'items/flowerbed.webp', max_w=620)
     # Из прототипа 0.4.1
     copy_webp('legacy/room_table.webp', 'items/table.webp')
     copy_webp('legacy/room_picture.webp', 'items/picture.webp')

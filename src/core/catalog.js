@@ -13,10 +13,13 @@ export const ITEMS = {
   picture: { name: 'Картина',       art: 'items/picture',    w: 160, anchor: 'center', place: 'wall',    group: 'decor' },
   window:  { name: 'Окно',          art: 'items/window',     w: 470, anchor: 'center', place: 'wall',    group: 'build', indoorOnly: true },
   door:    { name: 'Дверной проём', art: 'items/door_frame', h: 430, anchor: 'bottom', place: 'doorway', group: 'build', indoorOnly: true },
+  tree:      { name: 'Дерево', art: 'items/tree',      h: 640, anchor: 'bottom', place: 'floor', group: 'garden' },
+  bush:      { name: 'Куст',   art: 'items/bush',      w: 260, anchor: 'bottom', place: 'floor', group: 'garden' },
+  flowerbed: { name: 'Грядка', art: 'items/flowerbed', w: 330, anchor: 'bottom', place: 'floor', group: 'garden' },
 };
 
 // ── Свои предметы из админки (каталог хранится отдельно от сохранения дома) ──
-export const GROUPS = { furniture: 'Мебель', decor: 'Декор', build: 'Окна и двери', toys: 'Игрушки', food: 'Еда' };
+export const GROUPS = { furniture: 'Мебель', decor: 'Декор', build: 'Окна и двери', garden: 'Сад', toys: 'Игрушки', food: 'Еда' };
 export const PLACES = { floor: 'На пол', wall: 'На стену', doorway: 'Проём (стоит на линии пола)' };
 export const CUSTOM_PREFIX = 'custom_';
 

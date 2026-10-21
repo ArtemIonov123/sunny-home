@@ -5,11 +5,21 @@ import { ITEMS, itemDef, CHARS, ROOM_TYPES, WALL_PATTERNS, FLOOR_MATERIALS } fro
 import { defaultState, newRoom, MAX_ROOMS } from '../core/house.js';
 import { clamp, isHex } from '../util.js';
 
-export const SCHEMA = 2;
+export const SCHEMA = 3;
 
 const MIGRATIONS = {
   // 1 → 2: появился шкафчик. Все вещи из версии 1 стоят в доме, формат вещи в доме не меняется.
   1: (s) => ({ ...s, schema: 2 }),
+  // 2 → 3: у лужайки появились свои картинки — сажаем сад, если на лужайке пусто.
+  2: (s) => {
+    const lawn = (s.rooms || []).find((r) => r?.type === 'lawn');
+    const items = Array.isArray(s.items) ? [...s.items] : [];
+    let next = Math.max(Number(s.next) || 1, ...items.map((i) => (Number.isInteger(i?.id) ? i.id + 1 : 1)));
+    if (lawn && !items.some((i) => i?.room === lawn.id)) {
+      for (const [def, x, y] of [['tree', 300, 700], ['bush', 1000, 600], ['flowerbed', 1250, 800]]) items.push({ id: next++, def, room: lawn.id, x, y });
+    }
+    return { ...s, items, next, schema: 3 };
+  },
 };
 
 const num = (v, a, b, d) => (Number.isFinite(v) ? clamp(v, a, b) : d);
