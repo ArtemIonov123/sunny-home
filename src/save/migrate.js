@@ -2,10 +2,10 @@
 // Правило: новое поле или изменение формата → schema+1 и функция в MIGRATIONS.
 // Старые сохранения никогда не выбрасываются молча.
 import { ITEMS, itemDef, CHARS, ROOM_TYPES, WALL_PATTERNS, FLOOR_MATERIALS } from '../core/catalog.js';
-import { defaultState, newRoom, MAX_ROOMS } from '../core/house.js';
+import { defaultState, newRoom, MAX_ROOMS, NEW_IN_INVENTORY } from '../core/house.js';
 import { clamp, isHex } from '../util.js';
 
-export const SCHEMA = 4;
+export const SCHEMA = 5;
 
 const MIGRATIONS = {
   // 1 → 2: появился шкафчик. Все вещи из версии 1 стоят в доме, формат вещи в доме не меняется.
@@ -26,6 +26,13 @@ const MIGRATIONS = {
     let next = Math.max(Number(s.next) || 1, ...items.map((i) => (Number.isInteger(i?.id) ? i.id + 1 : 1)));
     for (const def of ['sofa', 'armchair', 'rug', 'floor_lamp', 'tv_stand', 'plant_big', 'bookshelf']) items.push({ id: next++, def, inv: true });
     return { ...s, items, next, schema: 4 };
+  },
+  // 4 → 5: техника, корзина, еда и одежда — в шкафчик.
+  4: (s) => {
+    const items = Array.isArray(s.items) ? [...s.items] : [];
+    let next = Math.max(Number(s.next) || 1, ...items.map((i) => (Number.isInteger(i?.id) ? i.id + 1 : 1)));
+    for (const def of ['washing_machine', 'laundry_basket', ...NEW_IN_INVENTORY]) items.push({ id: next++, def, inv: true });
+    return { ...s, items, next, schema: 5 };
   },
 };
 

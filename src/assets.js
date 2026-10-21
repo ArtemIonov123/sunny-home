@@ -9,6 +9,8 @@ export const ASSET_KEYS = [
   'rooms/lawn/sky', 'rooms/lawn/ground', 'rooms/lawn/fence',
   'items/tree', 'items/bush', 'items/flowerbed',
   'items/sofa', 'items/armchair', 'items/rug', 'items/floor_lamp', 'items/tv_stand', 'items/plant_big', 'items/bookshelf',
+  'items/blender', 'items/washing_machine', 'items/laundry_basket', 'items/smoothie_banana', 'items/tshirt', 'items/pants', 'items/dress',
+  'items/banana', 'items/apple', 'items/milk', 'items/juice', 'items/cake', 'items/sandwich', 'items/tomato',
   'chars/girl', 'chars/boy', 'chars/cat',
 ];
 

@@ -26,6 +26,9 @@ export function newRoom(type, id) {
   };
 }
 
+// Кухня, стирка, еда и одежда — в шкафчике (поверхностей для блендера ещё нет).
+export const NEW_IN_INVENTORY = ['blender', 'smoothie_banana', 'banana', 'banana', 'apple', 'milk', 'juice', 'cake', 'sandwich', 'tomato', 'tshirt', 'pants', 'dress'];
+
 export function defaultState() {
   const rooms = ['lawn', 'living', 'kitchen', 'kids', 'bath', 'bedroom'].map((t) => newRoom(t, t));
   let id = 1;
@@ -38,12 +41,12 @@ export function defaultState() {
     it('bookshelf', 'kids', 1300, 600),
     it('window', 'kitchen', 1000, 260), it('table', 'kitchen', 1000, 780),
     it('window', 'kids', 800, 250), it('picture', 'kids', 330, 240),
-    it('picture', 'bath', 800, 240),
+    it('picture', 'bath', 800, 240), it('washing_machine', 'bath', 1150, 650), it('laundry_basket', 'bath', 1400, 700),
     it('window', 'bedroom', 1300, 260), it('picture', 'bedroom', 560, 240),
   ];
   return {
-    schema: 4,
-    rooms, items: [...items, ...['picture', 'picture', 'table', 'window', 'door'].map((def) => ({ id: id++, def, inv: true }))], next: id,
+    schema: 5,
+    rooms, items: [...items, ...['picture', 'picture', 'table', 'window', 'door', ...NEW_IN_INVENTORY].map((def) => ({ id: id++, def, inv: true }))], next: id,
     chars: [
       { id: 'girl', room: 'living', x: 900, y: 770 },
       { id: 'boy', room: 'living', x: 1700, y: 800 },

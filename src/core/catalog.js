@@ -24,10 +24,24 @@ export const ITEMS = {
   tv_stand:   { name: 'Тумба с телевизором', art: 'items/tv_stand', w: 420, anchor: 'bottom', place: 'floor', group: 'furniture' },
   plant_big:  { name: 'Монстера',  art: 'items/plant_big',  h: 380, anchor: 'bottom', place: 'floor', group: 'decor' },
   bookshelf:  { name: 'Стеллаж',   art: 'items/bookshelf',  h: 440, anchor: 'bottom', place: 'floor', group: 'furniture' },
+  blender:         { name: 'Блендер',           art: 'items/blender',         h: 190, anchor: 'bottom', place: 'floor', group: 'appliances' },
+  washing_machine: { name: 'Стиральная машина', art: 'items/washing_machine', h: 250, anchor: 'bottom', place: 'floor', group: 'appliances' },
+  laundry_basket:  { name: 'Корзина для белья', art: 'items/laundry_basket',  w: 190, anchor: 'bottom', place: 'floor', group: 'furniture' },
+  tshirt:  { name: 'Футболка', art: 'items/tshirt', w: 140, anchor: 'bottom', place: 'floor', group: 'clothes' },
+  pants:   { name: 'Штанишки', art: 'items/pants',  h: 160, anchor: 'bottom', place: 'floor', group: 'clothes' },
+  dress:   { name: 'Платье',   art: 'items/dress',  h: 160, anchor: 'bottom', place: 'floor', group: 'clothes' },
+  smoothie_banana: { name: 'Банановый фреш', art: 'items/smoothie_banana', h: 105, anchor: 'bottom', place: 'floor', group: 'food' },
+  banana:   { name: 'Банан',    art: 'items/banana',   w: 75, anchor: 'bottom', place: 'floor', group: 'food' },
+  apple:    { name: 'Яблоко',   art: 'items/apple',    w: 57, anchor: 'bottom', place: 'floor', group: 'food' },
+  milk:     { name: 'Молоко',   art: 'items/milk',     w: 54, anchor: 'bottom', place: 'floor', group: 'food' },
+  juice:    { name: 'Сок',      art: 'items/juice',    w: 47, anchor: 'bottom', place: 'floor', group: 'food' },
+  cake:     { name: 'Кекс',     art: 'items/cake',     w: 65, anchor: 'bottom', place: 'floor', group: 'food' },
+  sandwich: { name: 'Бутерброд', art: 'items/sandwich', w: 90, anchor: 'bottom', place: 'floor', group: 'food' },
+  tomato:   { name: 'Помидор',  art: 'items/tomato',   w: 55, anchor: 'bottom', place: 'floor', group: 'food' },
 };
 
 // ── Свои предметы из админки (каталог хранится отдельно от сохранения дома) ──
-export const GROUPS = { furniture: 'Мебель', decor: 'Декор', build: 'Окна и двери', garden: 'Сад', toys: 'Игрушки', food: 'Еда' };
+export const GROUPS = { furniture: 'Мебель', appliances: 'Техника', decor: 'Декор', build: 'Окна и двери', garden: 'Сад', clothes: 'Одежда', food: 'Еда', toys: 'Игрушки' };
 export const PLACES = { floor: 'На пол', wall: 'На стену', doorway: 'Проём (стоит на линии пола)' };
 export const CUSTOM_PREFIX = 'custom_';
 
