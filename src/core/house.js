@@ -33,14 +33,16 @@ export function defaultState() {
   const items = [
     it('tree', 'lawn', 300, 700), it('bush', 'lawn', 1000, 600), it('flowerbed', 'lawn', 1250, 800), it('bush', 'lawn', 60, 860),
     it('door', 'living', 150, 540),
-    it('window', 'living', 1250, 260), it('picture', 'living', 700, 250), it('table', 'living', 1300, 760),
+    it('window', 'living', 1450, 260), it('picture', 'living', 520, 230), it('tv_stand', 'living', 520, 640), it('plant_big', 'living', 900, 620),
+    it('rug', 'living', 1450, 840), it('sofa', 'living', 1450, 640), it('table', 'living', 1450, 800), it('armchair', 'living', 1950, 700), it('floor_lamp', 'living', 2200, 630),
+    it('bookshelf', 'kids', 1300, 600),
     it('window', 'kitchen', 1000, 260), it('table', 'kitchen', 1000, 780),
     it('window', 'kids', 800, 250), it('picture', 'kids', 330, 240),
     it('picture', 'bath', 800, 240),
     it('window', 'bedroom', 1300, 260), it('picture', 'bedroom', 560, 240),
   ];
   return {
-    schema: 3,
+    schema: 4,
     rooms, items: [...items, ...['picture', 'picture', 'table', 'window', 'door'].map((def) => ({ id: id++, def, inv: true }))], next: id,
     chars: [
       { id: 'girl', room: 'living', x: 900, y: 770 },

@@ -8,6 +8,7 @@ export const ASSET_KEYS = [
   'items/table', 'items/picture', 'items/window', 'items/door_frame',
   'rooms/lawn/sky', 'rooms/lawn/ground', 'rooms/lawn/fence',
   'items/tree', 'items/bush', 'items/flowerbed',
+  'items/sofa', 'items/armchair', 'items/rug', 'items/floor_lamp', 'items/tv_stand', 'items/plant_big', 'items/bookshelf',
   'chars/girl', 'chars/boy', 'chars/cat',
 ];
 

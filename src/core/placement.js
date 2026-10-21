@@ -55,6 +55,7 @@ export function depthOf(kind, obj) {
     const place = itemDef(obj.def)?.place;
     if (place === 'wall') return -2000 + obj.y;
     if (place === 'doorway') return -1000;
+    if (itemDef(obj.def)?.layer === 'under') return -500 + obj.y / 10; // ковёр под мебелью и героями
   }
   return obj.y;
 }

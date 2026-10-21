@@ -104,6 +104,10 @@ if __name__ == '__main__':
     sprite('lawn/tree.png', 'items/tree.webp', max_h=760)
     sprite('lawn/bush.png', 'items/bush.webp', max_w=520)
     sprite('lawn/flowerbed.png', 'items/flowerbed.webp', max_w=620)
+    # Мебель гостиной.
+    for n, mw, mh in [('sofa', 900, None), ('armchair', 520, None), ('rug', 800, None), ('floor_lamp', None, 720),
+                      ('tv_stand', 640, None), ('plant_big', None, 600), ('bookshelf', None, 680)]:
+        sprite(f'furniture/{n}.png', f'items/{n}.webp', max_w=mw, max_h=mh)
     # Из прототипа 0.4.1
     copy_webp('legacy/room_table.webp', 'items/table.webp')
     copy_webp('legacy/room_picture.webp', 'items/picture.webp')

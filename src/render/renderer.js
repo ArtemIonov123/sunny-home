@@ -136,7 +136,7 @@ export function createRenderer(canvas, store, camera) {
     ctx.setTransform(k, 0, 0, k, -camera.x * k, 0);
     drawZones(drag);
     for (const e of entries(drag)) {
-      if (e.kind === 'char' || itemDef(e.obj.def)?.place === 'floor') shadowUnder(e.b);
+      if (e.kind === 'char' || (itemDef(e.obj.def)?.place === 'floor' && !itemDef(e.obj.def)?.layer)) shadowUnder(e.b);
       drawSprite(e.art, e.b, false);
     }
     drawPartitions();

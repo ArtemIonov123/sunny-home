@@ -5,7 +5,7 @@ import { ITEMS, itemDef, CHARS, ROOM_TYPES, WALL_PATTERNS, FLOOR_MATERIALS } fro
 import { defaultState, newRoom, MAX_ROOMS } from '../core/house.js';
 import { clamp, isHex } from '../util.js';
 
-export const SCHEMA = 3;
+export const SCHEMA = 4;
 
 const MIGRATIONS = {
   // 1 → 2: появился шкафчик. Все вещи из версии 1 стоят в доме, формат вещи в доме не меняется.
@@ -19,6 +19,13 @@ const MIGRATIONS = {
       for (const [def, x, y] of [['tree', 300, 700], ['bush', 1000, 600], ['flowerbed', 1250, 800]]) items.push({ id: next++, def, room: lawn.id, x, y });
     }
     return { ...s, items, next, schema: 3 };
+  },
+  // 3 → 4: мебель гостиной — по одной штуке в шкафчик (расстановку игрока не трогаем).
+  3: (s) => {
+    const items = Array.isArray(s.items) ? [...s.items] : [];
+    let next = Math.max(Number(s.next) || 1, ...items.map((i) => (Number.isInteger(i?.id) ? i.id + 1 : 1)));
+    for (const def of ['sofa', 'armchair', 'rug', 'floor_lamp', 'tv_stand', 'plant_big', 'bookshelf']) items.push({ id: next++, def, inv: true });
+    return { ...s, items, next, schema: 4 };
   },
 };
 

@@ -99,7 +99,8 @@ async function device(name, width, height, touch) {
   await tap('.room-chip[data-room=living]'); await p.waitForTimeout(900);
   const pic = await p.evaluate(() => window.__sunny.store.state.items.find((i) => i.def === 'picture' && i.room === 'living').id);
   let pc = await item(pic);
-  await drag(await toClient(pc.wx, pc.y), await toClient(pc.wx, 700));
+  const midX = await p.evaluate(() => window.__sunny.camera.x + window.__sunny.camera.viewW * 0.55);
+  await drag(await toClient(pc.wx, pc.y), await toClient(midX, 700)); // не в зону 📦 слева внизу
   const bottomOk = await p.evaluate((id) => { const s = window.__sunny.store.state; const i = s.items.find((i) => i.id === id); const r = s.rooms.find((r) => r.id === i.room); const im = new Image(); return i.y + 187 / 2 <= r.split * 900; }, pic);
   check(bottomOk, 'картина целиком осталась на стене');
 

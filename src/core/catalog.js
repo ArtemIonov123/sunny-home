@@ -7,6 +7,7 @@
 //   'doorway' — стоит низом на линии пола (дверные проёмы), двигается только по горизонтали.
 // anchor — точка привязки: 'bottom' (низ по центру) или 'center'.
 // w / h  — размер в игровых единицах (задаётся одно, второе считается по картинке).
+// layer  — 'under': лежит на полу под всем остальным (ковры).
 
 export const ITEMS = {
   table:   { name: 'Столик',        art: 'items/table',      w: 370, anchor: 'bottom', place: 'floor',   group: 'furniture' },
@@ -16,6 +17,13 @@ export const ITEMS = {
   tree:      { name: 'Дерево', art: 'items/tree',      h: 640, anchor: 'bottom', place: 'floor', group: 'garden' },
   bush:      { name: 'Куст',   art: 'items/bush',      w: 260, anchor: 'bottom', place: 'floor', group: 'garden' },
   flowerbed: { name: 'Грядка', art: 'items/flowerbed', w: 330, anchor: 'bottom', place: 'floor', group: 'garden' },
+  sofa:       { name: 'Диван',     art: 'items/sofa',       w: 620, anchor: 'bottom', place: 'floor', group: 'furniture' },
+  armchair:   { name: 'Кресло',    art: 'items/armchair',   w: 300, anchor: 'bottom', place: 'floor', group: 'furniture' },
+  rug:        { name: 'Ковёр',     art: 'items/rug',        w: 560, anchor: 'bottom', place: 'floor', group: 'decor', layer: 'under' },
+  floor_lamp: { name: 'Торшер',    art: 'items/floor_lamp', h: 470, anchor: 'bottom', place: 'floor', group: 'decor' },
+  tv_stand:   { name: 'Тумба с телевизором', art: 'items/tv_stand', w: 420, anchor: 'bottom', place: 'floor', group: 'furniture' },
+  plant_big:  { name: 'Монстера',  art: 'items/plant_big',  h: 380, anchor: 'bottom', place: 'floor', group: 'decor' },
+  bookshelf:  { name: 'Стеллаж',   art: 'items/bookshelf',  h: 440, anchor: 'bottom', place: 'floor', group: 'furniture' },
 };
 
 // ── Свои предметы из админки (каталог хранится отдельно от сохранения дома) ──
