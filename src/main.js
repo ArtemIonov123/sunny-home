@@ -1,0 +1,117 @@
+// Точка входа: загружает картинки и сохранение, связывает модули, крутит кадры.
+import { loadAssets } from './assets.js';
+import { defaultState } from './core/house.js';
+import { createStore } from './core/store.js';
+import { createActions, normalize } from './core/actions.js';
+import { createCamera } from './world/camera.js';
+import { createRenderer } from './render/renderer.js';
+import { createViewport } from './input/viewport.js';
+import { createInteraction } from './input/interaction.js';
+import { createHud } from './ui/hud.js';
+import { loadSave, loadLegacyRoom, writeSave } from './save/storage.js';
+import { validate, fromLegacyRoom } from './save/migrate.js';
+import { CHARS } from './core/catalog.js';
+
+const $ = (id) => document.getElementById(id);
+
+async function boot() {
+  const app = $('app'), canvas = $('scene');
+  await loadAssets((n, total) => { $('loadingNote').textContent = `Картинки: ${n} из ${total}`; });
+
+  // Сохранение → прошлая версия 0.4.1 → новый дом.
+  let state = null, startNote = '';
+  try {
+    const saved = await loadSave();
+    if (saved) state = validate(saved);
+  } catch (e) { startNote = 'Сохранение не прочиталось, открыт новый дом. Старые данные не стёрты.'; }
+  if (!state) {
+    try {
+      const legacy = await loadLegacyRoom();
+      if (legacy) { state = fromLegacyRoom(legacy); startNote = 'Комната из версии 0.4.1 перенесена в гостиную.'; }
+    } catch (e) { /* нет старой комнаты */ }
+  }
+  if (!state) state = validate(defaultState());
+  normalize(state);
+
+  const store = createStore(state);
+  const camera = createCamera();
+  const renderer = createRenderer(canvas, store, camera);
+  let hud = null;
+  const viewport = createViewport(app, (w, h) => { renderer.resize(w, h); camera.worldW = store.layout.width; camera.nudge(0); invalidate(); });
+  const actions = createActions(store, camera);
+  hud = createHud({ root: $('ui'), store, camera, actions, onChange: () => invalidate() });
+  const interaction = createInteraction({ canvas, viewport, camera, renderer, store, isOverTrash: hud.isOverTrash });
+
+  // ── кадры: рисуем только когда что-то меняется или движется ──
+  let running = false, last = 0, night = state.night ? 1 : 0;
+  function invalidate() { if (!running) { running = true; last = 0; requestAnimationFrame(frame); } }
+  function frame(t) {
+    const dt = last ? Math.min((t - last) / 1000, 0.05) : 1 / 60;
+    last = t;
+    camera.worldW = store.layout.width;
+    let busy = camera.update(dt);
+    busy = interaction.frame(dt) || busy;
+    const goal = store.state.night ? 1 : 0;
+    if (Math.abs(goal - night) > 0.005) { night += (goal - night) * Math.min(1, dt * 3); busy = true; } else night = goal;
+    renderer.draw(interaction.drag, night, hud.guides);
+    hud.sync();
+    if (busy) requestAnimationFrame(frame); else running = false;
+  }
+
+  // ── сохранение ──
+  let saveTimer = 0, savedNoteShown = false;
+  function saveNow() {
+    clearTimeout(saveTimer);
+    return writeSave(store.state).then((res) => {
+      if (!res.saved && !savedNoteShown) {
+        savedNoteShown = true;
+        hud.toast('Браузер не разрешил сохранение. Играть можно, но перед закрытием скачай копию в «Админка → Данные».', true);
+      }
+      document.documentElement.dataset.save = res.backend;
+      return res;
+    });
+  }
+  store.on('change', ({ save }) => { invalidate(); if (save) { clearTimeout(saveTimer); saveTimer = setTimeout(saveNow, 400); } });
+  window.addEventListener('pagehide', () => { saveNow(); });
+  document.addEventListener('visibilitychange', () => { if (document.hidden) saveNow(); });
+
+  // ── события касаний ──
+  interaction.on('frame', invalidate);
+  interaction.on('dragstart', (g) => { if (g.kind === 'item') hud.showTrash(true); });
+  interaction.on('dragend', () => hud.showTrash(false));
+  interaction.on('trash', (on) => hud.hotTrash(on));
+  interaction.on('invalid', (name) => hud.toast(`«${name}» сюда не встанет`, true));
+  interaction.on('removed', (name) => hud.toast(`Убрано: ${name}. Отменить — ↶`));
+  interaction.on('tap', ({ kind, id }) => {
+    if (kind === 'char') hud.toast(id === 'cat' ? 'Мур-р! Я Персик' : `Привет! Я ${CHARS[id].name}`);
+  });
+  interaction.on('tapEmpty', () => hud.closePanels());
+
+  document.addEventListener('keydown', (e) => {
+    if (['INPUT', 'SELECT', 'TEXTAREA'].includes(e.target.tagName)) return;
+    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') { e.preventDefault(); store.undo(); }
+    if (e.key === 'ArrowRight') { camera.flyTo(camera.x + camera.viewW * 0.6); invalidate(); }
+    if (e.key === 'ArrowLeft') { camera.flyTo(camera.x - camera.viewW * 0.6); invalidate(); }
+  });
+
+  viewport.apply();
+  // Старт: показываем гостиную (или первую комнату после лужайки).
+  const start = store.state.rooms.find((r) => r.type === 'living') || store.state.rooms[1] || store.state.rooms[0];
+  const r = store.layout.byId.get(start.id);
+  camera.holdAt(r.x0); camera.mode = 'idle';
+  $('loading').hidden = true;
+  invalidate();
+  saveNow().then((res) => {
+    const note = { local: 'Дом сохраняется на этом устройстве.', indexeddb: 'Дом сохраняется в запасное хранилище браузера.', session: 'Браузер не разрешает сохранение — скачивай резервную копию.' }[res.backend];
+    if (res.saved) hud.toast(startNote || 'Листай дом пальцем, тяни вещи и героев');
+    hud.setStorageNote(note);
+  });
+
+  // Для автотестов и отладки.
+  window.__sunny = { store, camera, renderer, actions, viewport, saveNow };
+}
+
+boot().catch((e) => {
+  console.error(e);
+  $('loading').innerHTML = `<b>Не удалось открыть игру</b><small>${String(e.message || e)}</small><button onclick="location.reload()">Попробовать ещё раз</button>`;
+});

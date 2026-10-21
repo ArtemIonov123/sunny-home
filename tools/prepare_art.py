@@ -1,0 +1,97 @@
+"""Готовит картинки от GPT к игре.
+
+Запуск:  python3 tools/prepare_art.py
+Берёт исходники из art-src/ и пишет готовые WebP в assets/.
+
+- Серые фактуры (стена, пол) нормализуются: основной тон становится почти белым,
+  чтобы при перекраске получался именно выбранный цвет, а тени оставались тенями.
+  Остаточный цветовой оттенок убирается. Края сводятся в бесшовный повтор.
+- Предметы с прозрачностью обрезаются по содержимому. Розовый фон #FF00FF
+  (если GPT не смог сделать прозрачность) превращается в прозрачный.
+"""
+import os
+from PIL import Image, ImageOps
+
+ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+SRC = os.path.join(ROOT, 'art-src')
+OUT = os.path.join(ROOT, 'assets')
+
+
+def save(im, rel, quality=88):
+    path = os.path.join(OUT, rel)
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    im.save(path, 'WEBP', quality=quality, method=6)
+    print(f'{rel:38s} {im.size[0]}x{im.size[1]}  {os.path.getsize(path)//1024} KB')
+
+
+def seamless(im, blend):
+    """Сводит левый и правый края: последние `blend` пикселей плавно
+    переходят в первые, ширина уменьшается на blend."""
+    w, h = im.size
+    out = im.crop((0, 0, w - blend, h))
+    left = im.crop((0, 0, blend, h))
+    right = im.crop((w - blend, 0, w, h))
+    # маска: 255 у левого края (берём продолжение правого края) → 0 (исходный левый)
+    mask = ImageOps.invert(Image.linear_gradient('L').rotate(90, expand=True)).resize((blend, h))
+    mixed = Image.composite(right, left, mask)
+    out.paste(mixed, (0, 0))
+    return out
+
+
+def gray_texture(name, rel, height, white_point_pct, blend):
+    im = ImageOps.grayscale(Image.open(os.path.join(SRC, name)))
+    hist = im.histogram()
+    total = sum(hist)
+    acc, wp = 0, 255
+    for v, n in enumerate(hist):
+        acc += n
+        if acc >= total * white_point_pct:
+            wp = v
+            break
+    im = im.point(lambda v: min(255, round(v * 255 / max(wp, 1))))
+    im = im.resize((round(im.width * height / im.height), height), Image.LANCZOS)
+    im = seamless(im, blend)
+    save(im.convert('RGB'), rel)
+
+
+def keyed(name):
+    im = Image.open(os.path.join(SRC, name)).convert('RGBA')
+    px = im.load()
+    for y in range(im.height):
+        for x in range(im.width):
+            r, g, b, a = px[x, y]
+            if a and r > 225 and b > 225 and g < 60:
+                px[x, y] = (0, 0, 0, 0)
+    solid = im.getchannel('A').point(lambda a: 255 if a > 40 else 0)
+    return im.crop(solid.getbbox())
+
+
+def sprite(name, rel, max_w=None, max_h=None):
+    im = keyed(name)
+    s = 1.0
+    if max_w:
+        s = min(s, max_w / im.width)
+    if max_h:
+        s = min(s, max_h / im.height)
+    if s < 1:
+        im = im.resize((round(im.width * s), round(im.height * s)), Image.LANCZOS)
+    save(im, rel)
+
+
+def copy_webp(name, rel):
+    im = Image.open(os.path.join(SRC, name))
+    save(im.convert('RGBA'), rel, quality=90)
+
+
+if __name__ == '__main__':
+    # Гостиная. Стена рисуется высотой до 600 px, пол — до 420 px (зависит от разметки комнаты).
+    gray_texture('living/living_wall.png', 'rooms/living/wall.webp', 600, 0.80, 90)
+    gray_texture('living/living_floor_wood.png', 'rooms/living/floor_wood.webp', 420, 0.6, 60)
+    sprite('living/living_baseboard.png', 'rooms/living/baseboard.webp', max_h=36)
+    sprite('living/living_window.png', 'items/window.webp', max_w=760)
+    sprite('living/door_frame.png', 'items/door_frame.webp', max_h=640)
+    # Из прототипа 0.4.1
+    copy_webp('legacy/room_table.webp', 'items/table.webp')
+    copy_webp('legacy/room_picture.webp', 'items/picture.webp')
+    for c in ('girl', 'boy', 'cat'):
+        copy_webp(f'legacy/{c}.webp', f'chars/{c}.webp')

@@ -1,0 +1,105 @@
+/* Солнечный дом — интерфейс. Размеры в CSS-пикселях: на телефоне кнопки не мельчают. */
+* { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+html, body { margin: 0; height: 100%; overflow: hidden; background: #f3dfbd; overscroll-behavior: none; touch-action: none; user-select: none; -webkit-user-select: none;
+  font-family: ui-rounded, 'Trebuchet MS', system-ui, sans-serif; color: #5f4430; }
+#app { position: fixed; left: 0; top: 0; transform-origin: 0 0; overflow: hidden; }
+#scene { position: absolute; inset: 0; display: block; touch-action: none; }
+#ui { position: absolute; inset: 0; pointer-events: none; }
+#ui > * { pointer-events: auto; }
+button { font: inherit; color: inherit; cursor: pointer; touch-action: manipulation; }
+button:disabled { opacity: .4; cursor: default; }
+[hidden] { display: none !important; }
+
+#loading { position: absolute; inset: 0; z-index: 20; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; background: #fff4dc; font-size: 24px; }
+#loading .sun { font-size: 80px; color: #e8ae43; animation: turn 9s linear infinite; }
+#loading small { font-size: 15px; color: #a5815a; }
+@keyframes turn { to { transform: rotate(360deg); } }
+
+.btn { min-width: 52px; min-height: 52px; border: 2px solid #a8794c; border-radius: 18px; background: #fff9ec; box-shadow: 0 4px 0 #a8794c40; font-size: 18px; font-weight: 700; padding: 0 16px; }
+.btn:active { transform: translateY(2px); box-shadow: 0 2px 0 #a8794c40; }
+.btn.icon { width: 52px; padding: 0; font-size: 24px; }
+.btn.primary, .btn.on { background: #f2c27a; }
+.btn.admin { background: #e5ecd9; border-color: #7f9a72; color: #46603f; }
+.btn.big { min-height: 58px; font-size: 19px; }
+
+.hud-top-left, .hud-top-right, .hud-bottom-right { position: absolute; display: flex; gap: 10px; align-items: center; }
+.hud-top-left { left: max(14px, env(safe-area-inset-left)); top: 12px; pointer-events: none !important; }
+.hud-top-right { right: max(14px, env(safe-area-inset-right)); top: 12px; }
+.hud-bottom-right { right: max(14px, env(safe-area-inset-right)); bottom: 12px; }
+.brand { background: #fff9ecee; border: 2px solid #c9a477; border-radius: 22px; padding: 8px 16px; font-weight: 900; letter-spacing: 1px; font-size: 16px; display: flex; gap: 8px; align-items: center; }
+.brand .sun { color: #e8ae43; font-size: 24px; }
+.brand small { font-weight: 600; color: #a5815a; font-size: 11px; letter-spacing: 0; }
+
+.rooms { position: absolute; left: max(14px, env(safe-area-inset-left)); bottom: 12px; right: 330px; display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none; padding: 6px; background: #fff9ece8; border: 2px solid #c9a477; border-radius: 24px; touch-action: pan-x; }
+.rooms::-webkit-scrollbar { display: none; }
+.room-chip { flex: 0 0 auto; min-height: 46px; border: 0; border-radius: 17px; background: transparent; padding: 0 16px; font-size: 17px; font-weight: 700; white-space: nowrap; }
+.room-chip.active { background: #f2c27a; }
+
+.trash { position: absolute; left: 14px; bottom: 84px; width: 110px; height: 110px; border-radius: 28px; border: 3px dashed #c98a6e; background: #fff1e8e6; display: none; flex-direction: column; align-items: center; justify-content: center; font-size: 40px; color: #b5694c; }
+.trash small { font-size: 14px; font-weight: 700; }
+.trash.show { display: flex; }
+.trash.hot { background: #ffd6c4; transform: scale(1.08); border-style: solid; }
+
+.toast { position: absolute; left: 50%; top: 76px; transform: translateX(-50%); max-width: min(680px, 90%); background: #fffbf1f5; border: 2px solid #dcc09a; border-radius: 18px; padding: 10px 18px; font-size: 17px; text-align: center; opacity: 0; transition: opacity .25s; pointer-events: none !important; box-shadow: 0 4px 16px #6e4a2620; }
+.toast.show { opacity: 1; }
+.toast.error { border-color: #d99a80; color: #9c4f36; }
+
+.panel { position: absolute; right: max(14px, env(safe-area-inset-right)); top: 76px; bottom: 84px; width: min(360px, 46%); overflow-y: auto; background: #fffaf0f7; border: 2px solid #c9a477; border-radius: 24px; padding: 14px 16px; box-shadow: 0 10px 40px #6e4a2633; touch-action: pan-y; }
+.panel header { display: flex; align-items: baseline; gap: 8px; margin-bottom: 10px; }
+.panel header b { font-size: 21px; }
+.panel header small { color: #a5815a; font-size: 13px; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.close { border: 0; background: #f2e2c8; border-radius: 50%; width: 44px; height: 44px; font-size: 26px; line-height: 1; flex-shrink: 0; }
+.grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.thing { border: 2px solid #ead7b9; background: #fffdf6; border-radius: 16px; padding: 8px; min-height: 104px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; font-size: 15px; font-weight: 700; }
+.thing img { width: 100%; height: 62px; object-fit: contain; pointer-events: none; }
+.note { font-size: 13px; color: #9a7a58; line-height: 1.45; }
+.panel h4 { margin: 12px 0 8px; font-size: 15px; }
+.swatches { display: flex; flex-wrap: wrap; gap: 8px; }
+.swatch { width: 44px; height: 44px; border-radius: 50%; border: 3px solid #fff; box-shadow: 0 0 0 2px #d8c09c; background: var(--c); padding: 0; position: relative; overflow: hidden; }
+.swatch.on { box-shadow: 0 0 0 3px #a8794c; }
+.swatch.custom { background: conic-gradient(#f7a, #fd6, #8e8, #6cf, #b9f, #f7a); display: inline-block; }
+.swatch.custom input { position: absolute; inset: 0; opacity: 0; width: 100%; height: 100%; cursor: pointer; }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0; }
+.chip { min-height: 44px; border: 2px solid #e0c9a6; border-radius: 14px; background: #fffdf6; padding: 0 12px; font-size: 14px; font-weight: 700; }
+.chip.on { background: #f2c27a; border-color: #a8794c; }
+
+/* Админка: панель справа; слева видна сцена, чтобы сразу проверять изменения. */
+.admin-sheet { position: absolute; right: 0; top: 0; bottom: 0; width: min(640px, 56%); display: flex; flex-direction: column; background: #f7f5ec; border: 2px solid #9fb28f; border-right: 0; border-radius: 24px 0 0 24px; box-shadow: -10px 0 40px #3c4a3333; color: #44503c; font-family: system-ui, sans-serif; touch-action: pan-y; user-select: text; -webkit-user-select: text; }
+.admin-sheet header { display: flex; align-items: center; gap: 10px; padding: 10px 14px; border-bottom: 1px solid #dfe3d2; }
+.admin-sheet header b { font-size: 18px; }
+.admin-sheet nav { display: flex; gap: 4px; flex: 1; overflow-x: auto; }
+.admin-sheet .tab { min-height: 44px; border: 0; border-radius: 12px; background: transparent; padding: 0 14px; font-weight: 700; font-size: 15px; }
+.admin-sheet .tab.on { background: #dfe8d2; color: #3e5f3a; }
+.adm-body { overflow-y: auto; padding: 12px 14px 18px; }
+.adm-help { font-size: 13px; color: #6f7a66; line-height: 1.5; margin: 0 0 10px; }
+.adm-row { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding: 5px 0; border-bottom: 1px dashed #dfe3d2; }
+.adm-row button, .adm-add button, .adm-buttons button { min-width: 44px; min-height: 44px; border: 1px solid #cfd6c2; border-radius: 12px; background: #fffef8; font-size: 17px; }
+.adm-num { width: 22px; text-align: center; color: #93a086; font-weight: 700; }
+.adm-name { flex: 1; min-width: 80px; min-height: 44px; border: 1px solid #d6dccb; border-radius: 10px; padding: 0 10px; font: inherit; font-size: 15px; background: #fff; }
+.adm-type { width: 74px; color: #8a9480; font-size: 12px; }
+.adm-width, .adm-type-new { min-height: 44px; border: 1px solid #d6dccb; border-radius: 10px; background: #fff; font: inherit; font-size: 14px; padding: 0 6px; }
+.adm-add { display: flex; gap: 8px; margin-top: 12px; }
+.adm-add .primary, .adm-buttons .primary { background: #678a6a; color: #fff; border-color: #678a6a; padding: 0 16px; font-size: 15px; }
+.admin-sheet .danger { color: #b0563d; }
+.adm-field { display: flex; flex-direction: column; gap: 6px; font-size: 14px; font-weight: 600; margin: 12px 0; }
+.adm-field input { width: 100%; min-height: 36px; accent-color: #678a6a; touch-action: pan-x; }
+.adm-buttons { display: flex; flex-direction: column; gap: 8px; align-items: flex-start; }
+.adm-buttons button { padding: 0 16px; font-size: 15px; }
+
+/* Низкий экран телефона (горизонтально). */
+#app.compact .btn { min-width: 46px; min-height: 46px; font-size: 16px; border-radius: 15px; }
+#app.compact .btn.icon { width: 46px; font-size: 21px; }
+#app.compact .btn.big { min-height: 48px; font-size: 16px; padding: 0 12px; }
+#app.compact .brand { font-size: 13px; padding: 6px 12px; }
+#app.compact .brand .sun { font-size: 18px; }
+#app.compact .rooms { right: 270px; padding: 4px; bottom: 8px; }
+#app.compact .room-chip { min-height: 42px; font-size: 15px; padding: 0 12px; }
+#app.compact .hud-bottom-right { bottom: 8px; }
+#app.compact .hud-top-right, #app.compact .hud-top-left { top: 8px; }
+#app.compact .toast { top: 62px; font-size: 15px; }
+#app.compact .panel { top: 62px; bottom: 66px; }
+#app.compact .trash { bottom: 66px; width: 92px; height: 92px; }
+#app.compact .admin-sheet { width: 58%; }
+#app.compact .adm-type { display: none; }
+#app.compact .room-chip { min-height: 40px; font-size: 14px; }
+@media (max-width: 700px) { .brand small { display: none; } }

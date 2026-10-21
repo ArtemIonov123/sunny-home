@@ -1,0 +1,102 @@
+// Проверка и обновление формата сохранения.
+// Правило: новое поле или изменение формата → schema+1 и функция в MIGRATIONS.
+// Старые сохранения никогда не выбрасываются молча.
+import { ITEMS, CHARS, ROOM_TYPES, WALL_PATTERNS, FLOOR_MATERIALS } from '../core/catalog.js';
+import { defaultState, newRoom, MAX_ROOMS } from '../core/house.js';
+import { clamp, isHex } from '../util.js';
+
+export const SCHEMA = 1;
+
+const MIGRATIONS = {
+  // 1: (s) => { ...переход с 1 на 2...; s.schema = 2; return s; },
+};
+
+const num = (v, a, b, d) => (Number.isFinite(v) ? clamp(v, a, b) : d);
+
+function cleanRoom(raw, used) {
+  if (!raw || !ROOM_TYPES[raw.type] || typeof raw.id !== 'string' || used.has(raw.id)) return null;
+  used.add(raw.id);
+  const base = newRoom(raw.type, raw.id);
+  const floorMaterials = raw.type === 'lawn' ? ['grass'] : Object.keys(FLOOR_MATERIALS);
+  const r = {
+    ...base,
+    name: typeof raw.name === 'string' && raw.name.trim() ? raw.name.trim().slice(0, 30) : base.name,
+    width: num(raw.width, 1200, 4000, base.width),
+    split: num(raw.split, 0.42, 0.70, base.split),
+    walkTop: num(raw.walkTop, 0.46, 0.88, base.walkTop),
+    wall: {
+      color: isHex(raw.wall?.color) ? raw.wall.color : base.wall.color,
+      pattern: WALL_PATTERNS[raw.wall?.pattern] ? raw.wall.pattern : 'plain',
+    },
+    floor: {
+      material: floorMaterials.includes(raw.floor?.material) ? raw.floor.material : base.floor.material,
+      color: isHex(raw.floor?.color) ? raw.floor.color : base.floor.color,
+    },
+  };
+  r.walkTop = Math.max(r.walkTop, r.split + 0.04);
+  return r;
+}
+
+// Принимает что угодно, возвращает корректное состояние (или бросает понятную ошибку).
+export function validate(raw) {
+  if (!raw || typeof raw !== 'object') throw new Error('Сохранение повреждено.');
+  let s = raw;
+  while (Number.isInteger(s.schema) && s.schema < SCHEMA) {
+    const step = MIGRATIONS[s.schema];
+    if (!step) throw new Error('Неизвестная версия сохранения: ' + s.schema);
+    s = step(s);
+  }
+  if (s.schema !== SCHEMA) throw new Error('Сохранение из более новой версии игры.');
+
+  const used = new Set();
+  let rooms = (Array.isArray(s.rooms) ? s.rooms : []).map((r) => cleanRoom(r, used)).filter(Boolean).slice(0, MAX_ROOMS);
+  if (!rooms.length) rooms = defaultState().rooms;
+  // Лужайка всегда первая — через неё вход в дом.
+  const lawnAt = rooms.findIndex((r) => r.type === 'lawn');
+  if (lawnAt > 0) rooms.unshift(rooms.splice(lawnAt, 1)[0]);
+  const roomIds = new Set(rooms.map((r) => r.id));
+  const fallbackRoom = (rooms.find((r) => r.type !== 'lawn') || rooms[0]).id;
+
+  const ids = new Set();
+  const items = [], missing = [];
+  for (const i of [...(Array.isArray(s.items) ? s.items : []), ...(Array.isArray(s.missing) ? s.missing : [])]) {
+    if (!i || !Number.isInteger(i.id) || ids.has(i.id) || !Number.isFinite(i.x) || !Number.isFinite(i.y)) continue;
+    ids.add(i.id);
+    const item = { id: i.id, def: String(i.def), room: roomIds.has(i.room) ? i.room : fallbackRoom, x: i.x, y: i.y };
+    (ITEMS[item.def] ? items : missing).push(item); // неизвестный предмет откладываем, а не удаляем
+  }
+
+  const chars = Object.keys(CHARS).map((id, k) => {
+    const c = (Array.isArray(s.chars) ? s.chars : []).find((c) => c?.id === id);
+    const ok = c && roomIds.has(c.room) && Number.isFinite(c.x) && Number.isFinite(c.y);
+    return ok ? { id, room: c.room, x: c.x, y: c.y } : { id, room: fallbackRoom, x: 700 + k * 300, y: 800 };
+  });
+
+  const maxId = Math.max(0, ...[...ids]);
+  return { schema: SCHEMA, rooms, items, missing, chars, next: Math.max(Number(s.next) || 1, maxId + 1), night: !!s.night };
+}
+
+// Комната из версии 0.4.1 (координаты в долях 0..1) → гостиная нового дома.
+export function fromLegacyRoom(old) {
+  const s = defaultState();
+  const living = s.rooms.find((r) => r.id === 'living');
+  living.name = typeof old.name === 'string' && old.name.trim() ? old.name.trim().slice(0, 30) : living.name;
+  if (Number.isFinite(old.split)) living.split = clamp(old.split, 0.42, 0.70);
+  if (Number.isFinite(old.walkTop)) living.walkTop = clamp(Math.max(old.walkTop, living.split + 0.04), 0.46, 0.88);
+  if (isHex(old.wallColor)) living.wall.color = old.wallColor;
+  if (WALL_PATTERNS[old.wallPattern]) living.wall.pattern = old.wallPattern;
+  if (isHex(old.floorColor)) living.floor.color = old.floorColor;
+  living.floor.material = old.floorMaterial === 'tile' ? 'tile' : 'wood';
+  // Старая комната была 1600 шириной; ставим её содержимое в середину широкой гостиной.
+  const dx = (living.width - 1600) / 2;
+  const moved = (Array.isArray(old.objects) ? old.objects : [])
+    .filter((o) => o && ITEMS[o.type] && Number.isFinite(o.x) && Number.isFinite(o.y))
+    .map((o) => ({ id: s.next++, def: o.type, room: 'living', x: dx + o.x * 1600, y: o.y * 900 }));
+  if (moved.length) s.items = s.items.filter((i) => i.room !== 'living' || i.def === 'door' || i.def === 'window').concat(moved);
+  if (Array.isArray(old.chars)) for (const c of s.chars) {
+    const oc = old.chars.find((o) => o?.id === c.id);
+    if (oc && Number.isFinite(oc.x) && Number.isFinite(oc.y)) { c.x = dx + oc.x * 1600; c.y = oc.y * 900; }
+  }
+  s.night = !!old.night;
+  return validate(s);
+}
