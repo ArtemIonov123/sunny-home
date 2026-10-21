@@ -142,3 +142,18 @@ button:disabled { opacity: .4; cursor: default; }
 /* Экран повёрнут: браузер считает направления жестов по экрану, поэтому меняем оси местами. */
 #app.rotated .panel, #app.rotated .stack, #app.rotated .admin-sheet, #app.rotated .adm-body { touch-action: pan-x; }
 #app.rotated .rooms, #app.rotated .adm-field input { touch-action: pan-y; }
+
+/* 0.7: иконки вместо подписей */
+.btn.round { width: 64px; min-width: 64px; height: 64px; padding: 0; border-radius: 50%; font-size: 30px; }
+#app.compact .btn.round { width: 54px; min-width: 54px; height: 54px; min-height: 54px; font-size: 25px; }
+.room-chip { display: flex; align-items: center; gap: 6px; }
+.room-chip i { font-style: normal; font-size: 22px; }
+#app.compact .room-chip span { display: none; }
+#app.compact .room-chip.active span { display: inline; }
+#app.compact .rooms { right: 140px; }
+.rooms { right: 170px; }
+.ptab small { font-size: 12px; font-weight: 700; }
+.thing.got { animation: got .35s ease; }
+@keyframes got { 40% { transform: scale(1.12); background: #fff1c9; } }
+.rooms { right: auto; max-width: calc(100% - 200px); }
+#app.compact .rooms { right: auto; max-width: calc(100% - 160px); }

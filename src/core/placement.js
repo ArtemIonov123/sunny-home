@@ -50,8 +50,10 @@ export function snapChar(room, x, y) {
 }
 
 // Слой отрисовки: стены и дверные проёмы позади, на полу — по нижней точке.
-export function depthOf(kind, obj) {
+export function depthOf(kind, obj, parentOf) {
   if (kind === 'item') {
+    const parent = obj.on && parentOf?.(obj.on.id);
+    if (parent) return parent.y + 0.5 + obj.on.s * 0.01; // вещь на мебели — сразу перед мебелью
     const place = itemDef(obj.def)?.place;
     if (place === 'wall') return -2000 + obj.y;
     if (place === 'doorway') return -1000;

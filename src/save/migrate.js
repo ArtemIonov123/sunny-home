@@ -5,7 +5,7 @@ import { ITEMS, itemDef, CHARS, ROOM_TYPES, WALL_PATTERNS, FLOOR_MATERIALS } fro
 import { defaultState, newRoom, MAX_ROOMS, NEW_IN_INVENTORY } from '../core/house.js';
 import { clamp, isHex } from '../util.js';
 
-export const SCHEMA = 5;
+export const SCHEMA = 6;
 
 const MIGRATIONS = {
   // 1 → 2: появился шкафчик. Все вещи из версии 1 стоят в доме, формат вещи в доме не меняется.
@@ -34,6 +34,8 @@ const MIGRATIONS = {
     for (const def of ['washing_machine', 'laundry_basket', ...NEW_IN_INVENTORY]) items.push({ id: next++, def, inv: true });
     return { ...s, items, next, schema: 5 };
   },
+  // 5 → 6: вещи могут стоять на мебели (поле on). Старые данные подходят без изменений.
+  5: (s) => ({ ...s, schema: 6 }),
 };
 
 const num = (v, a, b, d) => (Number.isFinite(v) ? clamp(v, a, b) : d);
@@ -91,6 +93,9 @@ export function validate(raw) {
     const item = inInventory
       ? { id: i.id, def: String(i.def), inv: true }
       : { id: i.id, def: String(i.def), room: roomIds.has(i.room) ? i.room : fallbackRoom, x: i.x, y: i.y };
+    if (!inInventory && i.on && Number.isInteger(i.on.id) && i.on.id !== i.id && Number.isInteger(i.on.s) && Number.isFinite(i.on.dx)) {
+      item.on = { id: i.on.id, s: i.on.s, dx: i.on.dx }; // проверка, что мебель существует, — в syncChildren
+    }
     (itemDef(item.def) ? items : missing).push(item); // неизвестный предмет откладываем, а не удаляем
   }
 

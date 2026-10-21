@@ -4,8 +4,10 @@
 import { VIEW_H, MAX_DPR } from '../config.js';
 import { itemDef, CHARS } from '../core/catalog.js';
 import { img, maskOf } from '../assets.js';
-import { itemBounds, charBounds, depthOf, wallBottom, floorTop, floorBottom } from '../core/placement.js';
+import { itemBounds, charBounds, depthOf } from '../core/placement.js';
 import { backgroundFor, clearBackgrounds } from './background.js';
+import { anims } from './anims.js';
+import { surfacesOf } from '../core/physics.js';
 
 export function createRenderer(canvas, store, camera) {
   const ctx = canvas.getContext('2d');
@@ -24,17 +26,24 @@ export function createRenderer(canvas, store, camera) {
   }
 
   // Все видимые объекты в мировых координатах, отсортированные по глубине.
-  function entries(drag) {
+  function entries(drag, carried = null) {
     const lay = store.layout, s = store.state;
     const left = camera.x - 400, right = camera.x + camera.viewW + 400;
+    const byId = new Map(s.items.map((i) => [i.id, i]));
+    const parentOf = (id) => byId.get(id);
     const list = [];
     const add = (kind, obj, b, art, x0) => {
       const wb = { x: b.x + x0, y: b.y, w: b.w, h: b.h };
       if (wb.x + wb.w < left || wb.x > right) return;
-      list.push({ kind, obj, b: wb, art, depth: depthOf(kind, obj) });
+      list.push({ kind, obj, b: wb, art, depth: depthOf(kind, obj, parentOf) });
     };
     for (const i of s.items) {
       if (drag && drag.kind === 'item' && drag.id === i.id) continue;
+      if (drag && drag.kind === 'item' && i.on?.id === drag.id) { // едет вместе с мебелью в руке
+        const r = lay.byId.get(i.room), def = itemDef(i.def);
+        if (carried && r && def) { const b = itemBounds(i); carried.push({ kind: 'item', obj: i, art: def.art, b: { x: b.x + r.x0, y: b.y, w: b.w, h: b.h } }); }
+        continue;
+      }
       if (i.inv) continue; // в шкафчике — не в доме
       const def = itemDef(i.def), r = lay.byId.get(i.room); if (!r || !def) continue;
       add('item', i, itemBounds(i), def.art, r.x0);
@@ -68,25 +77,37 @@ export function createRenderer(canvas, store, camera) {
     return null;
   }
 
-  function drawSprite(art, b, glow) {
+  // Спрайт с анимацией: смещение, поворот и «сплющивание» вокруг нижней точки.
+  function drawSprite(art, b, { glow = false, pose = null, tilt = 0 } = {}) {
     const im = img(art); if (!im) return;
-    if (glow) { ctx.save(); ctx.shadowColor = 'rgba(255,248,200,.95)'; ctx.shadowBlur = 22; }
-    ctx.drawImage(im, b.x, b.y, b.w, b.h);
-    if (glow) ctx.restore();
+    const rot = (pose?.rot || 0) + tilt, sx = pose?.sx || 1, sy = pose?.sy || 1;
+    ctx.save();
+    ctx.translate(b.x + b.w / 2 + (pose?.dx || 0), b.y + b.h + (pose?.dy || 0));
+    if (rot) ctx.rotate(rot);
+    if (sx !== 1 || sy !== 1) ctx.scale(sx, sy);
+    if (glow) { ctx.shadowColor = 'rgba(255,248,200,.95)'; ctx.shadowBlur = 22; }
+    ctx.drawImage(im, -b.w / 2, -b.h, b.w, b.h);
+    ctx.restore();
   }
+  const keyOf = (e) => (e.kind === 'char' ? 'char:' : 'item:') + e.obj.id;
 
   function shadowUnder(b) {
     ctx.fillStyle = 'rgba(90,60,30,.16)';
     ctx.beginPath(); ctx.ellipse(b.x + b.w / 2, b.y + b.h - 3, b.w * 0.34, 9, 0, 0, Math.PI * 2); ctx.fill();
   }
 
-  function drawZones(drag) {
-    if (!drag || drag.kind !== 'item' || !drag.target) return;
-    const { r } = drag.target, place = itemDef(drag.obj.def).place;
+  // Подсказка без слов: светящаяся полоска там, куда приземлится вещь (полка, столешница, сиденье).
+  function drawLanding(drag) {
+    const on = drag?.target?.pos?.on;
+    if (!on) return;
+    const parent = store.state.items.find((i) => i.id === on.id);
+    const sf = parent && surfacesOf(parent)[on.s];
+    if (!sf) return;
+    const x0 = drag.target.r.x0;
     ctx.save();
-    ctx.fillStyle = drag.valid ? 'rgba(120,200,150,.16)' : 'rgba(220,100,80,.14)';
-    if (place === 'floor') ctx.fillRect(r.x0, floorTop(r.room), r.room.width, floorBottom() - floorTop(r.room));
-    else if (place === 'wall') ctx.fillRect(r.x0, 0, r.room.width, wallBottom(r.room));
+    ctx.strokeStyle = 'rgba(255,240,170,.95)'; ctx.lineWidth = 8; ctx.lineCap = 'round';
+    ctx.shadowColor = 'rgba(255,220,120,.9)'; ctx.shadowBlur = 14;
+    ctx.beginPath(); ctx.moveTo(x0 + sf.x0 + 6, sf.y); ctx.lineTo(x0 + sf.x1 - 6, sf.y); ctx.stroke();
     ctx.restore();
   }
 
@@ -134,16 +155,28 @@ export function createRenderer(canvas, store, camera) {
       ctx.drawImage(backgroundFor(r.room, k), Math.round((r.x0 - camera.x) * k), 0);
     }
     ctx.setTransform(k, 0, 0, k, -camera.x * k, 0);
-    drawZones(drag);
-    for (const e of entries(drag)) {
-      if (e.kind === 'char' || (itemDef(e.obj.def)?.place === 'floor' && !itemDef(e.obj.def)?.layer)) shadowUnder(e.b);
-      drawSprite(e.art, e.b, false);
+    const carried = [];
+    for (const e of entries(drag, carried)) {
+      const pose = anims.pose(keyOf(e));
+      if (!pose || pose.dy > -20) {
+        if (e.kind === 'char' || (itemDef(e.obj.def)?.place === 'floor' && !itemDef(e.obj.def)?.layer && !e.obj.on)) shadowUnder(e.b);
+      }
+      drawSprite(e.art, e.b, { pose });
     }
     drawPartitions();
     if (guidesRoomId) drawGuides(guidesRoomId);
     if (drag && drag.kind !== 'pan') {
+      drawLanding(drag);
       ctx.globalAlpha = drag.valid ? 1 : 0.6;
-      drawSprite(drag.art, drag.b, true);
+      drawSprite(drag.art, drag.b, { glow: true, tilt: drag.tilt || 0 });
+      // Вещи с полок и столешницы едут вместе с мебелью.
+      if (carried.length && drag.from) {
+        const ddx = drag.b.x - drag.from.x, ddy = drag.b.y - drag.from.y;
+        const px = drag.b.x + drag.b.w / 2, py = drag.b.y + drag.b.h; // наклоняются вместе с мебелью
+        ctx.save(); ctx.translate(px, py); ctx.rotate(drag.tilt || 0); ctx.translate(-px, -py);
+        for (const c of carried) drawSprite(c.art, { ...c.b, x: c.b.x + ddx, y: c.b.y + ddy });
+        ctx.restore();
+      }
       ctx.globalAlpha = 1;
     }
     if (nightLevel > 0.01) {

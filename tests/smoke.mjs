@@ -63,7 +63,15 @@ async function device(name, width, height, touch) {
   const c0 = await camX();
   const mid = await toClient(0, 0); // не используется напрямую
   const vs = p.viewportSize();
-  const wallPoint = await p.evaluate(() => { const { camera } = window.__sunny; return { wx: camera.x + camera.viewW * 0.45, wy: 120 }; });
+  // пустая точка, где нет ни вещей, ни героев (иначе палец возьмёт вещь, а не листнёт)
+  const wallPoint = await p.evaluate(() => {
+    const { camera, renderer } = window.__sunny;
+    for (const fy of [330, 200, 420, 120]) for (let f = 0.3; f < 0.8; f += 0.03) {
+      const wx = camera.x + camera.viewW * f;
+      if (!renderer.hit(wx, fy) && !renderer.hit(wx - 600, fy)) return { wx, wy: fy };
+    }
+    return { wx: camera.x + camera.viewW * 0.45, wy: 330 };
+  });
   let a = await toClient(wallPoint.wx, wallPoint.wy), b = await toClient(wallPoint.wx - 600, wallPoint.wy);
   await drag(a, b);
   await p.waitForTimeout(700);
@@ -203,6 +211,41 @@ async function device(name, width, height, touch) {
   await p.reload(); await p.waitForFunction(() => window.__sunny); await p.waitForTimeout(500);
   const after = await p.evaluate((def) => ({ known: !!document && window.__sunny.store.state.items.some((i) => i.def === def), missing: (window.__sunny.store.state.missing || []).length }), custom?.def);
   check(after.known && after.missing === 0, 'после перезагрузки свой предмет на месте');
+  // 15. Физика: банан, брошенный над сиденьем дивана, ложится на диван и едет вместе с ним; диван в шкафчик — банан падает на пол
+  {
+    await tap('.room-chip[data-room=living]'); await p.waitForTimeout(900);
+    const info = await p.evaluate(() => {
+      const S = window.__sunny, s = S.store.state;
+      const sofa = s.items.find((i) => i.def === 'sofa' && !i.inv && i.room === 'living');
+      const fruit = s.items.find((i) => i.def === 'banana' && i.inv) || s.items.find((i) => i.def === 'apple' && i.inv);
+      if (!sofa || !fruit) return null;
+      const sf = S.physics.surfacesOf(sofa)[0], x0 = S.store.layout.byId.get('living').x0;
+      S.camera.holdAt(x0 + sofa.x - S.camera.viewW / 2); S.camera.mode = 'idle'; S.store.touch();
+      return { sofa: sofa.id, fruit: fruit.id, fruitDef: fruit.def, wx: x0 + (sf.x0 + sf.x1) / 2, wy: sf.y - 40, sofaX: x0 + sofa.x, sofaY: sofa.y };
+    });
+    if (info) {
+      await p.waitForTimeout(300);
+      await tap('[data-act=things]'); await tap('[data-ttab=mine]');
+      await p.locator(`.stack[data-stack=${info.fruitDef}]`).scrollIntoViewIfNeeded();
+      const card = await p.locator(`.stack[data-stack=${info.fruitDef}]`).boundingBox();
+      await drag({ x: card.x + card.width / 2, y: card.y + card.height / 2 }, await toClient(info.wx, info.wy), { steps: 14 });
+      await p.waitForTimeout(500);
+      let f = await p.evaluate((id) => window.__sunny.store.state.items.find((i) => i.id === id), info.fruit);
+      check(f?.on?.id === info.sofa, 'вещь, брошенная над диваном, легла на диван');
+      // тащим диван за левый край спинки
+      const from = await toClient(info.sofaX - 230, info.sofaY - 60);
+      const to = await toClient(info.sofaX - 230 + 260, info.sofaY - 60 + 60);
+      await drag(from, to);
+      await p.waitForTimeout(500);
+      const pair = await p.evaluate(([fid, sid]) => { const s = window.__sunny.store.state; return { f: s.items.find((i) => i.id === fid), s: s.items.find((i) => i.id === sid) }; }, [info.fruit, info.sofa]);
+      check(pair.f.on?.id === info.sofa && Math.abs((pair.f.x - pair.s.x) - (f.x - (info.sofaX - (await p.evaluate(() => window.__sunny.store.layout.byId.get('living').x0))))) < 2 && pair.s.x !== info.sofaX, 'вещь на диване переехала вместе с диваном');
+      await p.evaluate((sid) => window.__sunny.actions.toInventory(sid), info.sofa);
+      await p.waitForTimeout(300);
+      f = await p.evaluate((id) => window.__sunny.store.state.items.find((i) => i.id === id), info.fruit);
+      check(!f.on && !f.inv && f.room === 'living', 'диван убран — вещь с него упала на пол, а не исчезла');
+    }
+  }
+
   await p.screenshot({ path: `${SHOTS}/${name}_4_end.png` });
   check(errors.length === 0, 'нет ошибок за всё время ' + errors.join(' | '));
   await ctx.close();

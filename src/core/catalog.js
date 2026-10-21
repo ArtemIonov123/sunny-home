@@ -8,24 +8,25 @@
 // anchor — точка привязки: 'bottom' (низ по центру) или 'center'.
 // w / h  — размер в игровых единицах (задаётся одно, второе считается по картинке).
 // layer  — 'under': лежит на полу под всем остальным (ковры).
+// surfaces — куда можно ставить мелкие вещи: [x0, x1, y] в долях картинки (столешница, сиденье, полка).
 
 export const ITEMS = {
-  table:   { name: 'Столик',        art: 'items/table',      w: 370, anchor: 'bottom', place: 'floor',   group: 'furniture' },
+  table:   { name: 'Столик',        art: 'items/table',      w: 370, anchor: 'bottom', place: 'floor',   group: 'furniture', surfaces: [[0.08, 0.92, 0.21]] },
   picture: { name: 'Картина',       art: 'items/picture',    w: 160, anchor: 'center', place: 'wall',    group: 'decor' },
   window:  { name: 'Окно',          art: 'items/window',     w: 470, anchor: 'center', place: 'wall',    group: 'build', indoorOnly: true },
   door:    { name: 'Дверной проём', art: 'items/door_frame', h: 430, anchor: 'bottom', place: 'doorway', group: 'build', indoorOnly: true },
   tree:      { name: 'Дерево', art: 'items/tree',      h: 640, anchor: 'bottom', place: 'floor', group: 'garden' },
   bush:      { name: 'Куст',   art: 'items/bush',      w: 260, anchor: 'bottom', place: 'floor', group: 'garden' },
   flowerbed: { name: 'Грядка', art: 'items/flowerbed', w: 330, anchor: 'bottom', place: 'floor', group: 'garden' },
-  sofa:       { name: 'Диван',     art: 'items/sofa',       w: 620, anchor: 'bottom', place: 'floor', group: 'furniture' },
-  armchair:   { name: 'Кресло',    art: 'items/armchair',   w: 300, anchor: 'bottom', place: 'floor', group: 'furniture' },
+  sofa:       { name: 'Диван',     art: 'items/sofa',       w: 620, anchor: 'bottom', place: 'floor', group: 'furniture', surfaces: [[0.13, 0.87, 0.60]] },
+  armchair:   { name: 'Кресло',    art: 'items/armchair',   w: 300, anchor: 'bottom', place: 'floor', group: 'furniture', surfaces: [[0.22, 0.78, 0.575]] },
   rug:        { name: 'Ковёр',     art: 'items/rug',        w: 560, anchor: 'bottom', place: 'floor', group: 'decor', layer: 'under' },
   floor_lamp: { name: 'Торшер',    art: 'items/floor_lamp', h: 470, anchor: 'bottom', place: 'floor', group: 'decor' },
-  tv_stand:   { name: 'Тумба с телевизором', art: 'items/tv_stand', w: 420, anchor: 'bottom', place: 'floor', group: 'furniture' },
+  tv_stand:   { name: 'Тумба с телевизором', art: 'items/tv_stand', w: 420, anchor: 'bottom', place: 'floor', group: 'furniture', surfaces: [[0.05, 0.27, 0.60], [0.73, 0.95, 0.60]] },
   plant_big:  { name: 'Монстера',  art: 'items/plant_big',  h: 380, anchor: 'bottom', place: 'floor', group: 'decor' },
-  bookshelf:  { name: 'Стеллаж',   art: 'items/bookshelf',  h: 440, anchor: 'bottom', place: 'floor', group: 'furniture' },
+  bookshelf:  { name: 'Стеллаж',   art: 'items/bookshelf',  h: 440, anchor: 'bottom', place: 'floor', group: 'furniture', surfaces: [[0.12, 0.88, 0.335], [0.12, 0.88, 0.605], [0.12, 0.88, 0.875]] },
   blender:         { name: 'Блендер',           art: 'items/blender',         h: 190, anchor: 'bottom', place: 'floor', group: 'appliances' },
-  washing_machine: { name: 'Стиральная машина', art: 'items/washing_machine', h: 250, anchor: 'bottom', place: 'floor', group: 'appliances' },
+  washing_machine: { name: 'Стиральная машина', art: 'items/washing_machine', h: 250, anchor: 'bottom', place: 'floor', group: 'appliances', surfaces: [[0.08, 0.92, 0.03]] },
   laundry_basket:  { name: 'Корзина для белья', art: 'items/laundry_basket',  w: 190, anchor: 'bottom', place: 'floor', group: 'furniture' },
   tshirt:  { name: 'Футболка', art: 'items/tshirt', w: 140, anchor: 'bottom', place: 'floor', group: 'clothes' },
   pants:   { name: 'Штанишки', art: 'items/pants',  h: 160, anchor: 'bottom', place: 'floor', group: 'clothes' },

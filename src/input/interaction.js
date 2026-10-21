@@ -4,12 +4,16 @@
 //   коснулся и отпустил → нажатие.
 // Пока вещь у края экрана, камера едет. Позиция вещи пересчитывается КАЖДЫЙ кадр
 // из пальца и камеры — поэтому вещь не отстаёт и не прыгает.
+// Отпущенная вещь падает на ближайшую поверхность (physics.js); вещи с мебели едут вместе с ней.
 import { EDGE_ZONE, EDGE_SPEED, PAN_THRESHOLD } from '../config.js';
 import { itemDef, CHARS } from '../core/catalog.js';
 import { roomAtX } from '../core/house.js';
-import { snapItem, snapChar, itemBounds, charBounds } from '../core/placement.js';
+import { snapChar, itemBounds, charBounds } from '../core/placement.js';
+import { landing, syncChildren, releaseChildren } from '../core/physics.js';
+import { anims } from '../render/anims.js';
+import { play } from '../audio.js';
 import { sizeOf } from '../assets.js';
-import { emitter } from '../util.js';
+import { emitter, clamp } from '../util.js';
 
 export function createInteraction({ canvas, viewport, camera, renderer, store, isOverStash }) {
   const events = emitter();
@@ -30,8 +34,10 @@ export function createInteraction({ canvas, viewport, camera, renderer, store, i
         start: p, last: p, moved: false,
         dx: r.x0 + hit.obj.x - w.x, dy: hit.obj.y - w.y,
         clientX: e.clientX, clientY: e.clientY,
+        from: { ...hit.b }, vx: 0, tilt: 0,
       };
       update();
+      play('pick');
       events.emit('dragstart', g);
     } else {
       g = { kind: 'pending', pointer: e.pointerId, start: p, last: p, camStart: camera.x, samples: [{ x: p.x, t: performance.now() }] };
@@ -64,8 +70,13 @@ export function createInteraction({ canvas, viewport, camera, renderer, store, i
     const w = world(g.last), ax = w.x + g.dx, ay = w.y + g.dy;
     const r = roomAtX(store.layout, ax);
     const lx = ax - r.x0;
+    // Наклон при переноске — вещь «болтается» в сторону движения.
+    if (g.prevAx !== undefined) g.vx = g.vx * 0.75 + (ax - g.prevAx) * 0.25;
+    g.prevAx = ax;
+    g.tilt = clamp((g.vx || 0) * 0.012, -0.32, 0.32);
+    g.ax = ax; g.ay = ay;
     if (g.kind === 'item') {
-      const pos = snapItem(g.obj.def, r.room, lx, ay);
+      const pos = landing(store.state, g.obj.def, r.room, lx, ay, g.id);
       g.target = { r, pos };
       g.valid = !!pos;
       // Вещь идёт за пальцем; на стене/проёме сразу показываем, куда она встанет.
@@ -93,18 +104,22 @@ export function createInteraction({ canvas, viewport, camera, renderer, store, i
       store.dropCheckpoint();
       events.emit('tap', { kind: d.kind, id: d.id });
     } else if (d.kind === 'item' && isOverStash(d.clientX, d.clientY)) {
-      store.change((s) => { const i = s.items.find((i) => i.id === d.id); if (i) { delete i.room; delete i.x; delete i.y; i.inv = true; } }, { undo: false });
+      const kids = store.state.items.filter((c) => c.on?.id === d.id).map((c) => ({ id: c.id, y: c.y }));
+      store.change((s) => {
+        releaseChildren(s, d.id); // вещи с мебели падают на пол, а не исчезают с ней
+        const i = s.items.find((i) => i.id === d.id);
+        if (i) { delete i.room; delete i.x; delete i.y; delete i.on; i.inv = true; }
+      }, { undo: false });
+      animateFallen(kids);
+      play('stash');
       events.emit('stashed', itemDef(d.obj.def).name);
     } else if (!d.valid) {
       store.dropCheckpoint();
+      anims.back('item:' + d.id, d.b.x - d.from.x, d.b.y - d.from.y); // некуда — возвращается на место
+      play('nope');
       events.emit('invalid', itemDef(d.obj.def).name);
     } else {
-      const { r, pos } = d.target;
-      store.change((s) => {
-        const list = d.kind === 'item' ? s.items : s.chars;
-        const o = list.find((o) => o.id === d.id);
-        if (o) { delete o.inv; o.room = r.room.id; o.x = pos.x; o.y = pos.y; }
-      }, { undo: false });
+      place(d);
     }
     events.emit('dragend');
     events.emit('frame');
@@ -122,7 +137,10 @@ export function createInteraction({ canvas, viewport, camera, renderer, store, i
       kind: 'item', id: item.id, obj: item, art: def.art, pointer: e.pointerId, fromInventory: true,
       start: p, last: p, moved: true, clientX: e.clientX, clientY: e.clientY,
       dx: 0, dy: def.anchor === 'center' ? 0 : h / 2, // палец держит середину вещи
+      vx: 0, tilt: 0,
     };
+    g.from = null;
+    play('pick');
     try { canvas.setPointerCapture(e.pointerId); } catch (err) { /* указатель уже отпущен */ }
     update();
     events.emit('dragstart', g);
@@ -133,9 +151,32 @@ export function createInteraction({ canvas, viewport, camera, renderer, store, i
   function finishFromInventory(d, cancel) {
     const name = itemDef(d.obj.def).name;
     if (cancel || isOverStash(d.clientX, d.clientY)) { store.dropCheckpoint(); return; }
-    if (!d.valid) { store.dropCheckpoint(); events.emit('invalid', name); return; }
+    if (!d.valid) { store.dropCheckpoint(); play('nope'); events.emit('invalid', name); return; }
+    place(d);
+  }
+
+  // Положить вещь или героя туда, куда указывает d.target, и показать падение.
+  function place(d) {
     const { r, pos } = d.target;
-    store.change((s) => { const o = s.items.find((o) => o.id === d.id); if (o) { delete o.inv; o.room = r.room.id; o.x = pos.x; o.y = pos.y; } }, { undo: false });
+    const isItem = d.kind === 'item';
+    store.change((s) => {
+      const o = (isItem ? s.items : s.chars).find((o) => o.id === d.id);
+      if (!o) return;
+      delete o.inv; o.room = r.room.id; o.x = pos.x; o.y = pos.y;
+      if (isItem) { if (pos.on) o.on = { ...pos.on }; else delete o.on; syncChildren(s); }
+    }, { undo: false });
+    // Анимация: от того места, где отпустили, до места приземления.
+    const fx = (d.ax ?? r.x0 + pos.x) - (r.x0 + pos.x);
+    const fy = isItem && itemDef(d.obj.def).place !== 'floor' ? 0 : Math.min(0, (d.kind === 'char' ? d.b.y + d.b.h : d.ay) - pos.y);
+    anims.fall((isItem ? 'item:' : 'char:') + d.id, fy, isItem ? fx : 0);
+    if (fy < -12) setTimeout(() => play('land'), 120); else play('drop');
+  }
+
+  function animateFallen(kids) {
+    for (const k of kids) {
+      const c = store.state.items.find((i) => i.id === k.id);
+      if (c && !c.inv) anims.fall('item:' + c.id, Math.min(0, k.y - c.y));
+    }
   }
 
   // Вызывается каждый кадр. Возвращает true, если нужен следующий кадр.

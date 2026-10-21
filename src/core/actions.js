@@ -3,6 +3,7 @@
 import { itemDef, ROOM_TYPES } from './catalog.js';
 import { newRoom, uniqueRoomId, MAX_ROOMS, roomAtX } from './house.js';
 import { snapItem, snapChar } from './placement.js';
+import { landing, syncChildren, releaseChildren } from './physics.js';
 import { clamp } from '../util.js';
 
 export const MAX_ITEMS = 250;
@@ -13,6 +14,7 @@ export function normalize(s) {
   const indoor = s.rooms.find((r) => !ROOM_TYPES[r.type].outdoor) || s.rooms[0];
   for (const i of s.items) {
     if (i.inv) continue; // вещь в шкафчике — у неё нет места в доме
+    if (i.on) continue;  // стоит на мебели — место считается от мебели (ниже)
     let room = rooms.get(i.room) || indoor;
     let p = snapItem(i.def, room, i.x, i.y);
     if (!p) { room = indoor; p = snapItem(i.def, room, room.width / 2, i.y) || { x: room.width / 2, y: i.y }; }
@@ -23,6 +25,7 @@ export function normalize(s) {
     const p = snapChar(room, c.x, c.y);
     c.room = room.id; c.x = p.x; c.y = p.y;
   }
+  syncChildren(s);
 }
 
 export function createActions(store, camera) {
@@ -53,15 +56,16 @@ export function createActions(store, camera) {
       const def = itemDef(item.def);
       // Небольшой сдвиг, чтобы несколько вещей подряд не легли точно друг на друга.
       const cx = clamp(camera.x + camera.viewW / 2 - r.x0 + ((itemId * 97) % 240) - 120, 0, r.room.width);
-      const y = def.place === 'floor' ? 800 : def.place === 'doorway' ? 0 : 230;
-      const p = snapItem(item.def, r.room, cx, y);
+      // Мелкая вещь «падает» сверху — и может приземлиться на стол или полку.
+      const y = def.place === 'floor' ? 330 : def.place === 'doorway' ? 0 : 230;
+      const p = landing(store.state, item.def, r.room, cx, y, itemId);
       if (!p) return { ok: false, reason: `«${def.name}» нельзя поставить в комнате «${r.room.name}»` };
-      store.change((s) => { const i = s.items.find((i) => i.id === itemId); delete i.inv; i.room = r.room.id; i.x = p.x; i.y = p.y; });
-      return { ok: true };
+      store.change((s) => { const i = s.items.find((i) => i.id === itemId); delete i.inv; i.room = r.room.id; i.x = p.x; i.y = p.y; if (p.on) i.on = { ...p.on }; syncChildren(s); });
+      return { ok: true, fall: def.place === 'floor' ? Math.min(0, 160 - p.y) : 0 };
     },
 
     toInventory(itemId, { undo = true } = {}) {
-      store.change((s) => { const i = s.items.find((i) => i.id === itemId); if (i) { delete i.room; delete i.x; delete i.y; i.inv = true; } }, { undo });
+      store.change((s) => { releaseChildren(s, itemId); const i = s.items.find((i) => i.id === itemId); if (i) { delete i.room; delete i.x; delete i.y; delete i.on; i.inv = true; } }, { undo });
     },
 
     // Выбросить вещь совсем (из шкафчика).
@@ -82,6 +86,7 @@ export function createActions(store, camera) {
     shelveDef(defId) {
       store.change((s) => {
         const gone = s.items.filter((i) => i.def === defId);
+        for (const g of gone) releaseChildren(s, g.id);
         s.items = s.items.filter((i) => i.def !== defId);
         s.missing = [...(s.missing || []), ...gone.map((i) => ({ id: i.id, def: i.def, inv: true }))];
       }, { undo: false });
@@ -126,7 +131,7 @@ export function createActions(store, camera) {
       const moved = s0.items.filter((i) => !i.inv && i.room === roomId).length;
       store.change((s) => {
         // Вещи комнаты не пропадают — уходят в шкафчик.
-        for (const i of s.items) if (!i.inv && i.room === roomId) { delete i.room; delete i.x; delete i.y; i.inv = true; }
+        for (const i of s.items) if (!i.inv && i.room === roomId) { delete i.room; delete i.x; delete i.y; delete i.on; i.inv = true; }
         const rest = s.rooms.filter((r) => r.id !== roomId);
         const home = rest.find((r) => r.type !== 'lawn');
         s.rooms = rest;

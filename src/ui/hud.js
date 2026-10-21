@@ -6,6 +6,11 @@ import { img } from '../assets.js';
 import { escapeHtml as esc } from '../util.js';
 import { createAdmin } from './admin.js';
 import { installFastTap } from './tap.js';
+import { anims } from '../render/anims.js';
+import { play, soundOn, setSound } from '../audio.js';
+
+// Иконки комнат: ребёнку не нужно читать, чтобы найти кухню.
+const ROOM_ICONS = { lawn: '🌳', living: '🛋️', kitchen: '🍳', kids: '🧸', bath: '🛁', bedroom: '🛏️' };
 
 export function createHud({ root, store, camera, actions, onChange }) {
   root.innerHTML = `
@@ -13,13 +18,14 @@ export function createHud({ root, store, camera, actions, onChange }) {
     <div class="hud-top-right">
       <button class="btn icon" data-act="undo" aria-label="Отменить" title="Отменить">↶</button>
       <button class="btn icon" data-act="night" aria-label="День или вечер" title="День / вечер">☾</button>
+      <button class="btn icon" data-act="sound" aria-label="Звук" title="Звук">🔊</button>
       <button class="btn icon" data-act="full" aria-label="На весь экран" title="На весь экран">⛶</button>
       <button class="btn admin" data-act="admin">✎ Админка</button>
     </div>
     <nav class="rooms" aria-label="Комнаты"></nav>
     <div class="hud-bottom-right">
-      <button class="btn big" data-act="finish">🎨 Отделка</button>
-      <button class="btn big primary" data-act="things">▤ Вещи</button>
+      <button class="btn big round" data-act="finish" aria-label="Отделка комнаты" title="Отделка">🎨</button>
+      <button class="btn big round primary" data-act="things" aria-label="Вещи" title="Вещи">🧺</button>
     </div>
     <div class="stash" aria-hidden="true">📦<small>В шкафчик</small></div>
     <aside class="panel" data-panel="things" hidden></aside>
@@ -31,6 +37,8 @@ export function createHud({ root, store, camera, actions, onChange }) {
   const roomsNav = q('.rooms'), toastEl = q('.toast');
   let openPanel = null, toastTimer = 0, activeRoom = null, thingsTab = 'mine', startDrag = null, toLocal = (x, y) => ({ x, y }), press = null, suppressUntil = 0;
   const admin = createAdmin({ root, store, camera, actions, toast, onChange });
+
+  function syncSound() { q('[data-act=sound]').textContent = soundOn() ? '🔊' : '🔇'; }
 
   function toast(text, error = false) {
     toastEl.textContent = text;
@@ -48,7 +56,7 @@ export function createHud({ root, store, camera, actions, onChange }) {
 
   function renderRooms() {
     roomsNav.innerHTML = store.layout.list.map((r) =>
-      `<button class="room-chip${r.room.id === activeRoom ? ' active' : ''}" data-room="${esc(r.room.id)}">${esc(r.room.name)}</button>`).join('');
+      `<button class="room-chip${r.room.id === activeRoom ? ' active' : ''}" data-room="${esc(r.room.id)}" aria-label="${esc(r.room.name)}"><i>${ROOM_ICONS[r.room.type] || '🏠'}</i><span>${esc(r.room.name)}</span></button>`).join('');
   }
 
   function showPanel(name) {
@@ -64,7 +72,7 @@ export function createHud({ root, store, camera, actions, onChange }) {
   function renderThings() {
     const r = actions.roomInView();
     const el = q('[data-panel=things]');
-    const tabs = `<nav class="ptabs"><button class="ptab${thingsTab === 'mine' ? ' on' : ''}" data-ttab="mine">Шкафчик</button><button class="ptab${thingsTab === 'shop' ? ' on' : ''}" data-ttab="shop">Каталог</button></nav>`;
+    const tabs = `<nav class="ptabs"><button class="ptab${thingsTab === 'mine' ? ' on' : ''}" data-ttab="mine" aria-label="Шкафчик">🧺 <small>Шкафчик</small></button><button class="ptab${thingsTab === 'shop' ? ' on' : ''}" data-ttab="shop" aria-label="Каталог">🛍️ <small>Каталог</small></button></nav>`;
     let body = '';
     if (thingsTab === 'mine') {
       const stacks = new Map();
@@ -96,7 +104,10 @@ export function createHud({ root, store, camera, actions, onChange }) {
     if (!press || press.id !== e.pointerId || !startDrag) return;
     const p = toLocal(e.clientX, e.clientY), dx = p.x - press.x, dy = p.y - press.y;
     if (Math.hypot(dx, dy) < 10) return;
-    if (Math.abs(dy) > Math.abs(dx) * 1.2) { press = null; return; } // это прокрутка списка
+    // Почти вертикально и ещё внутри панели — это прокрутка списка; иначе тянем вещь.
+    const r = thingsPanel.getBoundingClientRect();
+    const inside = e.clientX >= r.left && e.clientX <= r.right && e.clientY >= r.top && e.clientY <= r.bottom;
+    if (inside && Math.abs(dy) > Math.abs(dx) * 2) { press = null; return; }
     const item = store.state.items.find((i) => i.inv && i.def === press.def);
     press = null;
     if (item && startDrag(e, item.id)) { suppressUntil = performance.now() + 500; showPanel(null); }
@@ -128,7 +139,8 @@ export function createHud({ root, store, camera, actions, onChange }) {
     const t = e.target.closest('button, .stack'); if (!t || !root.contains(t)) return;
     const act = t.dataset.act;
     if (performance.now() < suppressUntil && t.closest('.panel')) return; // клик-хвост от перетаскивания
-    if (act === 'undo') { if (store.undo()) toast('Отменено'); else toast('Нечего отменять'); }
+    if (act === 'undo') { play(store.undo() ? 'whoosh' : 'nope'); }
+    else if (act === 'sound') { setSound(!soundOn()); syncSound(); }
     else if (act === 'night') actions.toggleNight();
     else if (act === 'full') fullscreen();
     else if (act === 'admin') { showPanel(null); admin.open(); }
@@ -138,15 +150,16 @@ export function createHud({ root, store, camera, actions, onChange }) {
     else if (t.dataset.ttab) { thingsTab = t.dataset.ttab; renderThings(); }
     else if (t.dataset.get) {
       const res = actions.obtain(t.dataset.get);
-      const n = store.state.items.filter((i) => i.inv && i.def === t.dataset.get).length;
-      toast(res.ok ? `${itemDef(t.dataset.get).name} — в шкафчике (×${n})` : res.reason, !res.ok);
+      if (res.ok) { play('pop'); t.classList.remove('got'); void t.offsetWidth; t.classList.add('got'); }
+      else { play('nope'); toast(res.reason, true); }
     } else if (t.dataset.discard) {
       const item = store.state.items.find((i) => i.inv && i.def === t.dataset.discard);
-      if (item) { actions.discard(item.id); toast(`Выброшено: ${itemDef(item.def).name}. Отменить — ↶`); renderThings(); }
+      if (item) { actions.discard(item.id); play('stash'); renderThings(); }
     } else if (t.dataset.stack) {
       const item = store.state.items.find((i) => i.inv && i.def === t.dataset.stack);
       const res = item ? actions.placeFromInventory(item.id) : { ok: false, reason: 'Вещь не найдена' };
-      toast(res.ok ? `${itemDef(item.def).name} — в комнате. Перетащи на нужное место.` : res.reason, !res.ok);
+      if (res.ok) { anims.fall('item:' + item.id, res.fall); setTimeout(() => play('land'), 150); onChange(); }
+      else { play('nope'); toast(res.reason, true); }
       renderThings();
     } else {
       const r = actions.roomInView(); if (!r) return;
@@ -191,6 +204,7 @@ export function createHud({ root, store, camera, actions, onChange }) {
     }
     q('[data-act=undo]').disabled = !store.canUndo;
     q('[data-act=night]').textContent = store.state.night ? '☀' : '☾';
+    syncSound();
     admin.sync();
   }
 

@@ -10,8 +10,10 @@ import { createInteraction } from './input/interaction.js';
 import { createHud } from './ui/hud.js';
 import { loadSave, loadLegacyRoom, writeSave } from './save/storage.js';
 import { validate, fromLegacyRoom } from './save/migrate.js';
-import { CHARS } from './core/catalog.js';
 import { loadLibrary } from './core/library.js';
+import { anims } from './render/anims.js';
+import { play } from './audio.js';
+import { surfacesOf } from './core/physics.js';
 
 const $ = (id) => document.getElementById(id);
 
@@ -57,6 +59,7 @@ async function boot() {
     camera.worldW = store.layout.width;
     let busy = camera.update(dt);
     busy = interaction.frame(dt) || busy;
+    busy = anims.active() || busy;
     const goal = store.state.night ? 1 : 0;
     if (Math.abs(goal - night) > 0.005) { night += (goal - night) * Math.min(1, dt * 3); busy = true; } else night = goal;
     renderer.draw(interaction.drag, night, hud.guides);
@@ -86,10 +89,12 @@ async function boot() {
   interaction.on('dragstart', (g) => { if (g.kind === 'item') hud.showStash(true); });
   interaction.on('dragend', () => { hud.showStash(false); hud.refreshThings(); });
   interaction.on('stash', (on) => hud.hotStash(on));
-  interaction.on('stashed', (name) => hud.toast(`${name} — в шкафчике`));
-  interaction.on('invalid', (name) => hud.toast(`«${name}» сюда не встанет`, true));
+  // Без текста: звук и движение говорят сами за себя.
+  interaction.on('stashed', () => hud.refreshThings());
   interaction.on('tap', ({ kind, id }) => {
-    if (kind === 'char') hud.toast(id === 'cat' ? 'Мур-р! Я Персик' : `Привет! Я ${CHARS[id].name}`);
+    if (kind === 'char') { anims.hop('char:' + id); play(id === 'cat' ? 'meow' : 'boing'); }
+    else { anims.wobble('item:' + id); play('pop'); }
+    invalidate();
   });
   interaction.on('tapEmpty', () => hud.closePanels());
 
@@ -109,12 +114,12 @@ async function boot() {
   invalidate();
   saveNow().then((res) => {
     const note = { local: 'Дом сохраняется на этом устройстве.', indexeddb: 'Дом сохраняется в запасное хранилище браузера.', session: 'Браузер не разрешает сохранение — скачивай резервную копию.' }[res.backend];
-    if (res.saved) hud.toast(libraryNote || startNote || 'Листай дом пальцем, тяни вещи и героев', /не /.test(libraryNote));
+    if (res.saved && (libraryNote || startNote)) hud.toast(libraryNote || startNote, /не /.test(libraryNote));
     hud.setStorageNote(note);
   });
 
   // Для автотестов и отладки.
-  window.__sunny = { store, camera, renderer, actions, viewport, saveNow };
+  window.__sunny = { store, camera, renderer, actions, viewport, saveNow, physics: { surfacesOf } };
 }
 
 boot().catch((e) => {
