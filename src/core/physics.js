@@ -101,3 +101,76 @@ export function childDepth(parent, child) {
   return parent.y + 0.5 + child.on.s * 0.01;
 }
 
+
+// ── Свободное место: вещь не кладётся поверх других ──
+
+function overlaps(a0, a1, list, gap) {
+  return list.some(([b0, b1]) => a0 < b1 + gap && a1 > b0 - gap);
+}
+
+// Ближайшее к want место шириной w на отрезке [lo, hi], не задевающее занятые отрезки.
+function slotNear(want, w, lo, hi, taken, gap = 16) {
+  const half = w / 2;
+  if (hi - lo < w) return null;
+  const clampX = (x) => clamp(x, lo + half, hi - half);
+  for (let d = 0; d <= hi - lo; d += 12) {
+    for (const x of d ? [want + d, want - d] : [want]) {
+      const cx = clampX(x);
+      if (!overlaps(cx - half, cx + half, taken, gap)) return cx;
+    }
+  }
+  return null;
+}
+
+// Куда поставить вещь, чтобы она не легла в кучу: мелкая — на свободное место
+// на мебели или на полу спереди, мебель — вдоль стены, картина — на свободную стену.
+export function freeSpot(state, defId, room, wantX, selfId = null) {
+  const def = itemDef(defId);
+  if (!def || !room) return null;
+  const { w, h } = sizeOf(def);
+  const here = state.items.filter((i) => !i.inv && i.room === room.id && i.id !== selfId);
+  const span = (i) => { const b = itemBounds(i); return [b.x, b.x + b.w]; };
+
+  if (def.place === 'wall' || def.place === 'doorway') {
+    const p = snapItem(defId, room, wantX, def.place === 'wall' ? 250 : 0);
+    if (!p) return null;
+    const y0 = p.y - h / 2, y1 = p.y + h / 2;
+    const taken = here.filter((i) => itemDef(i.def)?.place === def.place).filter((i) => {
+      const b = itemBounds(i); return def.place === 'doorway' || (b.y < y1 && b.y + b.h > y0);
+    }).map(span);
+    const x = slotNear(p.x, w, 0, room.width, taken, 24);
+    return x === null ? p : { x, y: p.y };
+  }
+
+  if (isSmall(def)) {
+    // 1) свободное место на поверхностях мебели, ближайших к wantX
+    const surfaces = [];
+    for (const p of here) {
+      if (p.on) continue;
+      for (const sf of surfacesOf(p)) if (sf.open && !sf.inside) surfaces.push({ p, sf });
+    }
+    surfaces.sort((a, b) => Math.abs((a.sf.x0 + a.sf.x1) / 2 - wantX) - Math.abs((b.sf.x0 + b.sf.x1) / 2 - wantX));
+    for (const { p, sf } of surfaces.slice(0, 6)) {
+      const taken = here.filter((c) => c.on?.id === p.id && c.on.s === sf.s).map(span);
+      const x = slotNear(clamp(wantX, sf.x0, sf.x1), w, sf.x0, sf.x1, taken, 8);
+      if (x !== null) return { x, y: sf.y, on: { id: p.id, s: sf.s, dx: x - p.x } };
+    }
+    // 2) пол у переднего края
+    const y = floorBottom() - 30;
+    const taken = here.filter((i) => !i.on && isSmall(itemDef(i.def)) && Math.abs(i.y - y) < 80).map(span);
+    const x = slotNear(wantX, w, 30, room.width - 30, taken, 10);
+    return { x: x ?? clamp(wantX, 30, room.width - 30), y };
+  }
+
+  // Мебель: сначала ряд у стены, потом ряд ближе.
+  const big = here.filter((i) => !i.on && itemDef(i.def)?.place === 'floor' && !isSmall(itemDef(i.def)) && !itemDef(i.def)?.layer);
+  if (def.layer) { // ковёр — под мебелью, где-нибудь по центру свободного места
+    return { x: clamp(wantX, w / 2, room.width - w / 2), y: Math.min(floorBottom(), floorTop(room) + 260) };
+  }
+  for (const y of [floorTop(room) + 85, floorTop(room) + 220]) {
+    const taken = big.filter((i) => Math.abs(i.y - y) < 150).map(span);
+    const x = slotNear(wantX, w, 20, room.width - 20, taken, 24);
+    if (x !== null) return { x, y };
+  }
+  return { x: clamp(wantX, w / 2, room.width - w / 2), y: floorTop(room) + 85 };
+}

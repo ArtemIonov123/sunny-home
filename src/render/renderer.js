@@ -7,6 +7,7 @@ import { img, maskOf } from '../assets.js';
 import { itemBounds, charBounds, depthOf } from '../core/placement.js';
 import { backgroundFor, clearBackgrounds, prewarm } from './background.js';
 import { anims } from './anims.js';
+import { mode } from '../ui/mode.js';
 import { surfacesOf, isHidden } from '../core/physics.js';
 
 export function createRenderer(canvas, store, camera) {
@@ -54,6 +55,7 @@ export function createRenderer(canvas, store, camera) {
       add('item', i, itemBounds(i), i.open && def.openArt ? def.openArt : def.art, r.x0);
     }
     for (const c of s.chars) {
+      if (mode.design) break; // в редакторе героев не видно — не мешают расставлять мебель
       if (drag && drag.kind === 'char' && drag.id === c.id) continue;
       const r = lay.byId.get(c.room); if (!r) continue;
       add('char', c, charBounds(c), CHARS[c.id].art, r.x0);

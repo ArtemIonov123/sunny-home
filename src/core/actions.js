@@ -3,7 +3,8 @@
 import { itemDef, ROOM_TYPES } from './catalog.js';
 import { newRoom, uniqueRoomId, MAX_ROOMS, roomAtX } from './house.js';
 import { snapItem, snapChar } from './placement.js';
-import { landing, syncChildren, releaseChildren } from './physics.js';
+import { landing, syncChildren, releaseChildren, freeSpot, isSmall } from './physics.js';
+import { defaultState } from './house.js';
 import { clamp } from '../util.js';
 
 export const MAX_ITEMS = 250;
@@ -54,11 +55,9 @@ export function createActions(store, camera) {
       const r = roomInView();
       if (!item || !r) return { ok: false, reason: 'Вещь не найдена' };
       const def = itemDef(item.def);
-      // Небольшой сдвиг, чтобы несколько вещей подряд не легли точно друг на друга.
-      const cx = clamp(camera.x + camera.viewW / 2 - r.x0 + ((itemId * 97) % 240) - 120, 0, r.room.width);
-      // Мелкая вещь «падает» сверху — и может приземлиться на стол или полку.
-      const y = def.place === 'floor' ? 330 : def.place === 'doorway' ? 0 : 230;
-      const p = landing(store.state, item.def, r.room, cx, y, itemId);
+      // Свободное место рядом с серединой экрана: на мебели, на полу или на стене — не в кучу.
+      const cx = clamp(camera.x + camera.viewW / 2 - r.x0, 0, r.room.width);
+      const p = freeSpot(store.state, item.def, r.room, cx, itemId);
       if (!p) return { ok: false, reason: `«${def.name}» нельзя поставить в комнате «${r.room.name}»` };
       store.change((s) => { const i = s.items.find((i) => i.id === itemId); delete i.inv; i.room = r.room.id; i.x = p.x; i.y = p.y; if (p.on) i.on = { ...p.on }; syncChildren(s); });
       return { ok: true, fall: def.place === 'floor' ? Math.min(0, 160 - p.y) : 0 };
@@ -158,6 +157,37 @@ export function createActions(store, camera) {
       if (!item || !itemDef(item.def)?.openArt) return null;
       store.change((s) => { const i = s.items.find((i) => i.id === itemId); i.open = !i.open; });
       return store.state.items.find((i) => i.id === itemId).open;
+    },
+
+    // «По местам»: расставить комнату аккуратно. Вещи из стандартной расстановки встают
+    // на свои места, остальное — на свободные места вдоль стены, мелочь — на мебель или пол.
+    arrangeRoom(roomId) {
+      const s0 = store.state, room = s0.rooms.find((r) => r.id === roomId);
+      if (!room) return 0;
+      const ref = defaultState(), refRoom = ref.rooms.find((r) => r.type === room.type);
+      const spots = new Map(); // def → [{x,y}]
+      if (refRoom) for (const i of ref.items) if (i.room === refRoom.id && !i.on && !i.inv) {
+        if (!spots.has(i.def)) spots.set(i.def, []);
+        spots.get(i.def).push({ x: (i.x * room.width) / refRoom.width, y: i.y });
+      }
+      let moved = 0;
+      store.change((s) => {
+        const mine = s.items.filter((i) => !i.inv && i.room === roomId && !i.on);
+        // по очереди: стена → мебель → ковры → мелочь (мелочи нужна уже расставленная мебель)
+        const order = (i) => { const d = itemDef(i.def); return d.place !== 'floor' ? 0 : d.layer ? 2 : isSmall(d) ? 3 : 1; };
+        mine.sort((a, b) => order(a) - order(b) || a.x - b.x);
+        for (const i of mine) { i.inv = true; } // временно «снять» всё, чтобы расставлять заново
+        for (const i of mine) {
+          delete i.inv;
+          const free = spots.get(i.def)?.shift();
+          const p = free && order(i) !== 3 ? { ...snapItem(i.def, room, free.x, free.y) } : freeSpot(s, i.def, room, i.x, i.id);
+          if (!p) continue;
+          i.x = p.x; i.y = p.y; if (p.on) i.on = { ...p.on }; else delete i.on;
+          moved++; // syncChildren — в конце: пока мебель «снята», вещи на ней не должны падать
+        }
+        syncChildren(s);
+      });
+      return moved;
     },
 
     toggleNight() { store.change((s) => { s.night = !s.night; }); },

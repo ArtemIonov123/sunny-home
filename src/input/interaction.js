@@ -9,7 +9,8 @@ import { EDGE_ZONE, EDGE_SPEED, PAN_THRESHOLD } from '../config.js';
 import { itemDef, CHARS } from '../core/catalog.js';
 import { roomAtX } from '../core/house.js';
 import { snapChar, itemBounds, charBounds } from '../core/placement.js';
-import { landing, syncChildren, releaseChildren } from '../core/physics.js';
+import { landing, syncChildren, releaseChildren, isSmall } from '../core/physics.js';
+import { mode } from '../ui/mode.js';
 import { anims } from '../render/anims.js';
 import { play } from '../audio.js';
 import { sizeOf } from '../assets.js';
@@ -26,7 +27,9 @@ export function createInteraction({ canvas, viewport, camera, renderer, store, i
     e.preventDefault();
     const p = viewport.toScreen(e.clientX, e.clientY), w = world(p);
     const hit = renderer.hit(w.x, w.y);
-    if (hit) {
+    // В игре мебель не двигается: касание мебели — это нажатие или листание дома.
+    const movable = hit && (mode.design ? hit.kind === 'item' : hit.kind === 'char' || isSmall(itemDef(hit.obj.def)));
+    if (hit && movable) {
       const r = store.layout.byId.get(hit.obj.room);
       store.checkpoint();
       g = {
@@ -40,7 +43,7 @@ export function createInteraction({ canvas, viewport, camera, renderer, store, i
       play('pick');
       events.emit('dragstart', g);
     } else {
-      g = { kind: 'pending', pointer: e.pointerId, start: p, last: p, camStart: camera.x, samples: [{ x: p.x, t: performance.now() }] };
+      g = { kind: 'pending', pointer: e.pointerId, start: p, last: p, camStart: camera.x, samples: [{ x: p.x, t: performance.now() }], tapOn: hit };
     }
     canvas.setPointerCapture?.(e.pointerId);
     events.emit('frame');
@@ -94,7 +97,7 @@ export function createInteraction({ canvas, viewport, camera, renderer, store, i
     const d = g; g = null;
     events.emit('stash', false);
     if (d.fromInventory) finishFromInventory(d, cancel);
-    else if (d.kind === 'pending') { events.emit('tapEmpty', d.last); }
+    else if (d.kind === 'pending') { if (d.tapOn) events.emit('tap', { kind: d.tapOn.kind, id: d.tapOn.obj.id }); else events.emit('tapEmpty', d.last); }
     else if (d.kind === 'pan') {
       const a = d.samples[0], b = d.samples[d.samples.length - 1], dt = (b.t - a.t) / 1000;
       camera.release(dt > 0.01 ? -(b.x - a.x) / dt : 0);

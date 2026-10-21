@@ -8,9 +8,13 @@ import { createAdmin } from './admin.js';
 import { installFastTap } from './tap.js';
 import { anims } from '../render/anims.js';
 import { play, soundOn, setSound } from '../audio.js';
+import { mode } from './mode.js';
+import { isSmall } from '../core/physics.js';
 
 // Иконки комнат: ребёнку не нужно читать, чтобы найти кухню.
 const ROOM_ICONS = { lawn: '🌳', living: '🛋️', kitchen: '🍳', kids: '🧸', bath: '🛁', bedroom: '🛏️' };
+// Разделы редактора комнаты (как в Toca Boca: иконки сверху).
+const DESIGN_TABS = [['furniture', '🛋️', 'Мебель'], ['appliances', '🔌', 'Техника'], ['decor', '🖼️', 'Декор'], ['build', '🪟', 'Окна и двери'], ['garden', '🌳', 'Сад'], ['finish', '🖌️', 'Отделка']];
 
 export function createHud({ root, store, camera, actions, onChange }) {
   root.innerHTML = `
@@ -24,9 +28,14 @@ export function createHud({ root, store, camera, actions, onChange }) {
     </div>
     <nav class="rooms" aria-label="Комнаты"></nav>
     <div class="hud-bottom-right">
-      <button class="btn big round" data-act="finish" aria-label="Отделка комнаты" title="Отделка">🎨</button>
+      <button class="btn big round" data-act="design" aria-label="Редактор комнаты" title="Редактор комнаты">🛠️</button>
       <button class="btn big round primary" data-act="things" aria-label="Вещи" title="Вещи">🧺</button>
     </div>
+    <nav class="design-bar" aria-label="Редактор комнаты">
+      ${DESIGN_TABS.map(([k, icon, name]) => `<button class="dtab" data-dtab="${k}" aria-label="${name}" title="${name}">${icon}</button>`).join('')}
+      <button class="dtab arrange" data-act="arrange" aria-label="Расставить по местам" title="Расставить по местам">✨</button>
+      <button class="dtab done" data-act="done" aria-label="Готово" title="Готово">✓</button>
+    </nav>
     <div class="stash" aria-hidden="true">📦<small>В шкафчик</small></div>
     <aside class="panel" data-panel="things" hidden></aside>
     <aside class="panel" data-panel="finish" hidden></aside>
@@ -35,7 +44,7 @@ export function createHud({ root, store, camera, actions, onChange }) {
   installFastTap(root);
   const q = (s) => root.querySelector(s);
   const roomsNav = q('.rooms'), toastEl = q('.toast');
-  let openPanel = null, toastTimer = 0, activeRoom = null, thingsTab = 'mine', startDrag = null, toLocal = (x, y) => ({ x, y }), press = null, suppressUntil = 0;
+  let openPanel = null, toastTimer = 0, activeRoom = null, designTab = 'furniture', startDrag = null, toLocal = (x, y) => ({ x, y }), press = null, suppressUntil = 0;
   const admin = createAdmin({ root, store, camera, actions, toast, onChange });
 
   const last = {};
@@ -60,37 +69,36 @@ export function createHud({ root, store, camera, actions, onChange }) {
       `<button class="room-chip${r.room.id === activeRoom ? ' active' : ''}" data-room="${esc(r.room.id)}" aria-label="${esc(r.room.name)}"><i>${ROOM_ICONS[r.room.type] || '🏠'}</i><span>${esc(r.room.name)}</span></button>`).join('');
   }
 
-  function showPanel(name) {
-    openPanel = openPanel === name ? null : name;
+  function showPanel(name, force = false) {
+    openPanel = !force && openPanel === name ? null : name;
     for (const p of root.querySelectorAll('.panel')) p.hidden = p.dataset.panel !== openPanel;
     q('[data-act=things]').classList.toggle('on', openPanel === 'things');
-    q('[data-act=finish]').classList.toggle('on', openPanel === 'finish');
+    for (const b of root.querySelectorAll('.dtab[data-dtab]')) b.classList.toggle('on', mode.design && (openPanel === 'finish' ? b.dataset.dtab === 'finish' : openPanel === 'things' && b.dataset.dtab === designTab));
     if (openPanel === 'things') renderThings();
     if (openPanel === 'finish') renderFinish();
   }
 
-  // «Вещи»: Шкафчик — твои экземпляры; Каталог — получить новую вещь.
+  // «Вещи». В игре — мелочь (еда, игрушки, одежда, тостер…), в редакторе — мебель выбранного раздела.
+  // Сверху то, что уже есть в шкафчике (тянуть в комнату), ниже — «взять ещё» из каталога.
+  function scopeDefs() {
+    const all = allItemDefs();
+    return mode.design ? all.filter((d) => d.group === designTab && !isSmall(d)) : all.filter((d) => isSmall(d));
+  }
   function renderThings() {
-    const r = actions.roomInView();
     const el = q('[data-panel=things]');
-    const tabs = `<nav class="ptabs"><button class="ptab${thingsTab === 'mine' ? ' on' : ''}" data-ttab="mine" aria-label="Шкафчик">🧺 <small>Шкафчик</small></button><button class="ptab${thingsTab === 'shop' ? ' on' : ''}" data-ttab="shop" aria-label="Каталог">🛍️ <small>Каталог</small></button></nav>`;
-    let body = '';
-    if (thingsTab === 'mine') {
-      const stacks = new Map();
-      for (const i of store.state.items) if (i.inv && itemDef(i.def)) stacks.set(i.def, (stacks.get(i.def) || 0) + 1);
-      body = stacks.size
-        ? `<div class="grid">${[...stacks].map(([def, n]) => { const d = itemDef(def); return `<div class="stack" data-stack="${esc(def)}" role="button" tabindex="0" aria-label="${esc(d.name)}, ${n} шт."><img src="${img(d.art).src}" alt="" draggable="false"><span>${esc(d.name)}</span>${n > 1 ? `<b class="count">×${n}</b>` : ''}<button class="discard" data-discard="${esc(def)}" aria-label="Выбросить одну">🗑</button></div>`; }).join('')}</div>
-          <p class="note">Потяни вещь влево — в комнату. Или нажми — она встанет в «${esc(r?.room.name || '')}». Чтобы убрать вещь обратно, перетащи её на 📦 слева внизу.</p>`
-        : `<p class="note">Шкафчик пуст. Убранные из дома вещи попадают сюда, новые — во вкладке «Каталог».</p>`;
-    } else {
-      const defs = allItemDefs();
-      body = Object.entries(GROUPS).map(([g, gname]) => {
-        const list = defs.filter((d) => d.group === g);
-        if (!list.length) return '';
-        return `<h4>${gname}</h4><div class="grid">${list.map((d) => `<button class="thing" data-get="${esc(d.id)}"><img src="${img(d.art).src}" alt=""><span>${esc(d.name)}</span><small>${d.builtin ? '+ в шкафчик' : 'свой · + в шкафчик'}</small></button>`).join('')}</div>`;
-      }).join('') + `<p class="note">Пока всё бесплатно — магазин и деньги появятся позже. Свои предметы добавляются в «Админка → Предметы».</p>`;
-    }
-    el.innerHTML = `<header><b>Вещи</b><button class="close" data-close>×</button></header>${tabs}${body}`;
+    const defs = scopeDefs(), ids = new Set(defs.map((d) => d.id));
+    const stacks = new Map();
+    for (const i of store.state.items) if (i.inv && ids.has(i.def)) stacks.set(i.def, (stacks.get(i.def) || 0) + 1);
+    const title = mode.design ? DESIGN_TABS.find(([k]) => k === designTab)?.[2] || 'Мебель' : 'Вещи';
+    const mine = stacks.size
+      ? `<div class="grid">${[...stacks].map(([def, n]) => { const d = itemDef(def); return `<div class="stack" data-stack="${esc(def)}" role="button" tabindex="0" aria-label="${esc(d.name)}, ${n} шт."><img src="${img(d.art).src}" alt="" draggable="false"><span>${esc(d.name)}</span>${n > 1 ? `<b class="count">×${n}</b>` : ''}</div>`; }).join('')}</div>`
+      : '<p class="note">🧺 пусто</p>';
+    const shop = defs.length
+      ? `<div class="grid">${defs.map((d) => `<button class="thing" data-get="${esc(d.id)}" aria-label="Взять: ${esc(d.name)}"><img src="${img(d.art).src}" alt=""><span>${esc(d.name)}</span><small>＋</small></button>`).join('')}</div>`
+      : '';
+    el.innerHTML = `<header><b>${esc(title)}</b><button class="close" data-close>×</button></header>
+      <h4>🧺 <small>Шкафчик</small></h4>${mine}
+      <h4>🛍️ <small>Взять ещё</small></h4>${shop}`;
   }
 
   // Перетаскивание из шкафчика: горизонтальное движение — тянем вещь, вертикальное — листаем список.
@@ -145,10 +153,16 @@ export function createHud({ root, store, camera, actions, onChange }) {
     else if (act === 'night') actions.toggleNight();
     else if (act === 'full') fullscreen();
     else if (act === 'admin') { showPanel(null); admin.open(); }
-    else if (act === 'things' || act === 'finish') showPanel(act);
+    else if (act === 'things') showPanel('things');
+    else if (act === 'design') setDesign(true);
+    else if (act === 'done') setDesign(false);
+    else if (act === 'arrange') {
+      const r = actions.roomInView();
+      if (r && actions.arrangeRoom(r.room.id)) { play('whoosh'); for (const i of store.state.items) if (!i.inv && i.room === r.room.id) anims.squash('item:' + i.id); onChange(); }
+    }
+    else if (t.dataset.dtab) { if (t.dataset.dtab === 'finish') showPanel('finish', true); else { designTab = t.dataset.dtab; showPanel('things', true); } play('click'); }
     else if (t.dataset.close !== undefined) showPanel(null);
     else if (t.dataset.room) goTo(t.dataset.room);
-    else if (t.dataset.ttab) { thingsTab = t.dataset.ttab; renderThings(); }
     else if (t.dataset.get) {
       const res = actions.obtain(t.dataset.get);
       if (res.ok) { play('pop'); t.classList.remove('got'); void t.offsetWidth; t.classList.add('got'); }
@@ -179,6 +193,14 @@ export function createHud({ root, store, camera, actions, onChange }) {
     else return;
     renderFinish();
   });
+
+  function setDesign(on) {
+    mode.set(on);
+    root.closest('#app')?.classList.toggle('design', on);
+    play(on ? 'open' : 'close');
+    if (on) showPanel('things', true); else showPanel(null);
+    onChange();
+  }
 
   async function fullscreen() {
     try {
@@ -221,7 +243,8 @@ export function createHud({ root, store, camera, actions, onChange }) {
     refreshThings() { if (openPanel === 'things') renderThings(); },
     get guides() { return admin.guides; },
     setStorageNote: (t) => admin.setStorageNote(t),
-    closePanels() { showPanel(null); },
+    closePanels() { if (!mode.design) showPanel(null); },
+    setDesign,
   };
 }
 

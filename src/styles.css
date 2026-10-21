@@ -157,3 +157,22 @@ button:disabled { opacity: .4; cursor: default; }
 @keyframes got { 40% { transform: scale(1.12); background: #fff1c9; } }
 .rooms { right: auto; max-width: calc(100% - 200px); }
 #app.compact .rooms { right: auto; max-width: calc(100% - 160px); }
+
+/* Редактор комнаты: сверху полоса разделов с круглыми иконками (как в Toca Boca). */
+.design-bar { position: absolute; left: 50%; transform: translateX(-50%); top: 10px; display: none; gap: 6px; padding: 6px 10px; background: #bfeef0ee; border: 2px solid #7cc9cf; border-radius: 40px; box-shadow: 0 4px 14px #2c6a7033; }
+#app.design .design-bar { display: flex; }
+.dtab { width: 56px; height: 56px; border-radius: 50%; border: 0; background: #6fd6dc; font-size: 26px; display: grid; place-items: center; padding: 0; }
+.dtab.on { background: #22b7c6; box-shadow: 0 0 0 3px #fff inset; }
+.dtab.arrange { background: #ffe39a; }
+.dtab.done { background: #47b86a; color: #fff; font-size: 30px; font-weight: 900; }
+#app.design .hud-bottom-right, #app.design .brand, #app.design [data-act=admin], #app.design [data-act=night], #app.design [data-act=sound] { display: none; }
+#app.design .panel { top: 86px; }
+#app.compact .dtab { width: 46px; height: 46px; font-size: 21px; }
+#app.compact .design-bar { top: 6px; gap: 4px; padding: 4px 8px; }
+#app.compact.design .panel { top: 66px; }
+.panel h4 small { font-size: 12px; color: #9a7a58; }
+#app.compact .panel .grid { grid-template-columns: repeat(3, 1fr); gap: 6px; }
+#app.compact .panel .stack, #app.compact .panel .thing { min-height: 78px; padding: 5px; font-size: 12px; }
+#app.compact .panel .stack img, #app.compact .panel .thing img { height: 42px; }
+#app.compact .panel header b { font-size: 17px; }
+#app.compact .panel h4 { margin: 6px 0 4px; }

@@ -14,6 +14,7 @@ import { loadLibrary } from './core/library.js';
 import { anims } from './render/anims.js';
 import { play } from './audio.js';
 import { surfacesOf } from './core/physics.js';
+import { mode } from './ui/mode.js';
 
 const $ = (id) => document.getElementById(id);
 
@@ -95,6 +96,7 @@ async function boot() {
 
   // ── события касаний ──
   interaction.on('frame', invalidate);
+  mode.on('change', () => invalidate());
   interaction.on('dragstart', (g) => { if (g.kind === 'item') hud.showStash(true); });
   interaction.on('dragend', () => { hud.showStash(false); hud.refreshThings(); });
   interaction.on('stash', (on) => hud.hotStash(on));
@@ -133,7 +135,7 @@ async function boot() {
   });
 
   // Для автотестов и отладки.
-  window.__sunny = { store, camera, renderer, actions, viewport, saveNow, physics: { surfacesOf } };
+  window.__sunny = { store, camera, renderer, actions, viewport, saveNow, physics: { surfacesOf }, mode, hud };
 }
 
 boot().catch((e) => {

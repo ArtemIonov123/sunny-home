@@ -83,9 +83,21 @@ async function device(name, width, height, touch) {
   const inView = await p.evaluate(() => window.__sunny.actions.roomInView().room.id);
   check(inView === 'kitchen', 'кнопка «Кухня» привела камеру в кухню');
 
-  // 3. Перенос стола из кухни в детскую с прокруткой у края
+  // 3а. В игре мебель стоит на месте: тянешь стол — листается дом, стол не двигается
   const table = await p.evaluate(() => window.__sunny.store.state.items.find((i) => i.def === 'table' && i.room === 'kitchen').id);
   let t = await item(table);
+  await drag(await toClient(t.wx, t.y - 135), await toClient(t.wx - 300, t.y - 135));
+  const tPlay = await item(table);
+  check(tPlay.x === t.x && tPlay.room === t.room, 'в игре мебель не двигается');
+  await tap('.room-chip[data-room=kitchen]'); await p.waitForTimeout(900);
+  // дальше — в редакторе комнаты (герои прячутся)
+  await tap('[data-act=design]');
+  check(await p.evaluate(() => window.__sunny.mode.design && !window.__sunny.renderer.hit(0, 0) !== undefined), 'включён редактор комнаты');
+  const heroHidden = await p.evaluate(() => { const S = window.__sunny, c = S.store.state.chars[0], x0 = S.store.layout.byId.get(c.room).x0; return S.renderer.hit(x0 + c.x, c.y - 100)?.kind !== 'char'; });
+  check(heroHidden, 'в редакторе герои спрятаны');
+  await tap('[data-panel=things] [data-close]');
+  t = await item(table);
+  // 3. Перенос стола из кухни в детскую с прокруткой у края
   const tableStart = await toClient(t.wx, t.y - 135); // столешница
   const edge = await p.evaluate(() => { const { camera } = window.__sunny; return { wx: camera.x + camera.viewW - 40, wy: 780 }; });
   const edgeClient = await toClient(edge.wx, edge.wy);
@@ -113,7 +125,7 @@ async function device(name, width, height, touch) {
   check(bottomOk, 'картина целиком осталась на стене');
 
   // 6. Отделка: перекрасить стену гостиной
-  await tap('[data-act=finish]');
+  await tap('[data-dtab=finish]');
   await tap('.swatch[data-wall="#cfe0ef"]');
   const color = await p.evaluate(() => window.__sunny.store.state.rooms.find((r) => r.id === 'living').wall.color);
   check(color === '#cfe0ef', 'цвет стены гостиной изменился');
@@ -125,6 +137,7 @@ async function device(name, width, height, touch) {
   const color2 = await p.evaluate(() => window.__sunny.store.state.rooms.find((r) => r.id === 'living').wall.color);
   check(color2 !== '#cfe0ef', 'отмена вернула прежний цвет');
 
+  await tap('[data-act=done]'); // выйти из редактора
   // 8. Переставить кухню правее через админку
   await tap('[data-act=admin]');
   const orderBefore = await p.evaluate(() => window.__sunny.store.state.rooms.map((r) => r.id).join(','));
@@ -144,6 +157,7 @@ async function device(name, width, height, touch) {
   const counts = () => p.evaluate(() => window.__sunny.actions.counts());
   const total0 = (await counts()).total;
 
+  await tap('[data-act=design]'); await tap('[data-panel=things] [data-close]');
   // 10. Убрать вещь в шкафчик (зона 📦) — вещь не пропадает
   const pic2 = await p.evaluate(() => { const s = window.__sunny.store; const r = window.__sunny.actions.roomInView(); return s.state.items.find((i) => !i.inv && i.room === r.room.id && i.def !== 'door')?.id; });
   if (pic2) {
@@ -161,9 +175,9 @@ async function device(name, width, height, touch) {
     check((await counts()).total === total0, 'общее число вещей не изменилось');
   }
 
+  await tap('[data-act=done]');
   // 11. Шкафчик: нажать на вещь — она встаёт в комнату
   await tap('[data-act=things]');
-  await tap('[data-ttab=mine]');
   const c1a = await counts();
   await tap('.stack');
   const c1b = await counts();
@@ -172,7 +186,6 @@ async function device(name, width, height, touch) {
   // 12. Шкафчик: вытянуть вещь пальцем в комнату
   await tap('[data-act=things]').catch(() => {});
   if (await p.locator('[data-panel=things]').isHidden()) await tap('[data-act=things]');
-  await tap('[data-ttab=mine]');
   const stackBox = await p.locator('.stack').first().boundingBox();
   if (stackBox) {
     const c2a = await counts();
@@ -187,9 +200,9 @@ async function device(name, width, height, touch) {
   if (!(await p.locator('[data-panel=things]').isHidden())) await tap('[data-panel=things] [data-close]');
 
   // 13. Каталог: получить новую вещь → +1 в шкафчике
-  await tap('[data-act=things]'); await tap('[data-ttab=shop]');
+  await tap('[data-act=things]');
   const c3a = await counts();
-  await tap('[data-get=picture]');
+  await tap('[data-get=banana]');
   const c3b = await counts();
   check(c3b.inventory === c3a.inventory + 1 && c3b.total === c3a.total + 1, 'из каталога — ровно одна новая вещь в шкафчик');
   await tap('[data-panel=things] [data-close]');
@@ -225,13 +238,14 @@ async function device(name, width, height, touch) {
     });
     if (info) {
       await p.waitForTimeout(300);
-      await tap('[data-act=things]'); await tap('[data-ttab=mine]');
+      await tap('[data-act=things]');
       await p.locator(`.stack[data-stack=${info.fruitDef}]`).scrollIntoViewIfNeeded();
       const card = await p.locator(`.stack[data-stack=${info.fruitDef}]`).boundingBox();
       await drag({ x: card.x + card.width / 2, y: card.y + card.height / 2 }, await toClient(info.wx, info.wy), { steps: 14 });
       await p.waitForTimeout(500);
       let f = await p.evaluate((id) => window.__sunny.store.state.items.find((i) => i.id === id), info.fruit);
       check(f?.on?.id === info.sofa, 'вещь, брошенная над диваном, легла на диван');
+      await tap('[data-act=design]'); await tap('[data-panel=things] [data-close]');
       // тащим диван за левый край спинки
       const from = await toClient(info.sofaX - 230, info.sofaY - 60);
       const to = await toClient(info.sofaX - 230 + 260, info.sofaY - 60 + 60);
@@ -243,6 +257,11 @@ async function device(name, width, height, touch) {
       await p.waitForTimeout(300);
       f = await p.evaluate((id) => window.__sunny.store.state.items.find((i) => i.id === id), info.fruit);
       check(!f.on && !f.inv && f.room === 'living', 'диван убран — вещь с него упала на пол, а не исчезла');
+      // «По местам»: в комнате не остаётся наложенной мебели
+      await tap('[data-act=arrange]'); await p.waitForTimeout(300);
+      const clash = await p.evaluate(() => { const S = window.__sunny, r = S.actions.roomInView().room; const big = S.store.state.items.filter((i) => !i.inv && !i.on && i.room === r.id && ['table','sofa','armchair','tv_stand','bookshelf','fridge','stove','sink_counter','kitchen_counter','washing_machine','floor_lamp','plant_big'].includes(i.def)); let n = 0; for (const a of big) for (const b of big) if (a.id < b.id && Math.abs(a.y - b.y) < 100 && Math.abs(a.x - b.x) < 60) n++; return n; });
+      check(clash === 0, 'после «по местам» мебель не стоит друг на друге');
+      await tap('[data-act=done]');
     }
   }
 
