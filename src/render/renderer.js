@@ -5,16 +5,19 @@ import { VIEW_H, MAX_DPR } from '../config.js';
 import { itemDef, CHARS } from '../core/catalog.js';
 import { img, maskOf } from '../assets.js';
 import { itemBounds, charBounds, depthOf } from '../core/placement.js';
-import { backgroundFor, clearBackgrounds } from './background.js';
+import { backgroundFor, clearBackgrounds, prewarm } from './background.js';
 import { anims } from './anims.js';
 import { surfacesOf, isHidden } from '../core/physics.js';
 
 export function createRenderer(canvas, store, camera) {
-  const ctx = canvas.getContext('2d');
+  // alpha:false — непрозрачный холст дешевле передавать на экран.
+  const ctx = canvas.getContext('2d', { alpha: false });
   let k = 1;
 
+  let quality = 1, lastCss = [0, 0]; // quality < 1 — игра сама снизила чёткость на медленном телефоне
   function resize(cssW, cssH) {
-    const dpr = Math.min(window.devicePixelRatio || 1, MAX_DPR);
+    lastCss = [cssW, cssH];
+    const dpr = Math.max(0.75, Math.min(window.devicePixelRatio || 1, MAX_DPR) * quality);
     canvas.style.width = cssW + 'px';
     canvas.style.height = cssH + 'px';
     canvas.width = Math.round(cssW * dpr);
@@ -87,7 +90,8 @@ export function createRenderer(canvas, store, camera) {
     ctx.translate(b.x + b.w / 2 + (pose?.dx || 0), b.y + b.h + (pose?.dy || 0));
     if (rot) ctx.rotate(rot);
     if (sx !== 1 || sy !== 1) ctx.scale(sx, sy);
-    if (glow) { ctx.shadowColor = 'rgba(255,248,200,.95)'; ctx.shadowBlur = 22; }
+    // «Поднятая» вещь: чуть крупнее, без размытой тени (shadowBlur на телефоне очень дорогой).
+    if (glow) ctx.scale(1.06, 1.06);
     ctx.drawImage(im, -b.w / 2, -b.h, b.w, b.h);
     ctx.restore();
   }
@@ -108,7 +112,9 @@ export function createRenderer(canvas, store, camera) {
     const x0 = drag.target.r.x0;
     ctx.save();
     ctx.strokeStyle = 'rgba(255,240,170,.95)'; ctx.lineWidth = 8; ctx.lineCap = 'round';
-    ctx.shadowColor = 'rgba(255,220,120,.9)'; ctx.shadowBlur = 14;
+    ctx.strokeStyle = 'rgba(255,214,110,.45)'; ctx.lineWidth = 18;
+    ctx.beginPath(); ctx.moveTo(x0 + sf.x0 + 6, sf.y); ctx.lineTo(x0 + sf.x1 - 6, sf.y); ctx.stroke();
+    ctx.strokeStyle = 'rgba(255,246,190,.95)'; ctx.lineWidth = 7;
     ctx.beginPath(); ctx.moveTo(x0 + sf.x0 + 6, sf.y); ctx.lineTo(x0 + sf.x1 - 6, sf.y); ctx.stroke();
     ctx.restore();
   }
@@ -170,6 +176,8 @@ export function createRenderer(canvas, store, camera) {
     if (drag && drag.kind !== 'pan') {
       drawLanding(drag);
       ctx.globalAlpha = drag.valid ? 1 : 0.6;
+      ctx.fillStyle = 'rgba(70,45,20,.18)'; // тень под вещью в руке
+      ctx.beginPath(); ctx.ellipse(drag.b.x + drag.b.w / 2, drag.b.y + drag.b.h + 18, drag.b.w * 0.32, 10, 0, 0, Math.PI * 2); ctx.fill();
       drawSprite(drag.art, drag.b, { glow: true, tilt: drag.tilt || 0 });
       // Вещи с полок и столешницы едут вместе с мебелью.
       if (carried.length && drag.from) {
@@ -188,5 +196,21 @@ export function createRenderer(canvas, store, camera) {
     }
   }
 
-  return { resize, draw, hit, get scale() { return k; } };
+  // Подготовить фоны всех комнат, начиная с ближайших к камере.
+  function warmup() {
+    const mid = camera.x + camera.viewW / 2;
+    const order = [...store.layout.list].sort((a, b) => Math.abs((a.x0 + a.x1) / 2 - mid) - Math.abs((b.x0 + b.x1) / 2 - mid)).map((r) => r.room);
+    prewarm(store.state.rooms, k, order);
+  }
+
+  // Медленный телефон: снизить чёткость на ступень (до 3 раз). Возвращает true, если снизили.
+  function lowerQuality() {
+    if (quality <= 0.62) return false;
+    quality = Math.round((quality - 0.13) * 100) / 100;
+    resize(lastCss[0], lastCss[1]);
+    warmup();
+    return true;
+  }
+
+  return { resize, draw, hit, warmup, lowerQuality, get quality() { return quality; }, get scale() { return k; } };
 }

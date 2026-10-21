@@ -23,7 +23,8 @@ export async function loadAssets(onProgress) {
   let done = 0;
   await Promise.all(ASSET_KEYS.map((key) => new Promise((resolve, reject) => {
     const im = new Image();
-    im.onload = () => { images.set(key, im); onProgress?.(++done, ASSET_KEYS.length); resolve(); };
+    // decode() — распаковать картинку заранее, а не в момент первого показа (иначе рывок).
+    im.onload = () => { images.set(key, im); onProgress?.(++done, ASSET_KEYS.length); (im.decode ? im.decode().catch(() => {}) : Promise.resolve()).then(resolve); };
     im.onerror = () => reject(new Error('Не загрузилась картинка: ' + key));
     im.src = source(key);
   })));

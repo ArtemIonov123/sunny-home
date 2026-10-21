@@ -4,8 +4,8 @@ import { VIEW_H } from '../config.js';
 import { img } from '../assets.js';
 import { drawLawn } from './lawn.js';
 
-const cache = new Map(); // roomId → { key, canvas, used }
-const MAX_CACHED = 4;
+const cache = new Map(); // roomId → { key, canvas, used, bytes }
+const BUDGET = 90 * 1024 * 1024; // сколько памяти можно держать под готовые фоны
 let frame = 0;
 
 export function backgroundFor(room, k) {
@@ -13,7 +13,8 @@ export function backgroundFor(room, k) {
   const key = JSON.stringify([room.type, room.width, room.split, room.wall, room.floor, k]);
   let entry = cache.get(room.id);
   if (!entry || entry.key !== key) {
-    entry = { key, canvas: paint(room, k), used: frame };
+    const canvas = paint(room, k);
+    entry = { key, canvas, used: frame, bytes: canvas.width * canvas.height * 4 };
     cache.set(room.id, entry);
     evict();
   }
@@ -24,9 +25,32 @@ export function backgroundFor(room, k) {
 export function clearBackgrounds() { cache.clear(); }
 
 function evict() {
-  if (cache.size <= MAX_CACHED) return;
+  let total = 0;
+  for (const e of cache.values()) total += e.bytes;
+  if (total <= BUDGET) return;
   const oldest = [...cache.entries()].sort((a, b) => a[1].used - b[1].used);
-  while (cache.size > MAX_CACHED) cache.delete(oldest.shift()[0]);
+  while (total > BUDGET && oldest.length > 2) { const [id, e] = oldest.shift(); cache.delete(id); total -= e.bytes; }
+}
+
+export function isReady(room, k) {
+  const e = cache.get(room.id);
+  return !!e && e.key === JSON.stringify([room.type, room.width, room.split, room.wall, room.floor, k]);
+}
+
+// Заранее, в свободное время, рисуем фоны всех комнат по одной — чтобы при листании
+// не было рывка в момент входа в новую комнату.
+let warmTimer = 0;
+export function prewarm(rooms, k, order) {
+  clearTimeout(warmTimer);
+  const queue = order.filter((r) => !isReady(r, k));
+  const idle = window.requestIdleCallback || ((fn) => setTimeout(fn, 60));
+  const step = () => {
+    const r = queue.shift();
+    if (!r) return;
+    backgroundFor(r, k);
+    warmTimer = setTimeout(() => idle(step), 30);
+  };
+  warmTimer = setTimeout(() => idle(step), 200);
 }
 
 function paint(room, k) {

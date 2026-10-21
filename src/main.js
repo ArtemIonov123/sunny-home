@@ -44,7 +44,7 @@ async function boot() {
   const camera = createCamera();
   const renderer = createRenderer(canvas, store, camera);
   let hud = null;
-  const viewport = createViewport(app, (w, h) => { renderer.resize(w, h); camera.worldW = store.layout.width; camera.nudge(0); invalidate(); });
+  const viewport = createViewport(app, (w, h) => { renderer.resize(w, h); camera.worldW = store.layout.width; camera.nudge(0); invalidate(); renderer.warmup(); });
   const actions = createActions(store, camera);
   hud = createHud({ root: $('ui'), store, camera, actions, onChange: () => invalidate() });
   const interaction = createInteraction({ canvas, viewport, camera, renderer, store, isOverStash: hud.isOverStash });
@@ -53,7 +53,16 @@ async function boot() {
   // ── кадры: рисуем только когда что-то меняется или движется ──
   let running = false, last = 0, night = state.night ? 1 : 0;
   function invalidate() { if (!running) { running = true; last = 0; requestAnimationFrame(frame); } }
+  // Автокачество: если кадры подряд идут медленно (дольше ~28 мс), снижаем чёткость холста.
+  let slowFrames = 0, measured = 0;
+  function watchSpeed(ms) {
+    if (!last) return;
+    measured++;
+    slowFrames = ms > 28 ? slowFrames + 1 : Math.max(0, slowFrames - 1);
+    if (measured > 20 && slowFrames > 24) { slowFrames = 0; measured = 0; if (renderer.lowerQuality()) camera.viewW = camera.viewW; }
+  }
   function frame(t) {
+    watchSpeed(t - last);
     const dt = last ? Math.min((t - last) / 1000, 0.05) : 1 / 60;
     last = t;
     camera.worldW = store.layout.width;
@@ -116,6 +125,7 @@ async function boot() {
   camera.holdAt(r.x0); camera.mode = 'idle';
   $('loading').hidden = true;
   invalidate();
+  renderer.warmup(); // фоны остальных комнат — в свободное время
   saveNow().then((res) => {
     const note = { local: 'Дом сохраняется на этом устройстве.', indexeddb: 'Дом сохраняется в запасное хранилище браузера.', session: 'Браузер не разрешает сохранение — скачивай резервную копию.' }[res.backend];
     if (res.saved && (libraryNote || startNote)) hud.toast(libraryNote || startNote, /не /.test(libraryNote));

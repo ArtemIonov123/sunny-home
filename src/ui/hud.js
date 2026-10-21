@@ -38,7 +38,8 @@ export function createHud({ root, store, camera, actions, onChange }) {
   let openPanel = null, toastTimer = 0, activeRoom = null, thingsTab = 'mine', startDrag = null, toLocal = (x, y) => ({ x, y }), press = null, suppressUntil = 0;
   const admin = createAdmin({ root, store, camera, actions, toast, onChange });
 
-  function syncSound() { q('[data-act=sound]').textContent = soundOn() ? '🔊' : '🔇'; }
+  const last = {};
+  function syncSound() { const t = soundOn() ? '🔊' : '🔇'; if (last.sound !== t) { last.sound = t; q('[data-act=sound]').textContent = t; } }
 
   function toast(text, error = false) {
     toastEl.textContent = text;
@@ -202,8 +203,11 @@ export function createHud({ root, store, camera, actions, onChange }) {
       if (changedRoom && openPanel === 'finish') renderFinish();
       if (changedRoom && openPanel === 'things') renderThings();
     }
-    q('[data-act=undo]').disabled = !store.canUndo;
-    q('[data-act=night]').textContent = store.state.night ? '☀' : '☾';
+    // Меняем DOM только если что-то изменилось: запись в DOM каждый кадр заставляет
+    // браузер пересчитывать вёрстку — на телефоне это и было «подвисание».
+    const undoOff = !store.canUndo, night = store.state.night ? '☀' : '☾';
+    if (last.undo !== undoOff) { last.undo = undoOff; q('[data-act=undo]').disabled = undoOff; }
+    if (last.night !== night) { last.night = night; q('[data-act=night]').textContent = night; }
     syncSound();
     admin.sync();
   }
