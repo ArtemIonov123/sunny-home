@@ -5,12 +5,13 @@
 // Пока вещь у края экрана, камера едет. Позиция вещи пересчитывается КАЖДЫЙ кадр
 // из пальца и камеры — поэтому вещь не отстаёт и не прыгает.
 import { EDGE_ZONE, EDGE_SPEED, PAN_THRESHOLD } from '../config.js';
-import { ITEMS, CHARS } from '../core/catalog.js';
+import { itemDef, CHARS } from '../core/catalog.js';
 import { roomAtX } from '../core/house.js';
 import { snapItem, snapChar, itemBounds, charBounds } from '../core/placement.js';
+import { sizeOf } from '../assets.js';
 import { emitter } from '../util.js';
 
-export function createInteraction({ canvas, viewport, camera, renderer, store, isOverTrash }) {
+export function createInteraction({ canvas, viewport, camera, renderer, store, isOverStash }) {
   const events = emitter();
   let g = null; // текущий жест
 
@@ -53,7 +54,7 @@ export function createInteraction({ canvas, viewport, camera, renderer, store, i
     } else if (g.kind !== 'pending') {
       if (dist > 6) g.moved = true;
       update();
-      if (g.kind === 'item') events.emit('trash', isOverTrash(e.clientX, e.clientY));
+      if (g.kind === 'item') events.emit('stash', isOverStash(e.clientX, e.clientY));
     }
     events.emit('frame');
   }
@@ -68,7 +69,7 @@ export function createInteraction({ canvas, viewport, camera, renderer, store, i
       g.target = { r, pos };
       g.valid = !!pos;
       // Вещь идёт за пальцем; на стене/проёме сразу показываем, куда она встанет.
-      const show = pos && ITEMS[g.obj.def].place !== 'floor' ? { x: r.x0 + pos.x, y: pos.y } : { x: ax, y: ay };
+      const show = pos && itemDef(g.obj.def).place !== 'floor' ? { x: r.x0 + pos.x, y: pos.y } : { x: ax, y: ay };
       g.b = itemBounds({ def: g.obj.def, x: show.x, y: show.y });
     } else {
       const pos = snapChar(r.room, lx, ay);
@@ -80,8 +81,9 @@ export function createInteraction({ canvas, viewport, camera, renderer, store, i
   function finish(e, cancel = false) {
     if (!g || g.pointer !== e.pointerId) return;
     const d = g; g = null;
-    events.emit('trash', false);
-    if (d.kind === 'pending') { events.emit('tapEmpty', d.last); }
+    events.emit('stash', false);
+    if (d.fromInventory) finishFromInventory(d, cancel);
+    else if (d.kind === 'pending') { events.emit('tapEmpty', d.last); }
     else if (d.kind === 'pan') {
       const a = d.samples[0], b = d.samples[d.samples.length - 1], dt = (b.t - a.t) / 1000;
       camera.release(dt > 0.01 ? -(b.x - a.x) / dt : 0);
@@ -90,22 +92,50 @@ export function createInteraction({ canvas, viewport, camera, renderer, store, i
     } else if (!d.moved) {
       store.dropCheckpoint();
       events.emit('tap', { kind: d.kind, id: d.id });
-    } else if (d.kind === 'item' && isOverTrash(d.clientX, d.clientY)) {
-      store.change((s) => { s.items = s.items.filter((i) => i.id !== d.id); }, { undo: false });
-      events.emit('removed', ITEMS[d.obj.def].name);
+    } else if (d.kind === 'item' && isOverStash(d.clientX, d.clientY)) {
+      store.change((s) => { const i = s.items.find((i) => i.id === d.id); if (i) { delete i.room; delete i.x; delete i.y; i.inv = true; } }, { undo: false });
+      events.emit('stashed', itemDef(d.obj.def).name);
     } else if (!d.valid) {
       store.dropCheckpoint();
-      events.emit('invalid', ITEMS[d.obj.def].name);
+      events.emit('invalid', itemDef(d.obj.def).name);
     } else {
       const { r, pos } = d.target;
       store.change((s) => {
         const list = d.kind === 'item' ? s.items : s.chars;
         const o = list.find((o) => o.id === d.id);
-        if (o) { o.room = r.room.id; o.x = pos.x; o.y = pos.y; }
+        if (o) { delete o.inv; o.room = r.room.id; o.x = pos.x; o.y = pos.y; }
       }, { undo: false });
     }
     events.emit('dragend');
     events.emit('frame');
+  }
+
+  // Вещь вытащили пальцем из шкафчика (панель справа) — дальше её ведёт сцена.
+  function startFromInventory(e, itemId) {
+    if (g) return false;
+    const item = store.state.items.find((i) => i.id === itemId && i.inv);
+    if (!item) return false;
+    const def = itemDef(item.def), { h } = sizeOf(def);
+    const p = viewport.toScreen(e.clientX, e.clientY);
+    store.checkpoint();
+    g = {
+      kind: 'item', id: item.id, obj: item, art: def.art, pointer: e.pointerId, fromInventory: true,
+      start: p, last: p, moved: true, clientX: e.clientX, clientY: e.clientY,
+      dx: 0, dy: def.anchor === 'center' ? 0 : h / 2, // палец держит середину вещи
+    };
+    try { canvas.setPointerCapture(e.pointerId); } catch (err) { /* указатель уже отпущен */ }
+    update();
+    events.emit('dragstart', g);
+    events.emit('frame');
+    return true;
+  }
+
+  function finishFromInventory(d, cancel) {
+    const name = itemDef(d.obj.def).name;
+    if (cancel || isOverStash(d.clientX, d.clientY)) { store.dropCheckpoint(); return; }
+    if (!d.valid) { store.dropCheckpoint(); events.emit('invalid', name); return; }
+    const { r, pos } = d.target;
+    store.change((s) => { const o = s.items.find((o) => o.id === d.id); if (o) { delete o.inv; o.room = r.room.id; o.x = pos.x; o.y = pos.y; } }, { undo: false });
   }
 
   // Вызывается каждый кадр. Возвращает true, если нужен следующий кадр.
@@ -128,9 +158,9 @@ export function createInteraction({ canvas, viewport, camera, renderer, store, i
   canvas.addEventListener('contextmenu', (e) => e.preventDefault());
 
   return {
-    on: events.on, frame,
+    on: events.on, frame, startFromInventory,
     get drag() { return g && g.kind !== 'pending' && g.kind !== 'pan' ? g : null; },
     get active() { return !!g; },
-    name: (kind, id) => (kind === 'char' ? CHARS[id].name : ITEMS[store.state.items.find((i) => i.id === id)?.def]?.name),
+    name: (kind, id) => (kind === 'char' ? CHARS[id].name : itemDef(store.state.items.find((i) => i.id === id)?.def)?.name),
   };
 }

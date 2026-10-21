@@ -41,7 +41,8 @@ async function device(name, width, height, touch) {
     await p.waitForTimeout(250);
   }
   async function tap(sel) {
-    await p.locator(sel).first().scrollIntoViewIfNeeded();
+    try { await p.locator(sel).first().scrollIntoViewIfNeeded({ timeout: 4000 }); }
+    catch (e) { await p.screenshot({ path: `${SHOTS}/${name}_FAIL.png` }); throw new Error('Не найдено на экране: ' + sel); }
     const b = await p.locator(sel).first().boundingBox();
     if (touch) await p.touchscreen.tap(b.x + b.width / 2, b.y + b.height / 2); else await p.mouse.click(b.x + b.width / 2, b.y + b.height / 2);
     await p.waitForTimeout(250);
@@ -131,23 +132,76 @@ async function device(name, width, height, touch) {
   const snap2 = await p.evaluate(() => JSON.stringify({ r: window.__sunny.store.state.rooms.map((r) => r.id), i: window.__sunny.store.state.items.map((i) => [i.id, i.room, Math.round(i.x), Math.round(i.y)]) }));
   check(snap === snap2, 'после перезагрузки дом тот же');
 
-  // 10. Убрать вещь в корзину
-  const n0 = await p.evaluate(() => window.__sunny.store.state.items.length);
-  const pic2 = await p.evaluate(() => { const s = window.__sunny.store; const r = window.__sunny.actions.roomInView(); return s.state.items.find((i) => i.room === r.room.id && i.def !== 'door')?.id; });
+  const counts = () => p.evaluate(() => window.__sunny.actions.counts());
+  const total0 = (await counts()).total;
+
+  // 10. Убрать вещь в шкафчик (зона 📦) — вещь не пропадает
+  const pic2 = await p.evaluate(() => { const s = window.__sunny.store; const r = window.__sunny.actions.roomInView(); return s.state.items.find((i) => !i.inv && i.room === r.room.id && i.def !== 'door')?.id; });
   if (pic2) {
     const it = await item(pic2);
     const from = await toClient(it.wx, it.def === 'table' ? it.y - 135 : it.y);
-    // корзина появляется после начала перетаскивания — сначала берём вещь, потом ищем корзину
     if (touch) { await touchEv('touchStart', from.x, from.y); await touchEv('touchMove', from.x + 20, from.y + 20); }
     else { await p.mouse.move(from.x, from.y); await p.mouse.down(); await p.mouse.move(from.x + 20, from.y + 20, { steps: 3 }); }
-    const tb = await p.locator('.trash').boundingBox();
+    const tb = await p.locator('.stash').boundingBox();
     const to = { x: tb.x + tb.width / 2, y: tb.y + tb.height / 2 };
     if (touch) { for (let i = 1; i <= 10; i++) await touchEv('touchMove', from.x + (to.x - from.x) * i / 10, from.y + (to.y - from.y) * i / 10); await touchEv('touchEnd'); }
     else { await p.mouse.move(to.x, to.y, { steps: 10 }); await p.mouse.up(); }
     await p.waitForTimeout(300);
-    const n1 = await p.evaluate(() => window.__sunny.store.state.items.length);
-    check(n1 === n0 - 1, 'вещь убрана в корзину');
+    const inv = await p.evaluate((id) => window.__sunny.store.state.items.find((i) => i.id === id)?.inv, pic2);
+    check(inv === true, 'вещь убрана в шкафчик, а не удалена');
+    check((await counts()).total === total0, 'общее число вещей не изменилось');
   }
+
+  // 11. Шкафчик: нажать на вещь — она встаёт в комнату
+  await tap('[data-act=things]');
+  await tap('[data-ttab=mine]');
+  const c1a = await counts();
+  await tap('.stack');
+  const c1b = await counts();
+  check(c1b.placed === c1a.placed + 1 && c1b.inventory === c1a.inventory - 1 && c1b.total === c1a.total, `из шкафчика в дом по нажатию (${c1a.inventory}→${c1b.inventory} в шкафчике)`);
+
+  // 12. Шкафчик: вытянуть вещь пальцем в комнату
+  await tap('[data-act=things]').catch(() => {});
+  if (await p.locator('[data-panel=things]').isHidden()) await tap('[data-act=things]');
+  await tap('[data-ttab=mine]');
+  const stackBox = await p.locator('.stack').first().boundingBox();
+  if (stackBox) {
+    const c2a = await counts();
+    const sx = stackBox.x + stackBox.width / 2, sy = stackBox.y + stackBox.height / 2;
+    const target = await p.evaluate(() => { const { camera } = window.__sunny; return { wx: camera.x + camera.viewW * 0.3, wy: 300 }; });
+    const tc = await toClient(target.wx, target.wy);
+    // «влево» в системе координат игры: на повёрнутом экране это вверх
+    await drag({ x: sx, y: sy }, tc, { steps: 14 });
+    const c2b = await counts();
+    check(c2b.placed === c2a.placed + 1 && c2b.total === c2a.total, 'вещь вытянута из шкафчика в комнату');
+  }
+  if (!(await p.locator('[data-panel=things]').isHidden())) await tap('[data-panel=things] [data-close]');
+
+  // 13. Каталог: получить новую вещь → +1 в шкафчике
+  await tap('[data-act=things]'); await tap('[data-ttab=shop]');
+  const c3a = await counts();
+  await tap('[data-get=picture]');
+  const c3b = await counts();
+  check(c3b.inventory === c3a.inventory + 1 && c3b.total === c3a.total + 1, 'из каталога — ровно одна новая вещь в шкафчик');
+  await tap('[data-panel=things] [data-close]');
+
+  // 14. Свой предмет: загрузить картинку с розовым фоном, сохранить в шкафчик, пережить перезагрузку
+  await tap('[data-act=admin]'); await tap('[data-tab=items]'); await tap('[data-ie-new]');
+  await p.setInputFiles('[data-ie-file]', join(root, 'tests/fixtures/test_chair.png'));
+  await p.waitForSelector('.ie-upload img', { timeout: 5000 });
+  await p.fill('[data-ie-name]', 'Тестовое кресло');
+  await p.selectOption('[data-ie-group]', 'furniture');
+  await tap('[data-ie-save-put]'); await p.waitForTimeout(600);
+  const custom = await p.evaluate(() => { const s = window.__sunny.store.state; const it = s.items.find((i) => i.def.startsWith('custom_')); return it ? { def: it.def, inv: it.inv } : null; });
+  check(!!custom && custom.inv === true, 'свой предмет сохранён и лежит в шкафчике');
+  const alpha = await p.evaluate(() => { const im = [...document.querySelectorAll('.ie-upload img')][0]; if (!im) return -1; const c = document.createElement('canvas'); c.width = im.naturalWidth; c.height = im.naturalHeight; const x = c.getContext('2d'); x.drawImage(im, 0, 0); return x.getImageData(1, 1, 1, 1).data[3]; });
+  check(alpha === 0, 'розовый фон убран (угол прозрачный)');
+  await p.screenshot({ path: `${SHOTS}/${name}_5_items.png` });
+  await tap('.admin-sheet [data-x]');
+  await p.evaluate(() => window.__sunny.saveNow());
+  await p.reload(); await p.waitForFunction(() => window.__sunny); await p.waitForTimeout(500);
+  const after = await p.evaluate((def) => ({ known: !!document && window.__sunny.store.state.items.some((i) => i.def === def), missing: (window.__sunny.store.state.missing || []).length }), custom?.def);
+  check(after.known && after.missing === 0, 'после перезагрузки свой предмет на месте');
   await p.screenshot({ path: `${SHOTS}/${name}_4_end.png` });
   check(errors.length === 0, 'нет ошибок за всё время ' + errors.join(' | '));
   await ctx.close();

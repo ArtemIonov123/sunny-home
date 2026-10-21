@@ -11,12 +11,17 @@ import { createHud } from './ui/hud.js';
 import { loadSave, loadLegacyRoom, writeSave } from './save/storage.js';
 import { validate, fromLegacyRoom } from './save/migrate.js';
 import { CHARS } from './core/catalog.js';
+import { loadLibrary } from './core/library.js';
 
 const $ = (id) => document.getElementById(id);
 
 async function boot() {
   const app = $('app'), canvas = $('scene');
   await loadAssets((n, total) => { $('loadingNote').textContent = `Картинки: ${n} из ${total}`; });
+
+  // Свои предметы — до чтения сохранения, чтобы их экземпляры узнались.
+  let libraryNote = '';
+  try { libraryNote = await loadLibrary(); } catch (e) { libraryNote = 'Свои предметы не загрузились: ' + e.message; }
 
   // Сохранение → прошлая версия 0.4.1 → новый дом.
   let state = null, startNote = '';
@@ -40,7 +45,8 @@ async function boot() {
   const viewport = createViewport(app, (w, h) => { renderer.resize(w, h); camera.worldW = store.layout.width; camera.nudge(0); invalidate(); });
   const actions = createActions(store, camera);
   hud = createHud({ root: $('ui'), store, camera, actions, onChange: () => invalidate() });
-  const interaction = createInteraction({ canvas, viewport, camera, renderer, store, isOverTrash: hud.isOverTrash });
+  const interaction = createInteraction({ canvas, viewport, camera, renderer, store, isOverStash: hud.isOverStash });
+  hud.setDragStarter(interaction.startFromInventory, viewport.toLocal);
 
   // ── кадры: рисуем только когда что-то меняется или движется ──
   let running = false, last = 0, night = state.night ? 1 : 0;
@@ -77,11 +83,11 @@ async function boot() {
 
   // ── события касаний ──
   interaction.on('frame', invalidate);
-  interaction.on('dragstart', (g) => { if (g.kind === 'item') hud.showTrash(true); });
-  interaction.on('dragend', () => hud.showTrash(false));
-  interaction.on('trash', (on) => hud.hotTrash(on));
+  interaction.on('dragstart', (g) => { if (g.kind === 'item') hud.showStash(true); });
+  interaction.on('dragend', () => { hud.showStash(false); hud.refreshThings(); });
+  interaction.on('stash', (on) => hud.hotStash(on));
+  interaction.on('stashed', (name) => hud.toast(`${name} — в шкафчике`));
   interaction.on('invalid', (name) => hud.toast(`«${name}» сюда не встанет`, true));
-  interaction.on('removed', (name) => hud.toast(`Убрано: ${name}. Отменить — ↶`));
   interaction.on('tap', ({ kind, id }) => {
     if (kind === 'char') hud.toast(id === 'cat' ? 'Мур-р! Я Персик' : `Привет! Я ${CHARS[id].name}`);
   });
@@ -103,7 +109,7 @@ async function boot() {
   invalidate();
   saveNow().then((res) => {
     const note = { local: 'Дом сохраняется на этом устройстве.', indexeddb: 'Дом сохраняется в запасное хранилище браузера.', session: 'Браузер не разрешает сохранение — скачивай резервную копию.' }[res.backend];
-    if (res.saved) hud.toast(startNote || 'Листай дом пальцем, тяни вещи и героев');
+    if (res.saved) hud.toast(libraryNote || startNote || 'Листай дом пальцем, тяни вещи и героев', /не /.test(libraryNote));
     hud.setStorageNote(note);
   });
 

@@ -15,6 +15,38 @@ export const ITEMS = {
   door:    { name: 'Дверной проём', art: 'items/door_frame', h: 430, anchor: 'bottom', place: 'doorway', group: 'build', indoorOnly: true },
 };
 
+// ── Свои предметы из админки (каталог хранится отдельно от сохранения дома) ──
+export const GROUPS = { furniture: 'Мебель', decor: 'Декор', build: 'Окна и двери', toys: 'Игрушки', food: 'Еда' };
+export const PLACES = { floor: 'На пол', wall: 'На стену', doorway: 'Проём (стоит на линии пола)' };
+export const CUSTOM_PREFIX = 'custom_';
+
+const custom = new Map();
+
+// Определение предмета по id — встроенного или своего. null, если такого нет.
+export function itemDef(id) { return ITEMS[id] || custom.get(id) || null; }
+
+export function allItemDefs() {
+  return [
+    ...Object.entries(ITEMS).map(([id, d]) => ({ id, ...d, builtin: true })),
+    ...[...custom.values()].map((d) => ({ ...d, builtin: false })),
+  ];
+}
+
+export function customDefs() { return [...custom.values()]; }
+
+// Из сохранённой записи делаем определение, понятное движку.
+export function toDef(rec) {
+  const place = PLACES[rec.place] ? rec.place : 'floor';
+  return {
+    id: rec.id, name: rec.name, group: GROUPS[rec.group] ? rec.group : 'decor', place,
+    w: rec.w, anchor: place === 'wall' ? 'center' : 'bottom', indoorOnly: place !== 'floor',
+    art: 'custom/' + rec.id, image: rec.image,
+  };
+}
+
+export function putCustomDef(def) { custom.set(def.id, def); }
+export function removeCustomDef(id) { custom.delete(id); }
+
 export const CHARS = {
   girl: { name: 'Мила',   art: 'chars/girl', h: 300 },
   boy:  { name: 'Тим',    art: 'chars/boy',  h: 300 },

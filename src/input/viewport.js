@@ -16,6 +16,7 @@ export function createViewport(app, onResize) {
       app.style.height = vp.cssH + 'px';
       app.style.transform = vp.rotated ? `translateX(${vw}px) rotate(90deg)` : 'none';
       app.classList.toggle('compact', vp.cssH < 520);
+      app.classList.toggle('rotated', vp.rotated);
       onResize(vp.cssW, vp.cssH);
     },
 

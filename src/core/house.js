@@ -39,8 +39,8 @@ export function defaultState() {
     it('window', 'bedroom', 1300, 260), it('picture', 'bedroom', 560, 240),
   ];
   return {
-    schema: 1,
-    rooms, items, next: id,
+    schema: 2,
+    rooms, items: [...items, ...['picture', 'picture', 'table', 'window', 'door'].map((def) => ({ id: id++, def, inv: true }))], next: id,
     chars: [
       { id: 'girl', room: 'living', x: 900, y: 770 },
       { id: 'boy', room: 'living', x: 1700, y: 800 },

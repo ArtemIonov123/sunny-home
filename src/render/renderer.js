@@ -2,7 +2,7 @@
 // Поиск вещи под пальцем использует ТОТ ЖЕ список и порядок, что и отрисовка,
 // поэтому палец всегда хватает то, что видно сверху.
 import { VIEW_H, MAX_DPR } from '../config.js';
-import { ITEMS, CHARS } from '../core/catalog.js';
+import { itemDef, CHARS } from '../core/catalog.js';
 import { img, maskOf } from '../assets.js';
 import { itemBounds, charBounds, depthOf, wallBottom, floorTop, floorBottom } from '../core/placement.js';
 import { backgroundFor, clearBackgrounds } from './background.js';
@@ -35,8 +35,9 @@ export function createRenderer(canvas, store, camera) {
     };
     for (const i of s.items) {
       if (drag && drag.kind === 'item' && drag.id === i.id) continue;
-      const r = lay.byId.get(i.room); if (!r || !ITEMS[i.def]) continue;
-      add('item', i, itemBounds(i), ITEMS[i.def].art, r.x0);
+      if (i.inv) continue; // в шкафчике — не в доме
+      const def = itemDef(i.def), r = lay.byId.get(i.room); if (!r || !def) continue;
+      add('item', i, itemBounds(i), def.art, r.x0);
     }
     for (const c of s.chars) {
       if (drag && drag.kind === 'char' && drag.id === c.id) continue;
@@ -81,7 +82,7 @@ export function createRenderer(canvas, store, camera) {
 
   function drawZones(drag) {
     if (!drag || drag.kind !== 'item' || !drag.target) return;
-    const { r } = drag.target, place = ITEMS[drag.obj.def].place;
+    const { r } = drag.target, place = itemDef(drag.obj.def).place;
     ctx.save();
     ctx.fillStyle = drag.valid ? 'rgba(120,200,150,.16)' : 'rgba(220,100,80,.14)';
     if (place === 'floor') ctx.fillRect(r.x0, floorTop(r.room), r.room.width, floorBottom() - floorTop(r.room));
@@ -135,7 +136,7 @@ export function createRenderer(canvas, store, camera) {
     ctx.setTransform(k, 0, 0, k, -camera.x * k, 0);
     drawZones(drag);
     for (const e of entries(drag)) {
-      if (e.kind === 'char' || ITEMS[e.obj.def]?.place === 'floor') shadowUnder(e.b);
+      if (e.kind === 'char' || itemDef(e.obj.def)?.place === 'floor') shadowUnder(e.b);
       drawSprite(e.art, e.b, false);
     }
     drawPartitions();

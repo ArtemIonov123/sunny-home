@@ -1,11 +1,12 @@
 // Админка. Разделы: «Комнаты» (порядок, ширина, добавить/убрать),
-// «Разметка» (граница стены и пола, область движения), «Данные» (резервная копия).
-// Позже здесь появятся «Предметы» и «Рецепты».
+// «Разметка» (граница стены и пола, область движения), «Предметы» (свои предметы),
+// «Данные» (резервная копия, счётчик экземпляров). Позже — «Рецепты».
 import { ROOM_TYPES } from '../core/catalog.js';
 import { ROOM_WIDTHS, MAX_ROOMS, defaultState } from '../core/house.js';
 import { escapeHtml as esc } from '../util.js';
 import { validate } from '../save/migrate.js';
 import { normalize } from '../core/actions.js';
+import { createItemEditor } from './itemEditor.js';
 
 export function createAdmin({ root, store, camera, actions, toast, onChange }) {
   const el = document.createElement('section');
@@ -15,6 +16,8 @@ export function createAdmin({ root, store, camera, actions, toast, onChange }) {
   el.setAttribute('aria-label', 'Админка');
   root.append(el);
   let tab = 'rooms', isOpen = false, storageNote = '';
+  const items = createItemEditor({ store, actions, toast, onChange });
+  items.bind(el);
 
   const open = () => { isOpen = true; el.hidden = false; render(); onChange(); };
   const close = () => { isOpen = false; el.hidden = true; onChange(); };
@@ -51,7 +54,9 @@ export function createAdmin({ root, store, camera, actions, toast, onChange }) {
   }
 
   function dataTab() {
+    const c = actions.counts();
     return `<p class="adm-help">${esc(storageNote || 'Дом сохраняется на этом устройстве автоматически.')}</p>
+      <p class="adm-help"><b>Вещей всего: ${c.total}</b> · в доме ${c.placed} · в шкафчике ${c.inventory}${c.missing ? ` · спрятано (нет предмета в библиотеке): ${c.missing}` : ''}</p>
       <div class="adm-buttons">
         <button data-export class="primary">↓ Скачать резервную копию (JSON)</button>
         <button data-import>↑ Загрузить из файла</button>
@@ -62,26 +67,27 @@ export function createAdmin({ root, store, camera, actions, toast, onChange }) {
 
   function render() {
     if (!isOpen) return;
-    const tabs = { rooms: 'Комнаты', markup: 'Разметка', data: 'Данные' };
+    const tabs = { rooms: 'Комнаты', markup: 'Разметка', items: 'Предметы', data: 'Данные' };
     el.innerHTML = `<header><b>Админка</b>
         <nav>${Object.entries(tabs).map(([k, n]) => `<button class="tab${tab === k ? ' on' : ''}" data-tab="${k}">${n}</button>`).join('')}</nav>
         <button class="close" data-x aria-label="Закрыть">×</button></header>
-      <div class="adm-body">${tab === 'rooms' ? roomsTab() : tab === 'markup' ? markupTab() : dataTab()}</div>`;
+      <div class="adm-body">${tab === 'rooms' ? roomsTab() : tab === 'markup' ? markupTab() : tab === 'items' ? '<div class="items-tab"></div>' : dataTab()}</div>`;
+    if (tab === 'items') items.mount(el.querySelector('.items-tab'));
   }
 
   el.addEventListener('click', async (e) => {
-    const b = e.target.closest('button'); if (!b) return;
+    const b = e.target.closest('button'); if (!b || b.closest('.items-tab')) return; // «Предметы» обрабатывает свой модуль
     const id = b.closest('.adm-row')?.dataset.id;
-    if (b.dataset.x !== undefined) return close();
+    if (b.dataset.x !== undefined) { if (items.dirty && tab === 'items') toast('Черновик предмета сохранится до следующего открытия админки'); return close(); }
     if (b.dataset.tab) { tab = b.dataset.tab; render(); onChange(); return; }
     if (b.dataset.up !== undefined) actions.moveRoom(id, -1);
     else if (b.dataset.down !== undefined) actions.moveRoom(id, 1);
     else if (b.dataset.show !== undefined) { const r = store.layout.byId.get(id); camera.flyTo(r.x0 + r.room.width / 2 - camera.viewW / 2); }
     else if (b.dataset.del !== undefined) {
       const room = store.state.rooms.find((r) => r.id === id);
-      if (!confirm(`Убрать комнату «${room.name}»?`)) return;
+      if (!confirm(`Убрать комнату «${room.name}»? Вещи из неё уйдут в шкафчик.`)) return;
       const res = actions.removeRoom(id);
-      toast(res.ok ? 'Комната убрана' : res.reason, !res.ok);
+      toast(res.ok ? 'Комната убрана' + (res.moved ? `, вещи (${res.moved}) ушли в шкафчик` : '') : res.reason, !res.ok);
     } else if (b.dataset.addroom !== undefined) {
       const res = actions.addRoom(el.querySelector('.adm-type-new').value);
       if (!res.ok) toast(res.reason, true);
@@ -107,7 +113,7 @@ export function createAdmin({ root, store, camera, actions, toast, onChange }) {
 
   // Ползунки: живое изменение, один шаг отмены на всё движение.
   let sliding = false;
-  el.addEventListener('pointerdown', (e) => { if (e.target.matches('input[type=range]')) { store.checkpoint(); sliding = true; } });
+  el.addEventListener('pointerdown', (e) => { if (e.target.matches('[data-split],[data-walk]')) { store.checkpoint(); sliding = true; } });
   el.addEventListener('input', (e) => {
     if (!e.target.matches('[data-split],[data-walk]')) return;
     const r = actions.roomInView()?.room; if (!r) return;
@@ -120,7 +126,7 @@ export function createAdmin({ root, store, camera, actions, toast, onChange }) {
     labels[1].textContent = Math.round(r.walkTop * 100) + '%';
     onChange();
   });
-  el.addEventListener('change', (e) => { if (e.target.matches('input[type=range]')) sliding = false; });
+  el.addEventListener('change', (e) => { if (e.target.matches('[data-split],[data-walk]')) sliding = false; });
 
   function exportJson() {
     const text = JSON.stringify({ format: 'sunny-home', ...store.state }, null, 1);

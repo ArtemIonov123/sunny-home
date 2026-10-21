@@ -1,14 +1,15 @@
 // Проверка и обновление формата сохранения.
 // Правило: новое поле или изменение формата → schema+1 и функция в MIGRATIONS.
 // Старые сохранения никогда не выбрасываются молча.
-import { ITEMS, CHARS, ROOM_TYPES, WALL_PATTERNS, FLOOR_MATERIALS } from '../core/catalog.js';
+import { ITEMS, itemDef, CHARS, ROOM_TYPES, WALL_PATTERNS, FLOOR_MATERIALS } from '../core/catalog.js';
 import { defaultState, newRoom, MAX_ROOMS } from '../core/house.js';
 import { clamp, isHex } from '../util.js';
 
-export const SCHEMA = 1;
+export const SCHEMA = 2;
 
 const MIGRATIONS = {
-  // 1: (s) => { ...переход с 1 на 2...; s.schema = 2; return s; },
+  // 1 → 2: появился шкафчик. Все вещи из версии 1 стоят в доме, формат вещи в доме не меняется.
+  1: (s) => ({ ...s, schema: 2 }),
 };
 
 const num = (v, a, b, d) => (Number.isFinite(v) ? clamp(v, a, b) : d);
@@ -60,10 +61,13 @@ export function validate(raw) {
   const ids = new Set();
   const items = [], missing = [];
   for (const i of [...(Array.isArray(s.items) ? s.items : []), ...(Array.isArray(s.missing) ? s.missing : [])]) {
-    if (!i || !Number.isInteger(i.id) || ids.has(i.id) || !Number.isFinite(i.x) || !Number.isFinite(i.y)) continue;
+    if (!i || !Number.isInteger(i.id) || ids.has(i.id)) continue;
+    const inInventory = i.inv === true || !Number.isFinite(i.x) || !Number.isFinite(i.y);
     ids.add(i.id);
-    const item = { id: i.id, def: String(i.def), room: roomIds.has(i.room) ? i.room : fallbackRoom, x: i.x, y: i.y };
-    (ITEMS[item.def] ? items : missing).push(item); // неизвестный предмет откладываем, а не удаляем
+    const item = inInventory
+      ? { id: i.id, def: String(i.def), inv: true }
+      : { id: i.id, def: String(i.def), room: roomIds.has(i.room) ? i.room : fallbackRoom, x: i.x, y: i.y };
+    (itemDef(item.def) ? items : missing).push(item); // неизвестный предмет откладываем, а не удаляем
   }
 
   const chars = Object.keys(CHARS).map((id, k) => {

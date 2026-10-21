@@ -35,10 +35,10 @@ button:disabled { opacity: .4; cursor: default; }
 .room-chip { flex: 0 0 auto; min-height: 46px; border: 0; border-radius: 17px; background: transparent; padding: 0 16px; font-size: 17px; font-weight: 700; white-space: nowrap; }
 .room-chip.active { background: #f2c27a; }
 
-.trash { position: absolute; left: 14px; bottom: 84px; width: 110px; height: 110px; border-radius: 28px; border: 3px dashed #c98a6e; background: #fff1e8e6; display: none; flex-direction: column; align-items: center; justify-content: center; font-size: 40px; color: #b5694c; }
-.trash small { font-size: 14px; font-weight: 700; }
-.trash.show { display: flex; }
-.trash.hot { background: #ffd6c4; transform: scale(1.08); border-style: solid; }
+.stash { position: absolute; left: 14px; bottom: 84px; width: 110px; height: 110px; border-radius: 28px; border: 3px dashed #8fae78; background: #f1f7e6e6; display: none; flex-direction: column; align-items: center; justify-content: center; font-size: 40px; color: #5f7d4f; }
+.stash small { font-size: 14px; font-weight: 700; }
+.stash.show { display: flex; }
+.stash.hot { background: #d9eec4; transform: scale(1.08); border-style: solid; }
 
 .toast { position: absolute; left: 50%; top: 76px; transform: translateX(-50%); max-width: min(680px, 90%); background: #fffbf1f5; border: 2px solid #dcc09a; border-radius: 18px; padding: 10px 18px; font-size: 17px; text-align: center; opacity: 0; transition: opacity .25s; pointer-events: none !important; box-shadow: 0 4px 16px #6e4a2620; }
 .toast.show { opacity: 1; }
@@ -98,8 +98,47 @@ button:disabled { opacity: .4; cursor: default; }
 #app.compact .hud-top-right, #app.compact .hud-top-left { top: 8px; }
 #app.compact .toast { top: 62px; font-size: 15px; }
 #app.compact .panel { top: 62px; bottom: 66px; }
-#app.compact .trash { bottom: 66px; width: 92px; height: 92px; }
+#app.compact .stash { bottom: 66px; width: 92px; height: 92px; }
 #app.compact .admin-sheet { width: 58%; }
 #app.compact .adm-type { display: none; }
+#app.compact .admin-sheet header > b { display: none; }
+#app.compact .admin-sheet .tab { padding: 0 9px; font-size: 14px; }
 #app.compact .room-chip { min-height: 40px; font-size: 14px; }
 @media (max-width: 700px) { .brand small { display: none; } }
+
+.ptabs { display: flex; gap: 6px; margin-bottom: 10px; }
+.ptab { flex: 1; min-height: 44px; border: 2px solid #e0c9a6; border-radius: 14px; background: #fffdf6; font-weight: 800; font-size: 15px; }
+.ptab.on { background: #f2c27a; border-color: #a8794c; }
+.stack { position: relative; border: 2px solid #ead7b9; background: #fffdf6; border-radius: 16px; padding: 8px; min-height: 104px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; font-size: 15px; font-weight: 700; cursor: grab; touch-action: pan-y; }
+.stack img { width: 100%; height: 62px; object-fit: contain; pointer-events: none; -webkit-user-drag: none; }
+.stack .count { position: absolute; left: 6px; top: 6px; background: #f2c27a; border-radius: 10px; padding: 1px 7px; font-size: 13px; }
+.stack .discard { position: absolute; right: 2px; top: 2px; width: 40px; height: 40px; border: 0; background: transparent; font-size: 16px; opacity: .7; }
+.thing small { font-size: 11px; color: #9a7a58; font-weight: 600; }
+
+/* Админка → Предметы */
+.ie-bar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 10px; }
+.ie-bar button, .ie-actions button { min-height: 44px; border: 1px solid #cfd6c2; border-radius: 12px; background: #fffef8; padding: 0 14px; font-size: 15px; }
+.ie-bar .primary, .ie-actions .primary { background: #678a6a; color: #fff; border-color: #678a6a; }
+.ie-title { font-size: 15px; }
+.ie-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(118px, 1fr)); gap: 8px; }
+.ie-card { border: 1px solid #d6dccb; border-radius: 14px; background: #fff; padding: 8px; display: flex; flex-direction: column; align-items: center; gap: 4px; min-height: 120px; }
+.ie-card img { width: 100%; height: 64px; object-fit: contain; }
+.ie-card b { font-size: 13px; }
+.ie-card small { font-size: 11px; color: #8a9480; }
+.ie-builtins { margin-top: 12px; font-size: 13px; color: #6f7a66; }
+.ie-builtins summary { min-height: 36px; cursor: pointer; }
+.ie-form { display: flex; gap: 14px; flex-wrap: wrap; }
+.ie-fields { flex: 1 1 220px; min-width: 0; }
+.ie-fields select, .ie-fields input:not([type=range]):not([type=file]) { min-height: 44px; border: 1px solid #d6dccb; border-radius: 10px; padding: 0 10px; font: inherit; font-size: 15px; background: #fff; }
+.ie-upload { position: relative; display: flex; align-items: center; gap: 12px; border: 2px dashed #b9c6a8; border-radius: 14px; padding: 10px; cursor: pointer; background: #fbfcf6; }
+.ie-upload img { width: 72px; height: 72px; object-fit: contain; background: repeating-conic-gradient(#eee 0 25%, #fff 0 50%) 0 0/14px 14px; border-radius: 8px; }
+.ie-upload span { width: 72px; height: 72px; display: grid; place-items: center; font-size: 34px; color: #9fb28f; }
+.ie-upload em { font-style: normal; font-weight: 700; }
+.ie-upload input { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
+.ie-preview { flex: 1 1 220px; text-align: center; color: #8a9480; font-size: 12px; }
+.ie-preview canvas { width: 100%; max-width: 360px; height: auto; border-radius: 12px; border: 1px solid #e0d2b8; }
+.ie-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+
+/* Экран повёрнут: браузер считает направления жестов по экрану, поэтому меняем оси местами. */
+#app.rotated .panel, #app.rotated .stack, #app.rotated .admin-sheet, #app.rotated .adm-body { touch-action: pan-x; }
+#app.rotated .rooms, #app.rotated .adm-field input { touch-action: pan-y; }

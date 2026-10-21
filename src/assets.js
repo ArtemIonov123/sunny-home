@@ -25,6 +25,18 @@ export async function loadAssets(onProgress) {
 
 export const img = (key) => images.get(key);
 
+// Картинка своего предмета из админки (data:URL).
+export function loadImage(src) {
+  return new Promise((resolve, reject) => {
+    const im = new Image();
+    im.onload = () => resolve(im);
+    im.onerror = () => reject(new Error('Не удалось прочитать картинку'));
+    im.src = src;
+  });
+}
+export function registerImage(key, im) { images.set(key, im); masks.delete(key); }
+export function forgetImage(key) { images.delete(key); masks.delete(key); }
+
 // Размер предмета в игровых единицах по его определению (w или h) и пропорциям картинки.
 export function sizeOf(def) {
   const im = images.get(def.art);

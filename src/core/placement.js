@@ -1,7 +1,7 @@
 // Правила размещения. Вместо «вернуть назад, если нельзя» вещь прижимается
 // к ближайшему допустимому месту. null — в этой комнате вещь стоять не может совсем.
 import { VIEW_H, FLOOR_BOTTOM } from '../config.js';
-import { ITEMS, CHARS, ROOM_TYPES } from './catalog.js';
+import { itemDef, CHARS, ROOM_TYPES } from './catalog.js';
 import { sizeOf } from '../assets.js';
 import { clamp } from '../util.js';
 
@@ -14,7 +14,7 @@ export const floorBottom = () => FLOOR_BOTTOM * VIEW_H;
 export const walkTop = (room) => room.walkTop * VIEW_H;
 
 export function itemBounds(item) {
-  const def = ITEMS[item.def];
+  const def = itemDef(item.def);
   const { w, h } = sizeOf(def);
   return def.anchor === 'center'
     ? { x: item.x - w / 2, y: item.y - h / 2, w, h }
@@ -28,7 +28,7 @@ export function charBounds(c) {
 }
 
 export function snapItem(defId, room, x, y) {
-  const def = ITEMS[defId];
+  const def = itemDef(defId);
   if (!def || !room) return null;
   const outdoor = ROOM_TYPES[room.type]?.outdoor;
   if (def.indoorOnly && outdoor) return null;
@@ -52,7 +52,7 @@ export function snapChar(room, x, y) {
 // Слой отрисовки: стены и дверные проёмы позади, на полу — по нижней точке.
 export function depthOf(kind, obj) {
   if (kind === 'item') {
-    const place = ITEMS[obj.def]?.place;
+    const place = itemDef(obj.def)?.place;
     if (place === 'wall') return -2000 + obj.y;
     if (place === 'doorway') return -1000;
   }
