@@ -36,7 +36,7 @@ export function createHud({ root, store, camera, actions, onChange }) {
       <button class="dtab arrange" data-act="arrange" aria-label="Расставить по местам" title="Расставить по местам">✨</button>
       <button class="dtab done" data-act="done" aria-label="Готово" title="Готово">✓</button>
     </nav>
-    <div class="stash" aria-hidden="true">📦<small>В шкафчик</small></div>
+    <div class="stash" aria-hidden="true">↩<small>Убрать</small></div>
     <aside class="panel" data-panel="things" hidden></aside>
     <aside class="panel" data-panel="finish" hidden></aside>
     <div class="toast" role="status" aria-live="polite"></div>`;
@@ -84,21 +84,14 @@ export function createHud({ root, store, camera, actions, onChange }) {
     const all = allItemDefs();
     return mode.design ? all.filter((d) => d.group === designTab && !isSmall(d)) : all.filter((d) => isSmall(d));
   }
+  // Один список: тянешь карточку — вещь сразу в комнате, нажал — встала на свободное место.
+  // (Убранные вещи хранятся незаметно и используются снова, когда берёшь такую же.)
   function renderThings() {
     const el = q('[data-panel=things]');
-    const defs = scopeDefs(), ids = new Set(defs.map((d) => d.id));
-    const stacks = new Map();
-    for (const i of store.state.items) if (i.inv && ids.has(i.def)) stacks.set(i.def, (stacks.get(i.def) || 0) + 1);
+    const defs = scopeDefs();
     const title = mode.design ? DESIGN_TABS.find(([k]) => k === designTab)?.[2] || 'Мебель' : 'Вещи';
-    const mine = stacks.size
-      ? `<div class="grid">${[...stacks].map(([def, n]) => { const d = itemDef(def); return `<div class="stack" data-stack="${esc(def)}" role="button" tabindex="0" aria-label="${esc(d.name)}, ${n} шт."><img src="${img(d.art).src}" alt="" draggable="false"><span>${esc(d.name)}</span>${n > 1 ? `<b class="count">×${n}</b>` : ''}</div>`; }).join('')}</div>`
-      : '<p class="note">🧺 пусто</p>';
-    const shop = defs.length
-      ? `<div class="grid">${defs.map((d) => `<button class="thing" data-get="${esc(d.id)}" aria-label="Взять: ${esc(d.name)}"><img src="${img(d.art).src}" alt=""><span>${esc(d.name)}</span><small>＋</small></button>`).join('')}</div>`
-      : '';
     el.innerHTML = `<header><b>${esc(title)}</b><button class="close" data-close>×</button></header>
-      <h4>🧺 <small>Шкафчик</small></h4>${mine}
-      <h4>🛍️ <small>Взять ещё</small></h4>${shop}`;
+      <div class="grid">${defs.map((d) => `<div class="stack" data-stack="${esc(d.id)}" role="button" tabindex="0" aria-label="${esc(d.name)}"><img src="${img(d.art).src}" alt="" draggable="false"><span>${esc(d.name)}</span></div>`).join('')}</div>`;
   }
 
   // Перетаскивание из шкафчика: горизонтальное движение — тянем вещь, вертикальное — листаем список.
@@ -117,9 +110,10 @@ export function createHud({ root, store, camera, actions, onChange }) {
     const r = thingsPanel.getBoundingClientRect();
     const inside = e.clientX >= r.left && e.clientX <= r.right && e.clientY >= r.top && e.clientY <= r.bottom;
     if (inside && Math.abs(dy) > Math.abs(dx) * 2) { press = null; return; }
-    const item = store.state.items.find((i) => i.inv && i.def === press.def);
+    const id = actions.take(press.def);
     press = null;
-    if (item && startDrag(e, item.id)) { suppressUntil = performance.now() + 500; showPanel(null); }
+    if (id && startDrag(e, id)) { suppressUntil = performance.now() + 500; showPanel(null); }
+    else if (!id) { play('nope'); }
   });
   const endPress = () => { press = null; };
   thingsPanel.addEventListener('pointerup', endPress);
@@ -171,11 +165,10 @@ export function createHud({ root, store, camera, actions, onChange }) {
       const item = store.state.items.find((i) => i.inv && i.def === t.dataset.discard);
       if (item) { actions.discard(item.id); play('stash'); renderThings(); }
     } else if (t.dataset.stack) {
-      const item = store.state.items.find((i) => i.inv && i.def === t.dataset.stack);
-      const res = item ? actions.placeFromInventory(item.id) : { ok: false, reason: 'Вещь не найдена' };
-      if (res.ok) { anims.fall('item:' + item.id, res.fall); setTimeout(() => play('land'), 150); onChange(); }
-      else { play('nope'); toast(res.reason, true); }
-      renderThings();
+      const id = actions.take(t.dataset.stack);
+      const res = id ? actions.placeFromInventory(id) : { ok: false };
+      if (res.ok) { anims.fall('item:' + id, res.fall); setTimeout(() => play('land'), 150); onChange(); }
+      else play('nope');
     } else {
       const r = actions.roomInView(); if (!r) return;
       if (t.dataset.wall) actions.setWall(r.room.id, { color: t.dataset.wall });

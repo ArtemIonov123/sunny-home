@@ -107,7 +107,13 @@ async function boot() {
     else {
       const opened = actions.toggleOpen(id); // холодильник и т. п. открываются нажатием
       if (opened === null) { anims.wobble('item:' + id); play('pop'); }
-      else { anims.squash('item:' + id); play(opened ? 'open' : 'close'); }
+      else {
+        anims.squash('item:' + id); play(opened ? 'open' : 'close');
+        // Еда внутри: при открытии «выпрыгивает» по очереди сверху вниз, при закрытии съёживается.
+        const inside = store.state.items.filter((i) => i.on?.id === id && i.on.s > 0).sort((a, b) => a.on.s - b.on.s || a.x - b.x);
+        inside.forEach((i, n) => (opened ? anims.appear('item:' + i.id, 0.08 + n * 0.06) : anims.vanish('item:' + i.id, 0)));
+        if (opened && inside.length) setTimeout(() => play('pop'), 140);
+      }
     }
     invalidate();
   });

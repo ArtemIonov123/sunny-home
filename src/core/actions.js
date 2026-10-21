@@ -49,6 +49,18 @@ export function createActions(store, camera) {
       return { ok: true, id };
     },
 
+    // Взять вещь из каталога: сначала убранная раньше такая же (без копий), иначе новая.
+    // Возвращает id вещи (она пока «в шкафчике»), или null, если вещей слишком много.
+    take(defId) {
+      if (!itemDef(defId)) return null;
+      const old = store.state.items.find((i) => i.inv && i.def === defId);
+      if (old) return old.id;
+      if (store.state.items.length >= MAX_ITEMS) return null;
+      let id;
+      store.change((s) => { id = s.next++; s.items.push({ id, def: defId, inv: true }); }, { undo: false, save: false });
+      return id;
+    },
+
     // Достать вещь из шкафчика в комнату на экране, ближе к середине экрана.
     placeFromInventory(itemId) {
       const item = store.state.items.find((i) => i.id === itemId && i.inv);

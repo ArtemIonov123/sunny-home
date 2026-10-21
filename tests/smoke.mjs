@@ -176,36 +176,39 @@ async function device(name, width, height, touch) {
   }
 
   await tap('[data-act=done]');
-  // 11. Шкафчик: нажать на вещь — она встаёт в комнату
+  // 11. Список вещей: нажать на карточку — вещь встаёт в комнату (ровно одна)
   await tap('[data-act=things]');
   const c1a = await counts();
   await tap('.stack');
   const c1b = await counts();
-  check(c1b.placed === c1a.placed + 1 && c1b.inventory === c1a.inventory - 1 && c1b.total === c1a.total, `из шкафчика в дом по нажатию (${c1a.inventory}→${c1b.inventory} в шкафчике)`);
+  check(c1b.placed === c1a.placed + 1 && c1b.total - c1a.total <= 1, `нажатие на карточку ставит одну вещь (${c1a.placed}→${c1b.placed})`);
 
-  // 12. Шкафчик: вытянуть вещь пальцем в комнату
-  await tap('[data-act=things]').catch(() => {});
+  // 12. Вытянуть карточку пальцем — вещь сразу в комнате
   if (await p.locator('[data-panel=things]').isHidden()) await tap('[data-act=things]');
-  const stackBox = await p.locator('.stack').first().boundingBox();
+  const stackBox = await p.locator('.stack').nth(1).boundingBox();
   if (stackBox) {
     const c2a = await counts();
     const sx = stackBox.x + stackBox.width / 2, sy = stackBox.y + stackBox.height / 2;
     const target = await p.evaluate(() => { const { camera } = window.__sunny; return { wx: camera.x + camera.viewW * 0.3, wy: 300 }; });
     const tc = await toClient(target.wx, target.wy);
-    // «влево» в системе координат игры: на повёрнутом экране это вверх
     await drag({ x: sx, y: sy }, tc, { steps: 14 });
     const c2b = await counts();
-    check(c2b.placed === c2a.placed + 1 && c2b.total === c2a.total, 'вещь вытянута из шкафчика в комнату');
+    check(c2b.placed === c2a.placed + 1, 'карточка вытянута пальцем — вещь в комнате');
   }
   if (!(await p.locator('[data-panel=things]').isHidden())) await tap('[data-panel=things] [data-close]');
 
-  // 13. Каталог: получить новую вещь → +1 в шкафчике
-  await tap('[data-act=things]');
-  const c3a = await counts();
-  await tap('[data-get=banana]');
-  const c3b = await counts();
-  check(c3b.inventory === c3a.inventory + 1 && c3b.total === c3a.total + 1, 'из каталога — ровно одна новая вещь в шкафчик');
-  await tap('[data-panel=things] [data-close]');
+  // 13. Убрал вещь и взял такую же снова — копия не появляется
+  {
+    const it = await p.evaluate(() => { const S = window.__sunny, r = S.actions.roomInView().room; return S.store.state.items.find((i) => !i.inv && i.room === r.id && i.def === 'banana') || S.store.state.items.find((i) => !i.inv && i.room === r.id && ['apple','milk','cake','juice','tomato','sandwich'].includes(i.def)); });
+    if (it) {
+      await p.evaluate((id) => window.__sunny.actions.toInventory(id), it.id);
+      const c3a = await counts();
+      await tap('[data-act=things]'); await tap(`.stack[data-stack=${it.def}]`);
+      const c3b = await counts();
+      check(c3b.total === c3a.total && c3b.placed === c3a.placed + 1, 'убранная вещь вернулась, а не появилась копия');
+      await tap('[data-panel=things] [data-close]').catch(() => {});
+    }
+  }
 
   // 14. Свой предмет: загрузить картинку с розовым фоном, сохранить в шкафчик, пережить перезагрузку
   await tap('[data-act=admin]'); await tap('[data-tab=items]'); await tap('[data-ie-new]');
@@ -215,7 +218,7 @@ async function device(name, width, height, touch) {
   await p.selectOption('[data-ie-group]', 'furniture');
   await tap('[data-ie-save-put]'); await p.waitForTimeout(600);
   const custom = await p.evaluate(() => { const s = window.__sunny.store.state; const it = s.items.find((i) => i.def.startsWith('custom_')); return it ? { def: it.def, inv: it.inv } : null; });
-  check(!!custom && custom.inv === true, 'свой предмет сохранён и лежит в шкафчике');
+  check(!!custom && !custom.inv, 'свой предмет сохранён и поставлен в дом');
   const alpha = await p.evaluate(() => { const im = [...document.querySelectorAll('.ie-upload img')][0]; if (!im) return -1; const c = document.createElement('canvas'); c.width = im.naturalWidth; c.height = im.naturalHeight; const x = c.getContext('2d'); x.drawImage(im, 0, 0); return x.getImageData(1, 1, 1, 1).data[3]; });
   check(alpha === 0, 'розовый фон убран (угол прозрачный)');
   await p.screenshot({ path: `${SHOTS}/${name}_5_items.png` });
@@ -230,8 +233,8 @@ async function device(name, width, height, touch) {
     const info = await p.evaluate(() => {
       const S = window.__sunny, s = S.store.state;
       const sofa = s.items.find((i) => i.def === 'sofa' && !i.inv && i.room === 'living');
-      const fruit = s.items.find((i) => i.def === 'banana' && i.inv) || s.items.find((i) => i.def === 'apple' && i.inv);
-      if (!sofa || !fruit) return null;
+      const fruit = { id: null, def: 'banana' };
+      if (!sofa) return null;
       const sf = S.physics.surfacesOf(sofa)[0], x0 = S.store.layout.byId.get('living').x0;
       S.camera.holdAt(x0 + sofa.x - S.camera.viewW / 2); S.camera.mode = 'idle'; S.store.touch();
       return { sofa: sofa.id, fruit: fruit.id, fruitDef: fruit.def, wx: x0 + (sf.x0 + sf.x1) / 2, wy: sf.y - 40, sofaX: x0 + sofa.x, sofaY: sofa.y };
@@ -243,7 +246,8 @@ async function device(name, width, height, touch) {
       const card = await p.locator(`.stack[data-stack=${info.fruitDef}]`).boundingBox();
       await drag({ x: card.x + card.width / 2, y: card.y + card.height / 2 }, await toClient(info.wx, info.wy), { steps: 14 });
       await p.waitForTimeout(500);
-      let f = await p.evaluate((id) => window.__sunny.store.state.items.find((i) => i.id === id), info.fruit);
+      let f = await p.evaluate((sid) => window.__sunny.store.state.items.find((i) => i.def === 'banana' && i.on?.id === sid), info.sofa);
+      info.fruit = f?.id;
       check(f?.on?.id === info.sofa, 'вещь, брошенная над диваном, легла на диван');
       await tap('[data-act=design]'); await tap('[data-panel=things] [data-close]');
       // тащим диван за левый край спинки

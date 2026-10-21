@@ -15,12 +15,17 @@ export const anims = {
   squash(key) { list.set(key, { type: 'squash', t0: now(), dur: 0.28 }); },
   wobble(key) { list.set(key, { type: 'wobble', t0: now(), dur: 0.6 }); },
   hop(key) { list.set(key, { type: 'hop', t0: now(), dur: 0.5 }); },
+  // Появление (вещи в открытом холодильнике): из точки — с отскоком; delay — очередь.
+  appear(key, delay = 0) { list.set(key, { type: 'appear', t0: now() + delay, dur: 0.32, start: now() }); },
+  // Исчезновение (дверь закрывается): съёжиться за 0.18 с.
+  vanish(key, delay = 0) { list.set(key, { type: 'vanish', t0: now() + delay, dur: 0.18, start: now() }); },
+  is(key, type) { const a = list.get(key); return !!a && a.type === type && now() - a.t0 <= a.dur; },
   // Вернуться туда, откуда взяли (если положить некуда).
   back(key, dx, dy) { list.set(key, { type: 'back', t0: now(), dur: 0.35, dx, dy }); },
 
   active() {
     const t = now();
-    for (const [k, a] of list) if (t - a.t0 > a.dur) list.delete(k);
+    for (const [k, a] of list) if (t - a.t0 > a.dur) list.delete(k); // t0 может быть в будущем (очередь)
     return list.size > 0;
   },
 
@@ -28,7 +33,7 @@ export const anims = {
   pose(key) {
     const a = list.get(key);
     if (!a) return null;
-    const p = Math.min(1, (now() - a.t0) / a.dur);
+    const p = Math.max(0, Math.min(1, (now() - a.t0) / a.dur)); // до начала (очередь) p = 0
     switch (a.type) {
       case 'fall': {
         if (p < 0.8) { const q = p / 0.8; return { dx: a.dx * (1 - q), dy: a.dy * (1 - q * q), rot: 0, sx: 1, sy: 1 }; }
@@ -41,6 +46,8 @@ export const anims = {
         const up = Math.sin(p * Math.PI);
         return { dx: 0, dy: -60 * up, rot: Math.sin(p * Math.PI * 2) * 0.06, sx: 1 - 0.05 * up, sy: 1 + 0.07 * up };
       }
+      case 'appear': { const q = p === 0 ? 0 : easeOutBack(p); return { dx: 0, dy: 12 * (1 - p), rot: 0, sx: q, sy: q }; }
+      case 'vanish': { const q = 1 - p; return { dx: 0, dy: 0, rot: 0, sx: q, sy: q }; }
       case 'back': { const q = easeOutBack(p); return { dx: a.dx * (1 - q), dy: a.dy * (1 - q), rot: 0, sx: 1, sy: 1 }; }
       default: return null;
     }

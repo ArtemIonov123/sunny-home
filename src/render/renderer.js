@@ -50,7 +50,7 @@ export function createRenderer(canvas, store, camera) {
         continue;
       }
       if (i.inv) continue; // в шкафчике — не в доме
-      if (isHidden(i, parentOf)) continue; // внутри закрытого холодильника
+      if (isHidden(i, parentOf) && !anims.is('item:' + i.id, 'vanish')) continue; // внутри закрытого холодильника (пока не доиграло «съёживание»)
       const def = itemDef(i.def), r = lay.byId.get(i.room); if (!r || !def) continue;
       add('item', i, itemBounds(i), i.open && def.openArt ? def.openArt : def.art, r.x0);
     }

@@ -75,7 +75,7 @@ export function createItemEditor({ store, actions, toast, onChange }) {
       </div>
       <div class="ie-actions">
         <button data-ie-save class="primary">Сохранить</button>
-        <button data-ie-save-put>Сохранить и в шкафчик</button>
+        <button data-ie-save-put>Сохранить и поставить в дом</button>
         ${exists ? '<button data-ie-copy>Копия</button><button data-ie-del class="danger">Удалить</button>' : ''}
       </div>`;
   }
@@ -125,8 +125,8 @@ export function createItemEditor({ store, actions, toast, onChange }) {
       dirty = false;
       store.change((s) => normalize(s), { undo: false }); // размер или место могли измениться
       actions.restoreMissing();
-      if (putToInventory) { actions.obtain(rec.id); toast(`«${rec.name}» сохранён и лежит в шкафчике`); }
-      else toast(`«${rec.name}» сохранён — он в «Вещи → Каталог»`);
+      if (putToInventory) { const id = actions.take(rec.id); if (id) actions.placeFromInventory(id); toast(`«${rec.name}» сохранён и стоит в доме`); }
+      else toast(`«${rec.name}» сохранён — он в списке вещей`);
       draft = { ...rec };
     } catch (e) { toast(e.message, true); }
     busy = false;
