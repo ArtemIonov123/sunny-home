@@ -8,7 +8,7 @@ import { itemBounds, charBounds, depthOf } from '../core/placement.js';
 import { backgroundFor, clearBackgrounds, prewarm } from './background.js';
 import { anims } from './anims.js';
 import { mode } from '../ui/mode.js';
-import { surfacesOf, isHidden } from '../core/physics.js';
+import { surfacesOf, isHidden, isSmall } from '../core/physics.js';
 
 export function createRenderer(canvas, store, camera) {
   // alpha:false — непрозрачный холст дешевле передавать на экран.
@@ -50,7 +50,7 @@ export function createRenderer(canvas, store, camera) {
         continue;
       }
       if (i.inv) continue; // в шкафчике — не в доме
-      if (isHidden(i, parentOf) && !anims.is('item:' + i.id, 'vanish')) continue; // внутри закрытого холодильника (пока не доиграло «съёживание»)
+      if (isHidden(i, parentOf)) continue; // внутри закрытого холодильника — за дверью не видно
       const def = itemDef(i.def), r = lay.byId.get(i.room); if (!r || !def) continue;
       add('item', i, itemBounds(i), i.open && def.openArt ? def.openArt : def.art, r.x0);
     }
@@ -97,6 +97,7 @@ export function createRenderer(canvas, store, camera) {
     ctx.drawImage(im, -b.w / 2, -b.h, b.w, b.h);
     ctx.restore();
   }
+  const sway = { angle: 0 }; // задаёт main.js (качание от прокрутки)
   const keyOf = (e) => (e.kind === 'char' ? 'char:' : 'item:') + e.obj.id;
 
   function shadowUnder(b) {
@@ -167,7 +168,12 @@ export function createRenderer(canvas, store, camera) {
     ctx.setTransform(k, 0, 0, k, -camera.x * k, 0);
     const carried = [];
     for (const e of entries(drag, carried)) {
-      const pose = anims.pose(keyOf(e));
+      let pose = anims.pose(keyOf(e));
+      // Качание мелочи при резкой прокрутке (у каждой вещи — свой размах, чтобы не качались строем).
+      if (sway.angle && e.kind === 'item' && isSmall(itemDef(e.obj.def))) {
+        const r = sway.angle * (0.75 + (e.obj.id % 5) * 0.12);
+        pose = pose ? { ...pose, rot: pose.rot + r } : { dx: 0, dy: 0, rot: r, sx: 1, sy: 1 };
+      }
       if (!pose || pose.dy > -20) {
         if (e.kind === 'char' || (itemDef(e.obj.def)?.place === 'floor' && !itemDef(e.obj.def)?.layer && !e.obj.on)) shadowUnder(e.b);
       }
@@ -214,5 +220,5 @@ export function createRenderer(canvas, store, camera) {
     return true;
   }
 
-  return { resize, draw, hit, warmup, lowerQuality, get quality() { return quality; }, get scale() { return k; } };
+  return { sway, resize, draw, hit, warmup, lowerQuality, get quality() { return quality; }, get scale() { return k; } };
 }

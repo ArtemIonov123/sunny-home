@@ -13,13 +13,9 @@ export const anims = {
     list.set(key, { type: 'fall', t0: now(), dur, dy, dx });
   },
   squash(key) { list.set(key, { type: 'squash', t0: now(), dur: 0.28 }); },
-  wobble(key) { list.set(key, { type: 'wobble', t0: now(), dur: 0.6 }); },
+  // delay — очередь (холодильник: вещи качаются одна за другой)
+  wobble(key, delay = 0) { list.set(key, { type: 'wobble', t0: now() + delay, dur: 0.6 }); },
   hop(key) { list.set(key, { type: 'hop', t0: now(), dur: 0.5 }); },
-  // Появление (вещи в открытом холодильнике): из точки — с отскоком; delay — очередь.
-  appear(key, delay = 0) { list.set(key, { type: 'appear', t0: now() + delay, dur: 0.32, start: now() }); },
-  // Исчезновение (дверь закрывается): съёжиться за 0.18 с.
-  vanish(key, delay = 0) { list.set(key, { type: 'vanish', t0: now() + delay, dur: 0.18, start: now() }); },
-  is(key, type) { const a = list.get(key); return !!a && a.type === type && now() - a.t0 <= a.dur; },
   // Вернуться туда, откуда взяли (если положить некуда).
   back(key, dx, dy) { list.set(key, { type: 'back', t0: now(), dur: 0.35, dx, dy }); },
 
@@ -46,8 +42,6 @@ export const anims = {
         const up = Math.sin(p * Math.PI);
         return { dx: 0, dy: -60 * up, rot: Math.sin(p * Math.PI * 2) * 0.06, sx: 1 - 0.05 * up, sy: 1 + 0.07 * up };
       }
-      case 'appear': { const q = p === 0 ? 0 : easeOutBack(p); return { dx: 0, dy: 12 * (1 - p), rot: 0, sx: q, sy: q }; }
-      case 'vanish': { const q = 1 - p; return { dx: 0, dy: 0, rot: 0, sx: q, sy: q }; }
       case 'back': { const q = easeOutBack(p); return { dx: a.dx * (1 - q), dy: a.dy * (1 - q), rot: 0, sx: 1, sy: 1 }; }
       default: return null;
     }

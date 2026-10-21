@@ -62,14 +62,30 @@ async function boot() {
     slowFrames = ms > 28 ? slowFrames + 1 : Math.max(0, slowFrames - 1);
     if (measured > 20 && slowFrames > 24) { slowFrames = 0; measured = 0; if (renderer.lowerQuality()) camera.viewW = camera.viewW; }
   }
+  // Качание мелочи от резкой прокрутки: пружина, которую «толкает» скорость камеры.
+  // Медленная прокрутка не качает — только быстрый свайп; при остановке вещи докачиваются.
+  let prevCamX = null, swayV = 0;
+  function swayStep(dt, fresh) {
+    const s = renderer.sway;
+    const vel = prevCamX === null || fresh ? 0 : (camera.x - prevCamX) / dt;
+    prevCamX = camera.x;
+    const thr = camera.viewW * 1.4; // порог «резко»: больше 1.4 экрана в секунду
+    const over = Math.abs(vel) - thr;
+    const target = over > 0 ? -Math.sign(vel) * Math.min(0.2, (over / camera.viewW) * 0.09) : 0;
+    swayV += (-140 * (s.angle - target) - 7 * swayV) * dt;
+    s.angle += swayV * dt;
+    if (Math.abs(s.angle) < 0.002 && Math.abs(swayV) < 0.02 && target === 0) { s.angle = 0; swayV = 0; return false; }
+    return true;
+  }
   function frame(t) {
     watchSpeed(t - last);
-    const dt = last ? Math.min((t - last) / 1000, 0.05) : 1 / 60;
+    const fresh = !last, dt = last ? Math.min((t - last) / 1000, 0.05) : 1 / 60;
     last = t;
     camera.worldW = store.layout.width;
     let busy = camera.update(dt);
     busy = interaction.frame(dt) || busy;
     busy = anims.active() || busy;
+    busy = swayStep(dt, fresh) || busy;
     const goal = store.state.night ? 1 : 0;
     if (Math.abs(goal - night) > 0.005) { night += (goal - night) * Math.min(1, dt * 3); busy = true; } else night = goal;
     renderer.draw(interaction.drag, night, hud.guides);
@@ -109,10 +125,13 @@ async function boot() {
       if (opened === null) { anims.wobble('item:' + id); play('pop'); }
       else {
         anims.squash('item:' + id); play(opened ? 'open' : 'close');
-        // Еда внутри: при открытии «выпрыгивает» по очереди сверху вниз, при закрытии съёживается.
-        const inside = store.state.items.filter((i) => i.on?.id === id && i.on.s > 0).sort((a, b) => a.on.s - b.on.s || a.x - b.x);
-        inside.forEach((i, n) => (opened ? anims.appear('item:' + i.id, 0.08 + n * 0.06) : anims.vanish('item:' + i.id, 0)));
-        if (opened && inside.length) setTimeout(() => play('pop'), 140);
+        // Еда внутри: при открытии покачивается по очереди сверху вниз (как от касания).
+        // При закрытии — сразу за дверью, сквозь дверь ничего не видно.
+        if (opened) {
+          const inside = store.state.items.filter((i) => i.on?.id === id && i.on.s > 0).sort((a, b) => a.on.s - b.on.s || a.x - b.x);
+          inside.forEach((i, n) => anims.wobble('item:' + i.id, 0.05 + n * 0.05));
+          if (inside.length) setTimeout(() => play('pop'), 120);
+        }
       }
     }
     invalidate();
