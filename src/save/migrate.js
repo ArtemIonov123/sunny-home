@@ -5,7 +5,7 @@ import { ITEMS, itemDef, CHARS, ROOM_TYPES, WALL_PATTERNS, FLOOR_MATERIALS } fro
 import { defaultState, newRoom, MAX_ROOMS, NEW_IN_INVENTORY } from '../core/house.js';
 import { clamp, isHex } from '../util.js';
 
-export const SCHEMA = 6;
+export const SCHEMA = 7;
 
 const MIGRATIONS = {
   // 1 → 2: появился шкафчик. Все вещи из версии 1 стоят в доме, формат вещи в доме не меняется.
@@ -36,6 +36,13 @@ const MIGRATIONS = {
   },
   // 5 → 6: вещи могут стоять на мебели (поле on). Старые данные подходят без изменений.
   5: (s) => ({ ...s, schema: 6 }),
+  // 6 → 7: кухня (холодильник, плита, мойка, тумба, полка, тостер) — в шкафчик.
+  6: (s) => {
+    const items = Array.isArray(s.items) ? [...s.items] : [];
+    let next = Math.max(Number(s.next) || 1, ...items.map((i) => (Number.isInteger(i?.id) ? i.id + 1 : 1)));
+    for (const def of ['fridge', 'stove', 'sink_counter', 'kitchen_counter', 'kitchen_shelf', 'toaster']) items.push({ id: next++, def, inv: true });
+    return { ...s, items, next, schema: 7 };
+  },
 };
 
 const num = (v, a, b, d) => (Number.isFinite(v) ? clamp(v, a, b) : d);
@@ -96,6 +103,7 @@ export function validate(raw) {
     if (!inInventory && i.on && Number.isInteger(i.on.id) && i.on.id !== i.id && Number.isInteger(i.on.s) && Number.isFinite(i.on.dx)) {
       item.on = { id: i.on.id, s: i.on.s, dx: i.on.dx }; // проверка, что мебель существует, — в syncChildren
     }
+    if (!inInventory && i.open === true) item.open = true;
     (itemDef(item.def) ? items : missing).push(item); // неизвестный предмет откладываем, а не удаляем
   }
 

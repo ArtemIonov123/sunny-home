@@ -85,6 +85,38 @@ def sprite(name, rel, max_w=None, max_h=None):
     save(im, rel)
 
 
+def sprite_pair(name_a, name_b, rel_a, rel_b, max_h):
+    """Два состояния одной вещи (закрыто/открыто): общая рамка обрезки и общий масштаб,
+    чтобы корпус не сдвигался при переключении."""
+    a, b = keyed_full(name_a), keyed_full(name_b)
+    box = union(solid_bbox(a), solid_bbox(b))
+    s = min(1.0, max_h / (box[3] - box[1]))
+    for im, rel in ((a, rel_a), (b, rel_b)):
+        im = im.crop(box)
+        if s < 1:
+            im = im.resize((round(im.width * s), round(im.height * s)), Image.LANCZOS)
+        save(im, rel)
+
+
+def keyed_full(name):
+    im = Image.open(os.path.join(SRC, name)).convert('RGBA')
+    px = im.load()
+    for y in range(im.height):
+        for x in range(im.width):
+            r, g, b, al = px[x, y]
+            if al and r > 225 and b > 225 and g < 60:
+                px[x, y] = (0, 0, 0, 0)
+    return im
+
+
+def solid_bbox(im):
+    return im.getchannel('A').point(lambda a: 255 if a > 40 else 0).getbbox()
+
+
+def union(a, b):
+    return (min(a[0], b[0]), min(a[1], b[1]), max(a[2], b[2]), max(a[3], b[3]))
+
+
 def copy_webp(name, rel):
     im = Image.open(os.path.join(SRC, name))
     save(im.convert('RGBA'), rel, quality=90)
@@ -114,6 +146,10 @@ if __name__ == '__main__':
         sprite(f'home/{n}.png', f'items/{n}.webp', max_w=mw, max_h=mh)
     for n in ('banana', 'apple', 'milk', 'juice', 'cake', 'sandwich', 'tomato'):
         copy_webp(f'legacy/{n}.webp', f'items/{n}.webp')
+    # Кухня.
+    sprite_pair('kitchen/fridge_closed.png', 'kitchen/fridge_open.png', 'items/fridge.webp', 'items/fridge_open.webp', 760)
+    for n, mw, mh in [('stove', None, 600), ('sink_counter', 760, None), ('kitchen_counter', 760, None), ('kitchen_shelf', 760, None), ('toaster', 320, None)]:
+        sprite(f'kitchen/{n}.png', f'items/{n}.webp', max_w=mw, max_h=mh)
     # Из прототипа 0.4.1
     copy_webp('legacy/room_table.webp', 'items/table.webp')
     copy_webp('legacy/room_picture.webp', 'items/picture.webp')

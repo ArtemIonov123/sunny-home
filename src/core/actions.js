@@ -152,6 +152,14 @@ export function createActions(store, camera) {
       }, { undo });
     },
 
+    // Открыть / закрыть (холодильник, позже шкафы и духовка).
+    toggleOpen(itemId) {
+      const item = store.state.items.find((i) => i.id === itemId);
+      if (!item || !itemDef(item.def)?.openArt) return null;
+      store.change((s) => { const i = s.items.find((i) => i.id === itemId); i.open = !i.open; });
+      return store.state.items.find((i) => i.id === itemId).open;
+    },
+
     toggleNight() { store.change((s) => { s.night = !s.night; }); },
   };
 }

@@ -28,6 +28,8 @@ export function newRoom(type, id) {
 
 // Кухня, стирка, еда и одежда — в шкафчике (поверхностей для блендера ещё нет).
 export const NEW_IN_INVENTORY = ['blender', 'smoothie_banana', 'banana', 'banana', 'apple', 'milk', 'juice', 'cake', 'sandwich', 'tomato', 'tshirt', 'pants', 'dress'];
+// В новом доме часть этого стоит на кухне (см. defaultState), остальное — в шкафчике.
+const KITCHEN_START = ['blender', 'banana', 'banana', 'apple', 'milk', 'juice', 'tomato', 'toaster'];
 
 export function defaultState() {
   const rooms = ['lawn', 'living', 'kitchen', 'kids', 'bath', 'bedroom'].map((t) => newRoom(t, t));
@@ -39,14 +41,27 @@ export function defaultState() {
     it('window', 'living', 1450, 260), it('picture', 'living', 520, 230), it('tv_stand', 'living', 520, 640), it('plant_big', 'living', 900, 620),
     it('rug', 'living', 1450, 840), it('sofa', 'living', 1450, 640), it('table', 'living', 1450, 800), it('armchair', 'living', 1950, 700), it('floor_lamp', 'living', 2200, 630),
     it('bookshelf', 'kids', 1300, 600),
-    it('window', 'kitchen', 1000, 260), it('table', 'kitchen', 1000, 780),
+    it('window', 'kitchen', 900, 250), it('table', 'kitchen', 1700, 800),
+    it('fridge', 'kitchen', 230, 640), it('stove', 'kitchen', 560, 640), it('sink_counter', 'kitchen', 900, 640),
+    it('kitchen_counter', 'kitchen', 1290, 640), it('kitchen_shelf', 'kitchen', 1290, 300),
     it('window', 'kids', 800, 250), it('picture', 'kids', 330, 240),
     it('picture', 'bath', 800, 240), it('washing_machine', 'bath', 1150, 650), it('laundry_basket', 'bath', 1400, 700),
     it('window', 'bedroom', 1300, 260), it('picture', 'bedroom', 560, 240),
   ];
+  // Кухня обставлена: на тумбе тостер и блендер, в холодильнике еда, на полке сок.
+  const byDef = (def, room) => items.find((i) => i.def === def && i.room === room).id;
+  const counter = byDef('kitchen_counter', 'kitchen'), fridge = byDef('fridge', 'kitchen'), shelf = byDef('kitchen_shelf', 'kitchen');
+  const onIt = (def, parent, s, dx) => ({ id: id++, def, room: 'kitchen', x: 0, y: 0, on: { id: parent, s, dx } });
+  items.push(
+    onIt('toaster', counter, 0, -100), onIt('blender', counter, 0, 90),
+    onIt('banana', fridge, 2, -10), onIt('banana', fridge, 3, -10), onIt('apple', fridge, 2, -60), onIt('milk', fridge, 4, -50), onIt('tomato', fridge, 4, 0),
+    onIt('juice', shelf, 0, -120),
+  );
+  const rest = [...NEW_IN_INVENTORY];
+  for (const d of KITCHEN_START) { const k = rest.indexOf(d); if (k >= 0) rest.splice(k, 1); }
   return {
-    schema: 6,
-    rooms, items: [...items, ...['picture', 'picture', 'table', 'window', 'door', ...NEW_IN_INVENTORY].map((def) => ({ id: id++, def, inv: true }))], next: id,
+    schema: 7,
+    rooms, items: [...items, ...['picture', 'picture', 'table', 'window', 'door', ...rest].map((def) => ({ id: id++, def, inv: true }))], next: id,
     chars: [
       { id: 'girl', room: 'living', x: 900, y: 770 },
       { id: 'boy', room: 'living', x: 1700, y: 800 },

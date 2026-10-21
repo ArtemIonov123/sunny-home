@@ -7,7 +7,7 @@ import { img, maskOf } from '../assets.js';
 import { itemBounds, charBounds, depthOf } from '../core/placement.js';
 import { backgroundFor, clearBackgrounds } from './background.js';
 import { anims } from './anims.js';
-import { surfacesOf } from '../core/physics.js';
+import { surfacesOf, isHidden } from '../core/physics.js';
 
 export function createRenderer(canvas, store, camera) {
   const ctx = canvas.getContext('2d');
@@ -40,13 +40,15 @@ export function createRenderer(canvas, store, camera) {
     for (const i of s.items) {
       if (drag && drag.kind === 'item' && drag.id === i.id) continue;
       if (drag && drag.kind === 'item' && i.on?.id === drag.id) { // едет вместе с мебелью в руке
+        if (isHidden(i, parentOf)) continue;
         const r = lay.byId.get(i.room), def = itemDef(i.def);
         if (carried && r && def) { const b = itemBounds(i); carried.push({ kind: 'item', obj: i, art: def.art, b: { x: b.x + r.x0, y: b.y, w: b.w, h: b.h } }); }
         continue;
       }
       if (i.inv) continue; // в шкафчике — не в доме
+      if (isHidden(i, parentOf)) continue; // внутри закрытого холодильника
       const def = itemDef(i.def), r = lay.byId.get(i.room); if (!r || !def) continue;
-      add('item', i, itemBounds(i), def.art, r.x0);
+      add('item', i, itemBounds(i), i.open && def.openArt ? def.openArt : def.art, r.x0);
     }
     for (const c of s.chars) {
       if (drag && drag.kind === 'char' && drag.id === c.id) continue;

@@ -11,6 +11,7 @@ export const ASSET_KEYS = [
   'items/sofa', 'items/armchair', 'items/rug', 'items/floor_lamp', 'items/tv_stand', 'items/plant_big', 'items/bookshelf',
   'items/blender', 'items/washing_machine', 'items/laundry_basket', 'items/smoothie_banana', 'items/tshirt', 'items/pants', 'items/dress',
   'items/banana', 'items/apple', 'items/milk', 'items/juice', 'items/cake', 'items/sandwich', 'items/tomato',
+  'items/fridge', 'items/fridge_open', 'items/stove', 'items/sink_counter', 'items/kitchen_counter', 'items/kitchen_shelf', 'items/toaster',
   'chars/girl', 'chars/boy', 'chars/cat',
 ];
 

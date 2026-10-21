@@ -22,7 +22,10 @@ export function surfacesOf(parent) {
   const def = itemDef(parent.def);
   if (!def?.surfaces || parent.inv) return [];
   const b = itemBounds(parent);
-  return def.surfaces.map(([x0, x1, y], s) => ({ s, x0: b.x + x0 * b.w, x1: b.x + x1 * b.w, y: b.y + y * b.h, bottom: b.y + b.h }));
+  return def.surfaces.map(([x0, x1, y, inside], s) => ({
+    s, x0: b.x + x0 * b.w, x1: b.x + x1 * b.w, y: b.y + y * b.h, bottom: b.y + b.h,
+    inside: !!inside, open: !inside || !!parent.open, // внутренняя полка доступна, только если открыто
+  }));
 }
 
 // Куда приземлится вещь defId, отпущенная в точке (lx, ly) комнаты room.
@@ -38,6 +41,7 @@ export function landing(state, defId, room, lx, ly, selfId = null) {
     for (const p of state.items) {
       if (p.inv || p.on || p.id === selfId || p.room !== room.id) continue;
       for (const sf of surfacesOf(p)) {
+        if (!sf.open) continue;
         if (lx < sf.x0 - 20 || lx > sf.x1 + 20) continue;      // мимо поверхности
         if (sf.y < ly - CATCH_ABOVE || ly > sf.bottom) continue; // поверхность выше точки или отпустили ниже мебели
         if (!best || sf.y < best.y) {
@@ -82,6 +86,14 @@ export function dropToFloor(c, room) {
 export function releaseChildren(state, parentId) {
   const rooms = new Map(state.rooms.map((r) => [r.id, r]));
   for (const c of state.items) if (c.on?.id === parentId) dropToFloor(c, rooms.get(c.room));
+}
+
+// Вещь лежит внутри закрытой мебели (холодильник закрыт) — её не видно и не взять.
+export function isHidden(item, parentOf) {
+  if (!item.on) return false;
+  const p = parentOf(item.on.id);
+  const def = p && itemDef(p.def);
+  return !!(def?.surfaces?.[item.on.s]?.[3] && !p.open);
 }
 
 // Глубина вещи на мебели: сразу перед своей мебелью.

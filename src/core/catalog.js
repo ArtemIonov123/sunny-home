@@ -8,7 +8,9 @@
 // anchor — точка привязки: 'bottom' (низ по центру) или 'center'.
 // w / h  — размер в игровых единицах (задаётся одно, второе считается по картинке).
 // layer  — 'under': лежит на полу под всем остальным (ковры).
-// surfaces — куда можно ставить мелкие вещи: [x0, x1, y] в долях картинки (столешница, сиденье, полка).
+// surfaces — куда можно ставить мелкие вещи: [x0, x1, y] в долях картинки (столешница, сиденье, полка);
+//            четвёртое число 1 — поверхность ВНУТРИ: работает и видна, только когда вещь открыта.
+// openArt  — картинка открытого состояния; такая вещь открывается и закрывается нажатием.
 
 export const ITEMS = {
   table:   { name: 'Столик',        art: 'items/table',      w: 370, anchor: 'bottom', place: 'floor',   group: 'furniture', surfaces: [[0.08, 0.92, 0.21]] },
@@ -28,6 +30,13 @@ export const ITEMS = {
   blender:         { name: 'Блендер',           art: 'items/blender',         h: 190, anchor: 'bottom', place: 'floor', group: 'appliances' },
   washing_machine: { name: 'Стиральная машина', art: 'items/washing_machine', h: 250, anchor: 'bottom', place: 'floor', group: 'appliances', surfaces: [[0.08, 0.92, 0.03]] },
   laundry_basket:  { name: 'Корзина для белья', art: 'items/laundry_basket',  w: 190, anchor: 'bottom', place: 'floor', group: 'furniture' },
+  fridge:          { name: 'Холодильник', art: 'items/fridge', openArt: 'items/fridge_open', h: 420, anchor: 'bottom', place: 'floor', group: 'appliances',
+                     surfaces: [[0.05, 0.6, 0.01], [0.08, 0.5, 0.255, 1], [0.08, 0.5, 0.455, 1], [0.08, 0.5, 0.575, 1], [0.08, 0.5, 0.70, 1], [0.08, 0.5, 0.885, 1]] },
+  stove:           { name: 'Плита',        art: 'items/stove',           h: 260, anchor: 'bottom', place: 'floor', group: 'appliances', surfaces: [[0.06, 0.94, 0.13]] },
+  sink_counter:    { name: 'Мойка',        art: 'items/sink_counter',    w: 380, anchor: 'bottom', place: 'floor', group: 'furniture', surfaces: [[0.03, 0.97, 0.22]] },
+  kitchen_counter: { name: 'Кухонная тумба', art: 'items/kitchen_counter', w: 380, anchor: 'bottom', place: 'floor', group: 'furniture', surfaces: [[0.03, 0.97, 0.04]] },
+  kitchen_shelf:   { name: 'Полка',        art: 'items/kitchen_shelf',   w: 420, anchor: 'center', place: 'wall', group: 'furniture', indoorOnly: true, surfaces: [[0.03, 0.97, 0.08]] },
+  toaster:         { name: 'Тостер',       art: 'items/toaster',         w: 110, anchor: 'bottom', place: 'floor', group: 'appliances' },
   tshirt:  { name: 'Футболка', art: 'items/tshirt', w: 140, anchor: 'bottom', place: 'floor', group: 'clothes' },
   pants:   { name: 'Штанишки', art: 'items/pants',  h: 160, anchor: 'bottom', place: 'floor', group: 'clothes' },
   dress:   { name: 'Платье',   art: 'items/dress',  h: 160, anchor: 'bottom', place: 'floor', group: 'clothes' },

@@ -246,6 +246,28 @@ async function device(name, width, height, touch) {
     }
   }
 
+  // 16. Холодильник: нажатие открывает; еда внутри видна только при открытой двери
+  {
+    const fr = await p.evaluate(() => {
+      const S = window.__sunny, s = S.store.state, f = s.items.find((i) => i.def === 'fridge' && !i.inv);
+      if (!f) return null;
+      const x0 = S.store.layout.byId.get(f.room).x0;
+      S.camera.holdAt(x0 + f.x - S.camera.viewW / 2); S.camera.mode = 'idle'; S.store.touch();
+      const inside = s.items.filter((i) => i.on?.id === f.id && i.on.s > 0).length;
+      return { id: f.id, wx: x0 + f.x - 60, wy: f.y - 200, open: !!f.open, inside };
+    });
+    if (fr) {
+      await p.waitForTimeout(300);
+      const pt = await toClient(fr.wx, fr.wy);
+      if (touch) await p.touchscreen.tap(pt.x, pt.y); else await p.mouse.click(pt.x, pt.y);
+      await p.waitForTimeout(300);
+      const after = await p.evaluate((id) => !!window.__sunny.store.state.items.find((i) => i.id === id).open, fr.id);
+      check(after !== fr.open, 'нажатие открывает/закрывает холодильник');
+      const visible = await p.evaluate((id) => { const S = window.__sunny; const f = S.store.state.items.find((i) => i.id === id); const x0 = S.store.layout.byId.get(f.room).x0; let n = 0; for (const it of S.store.state.items) if (it.on?.id === id && it.on.s > 0) { if (S.renderer.hit(x0 + it.x, it.y - 10)?.obj?.id === it.id) n++; } return n; }, fr.id);
+      check(fr.inside === 0 || (after ? visible > 0 : visible === 0), `еда в холодильнике ${after ? 'видна' : 'спрятана'} (${visible} из ${fr.inside})`);
+    }
+  }
+
   await p.screenshot({ path: `${SHOTS}/${name}_4_end.png` });
   check(errors.length === 0, 'нет ошибок за всё время ' + errors.join(' | '));
   await ctx.close();

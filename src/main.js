@@ -93,7 +93,11 @@ async function boot() {
   interaction.on('stashed', () => hud.refreshThings());
   interaction.on('tap', ({ kind, id }) => {
     if (kind === 'char') { anims.hop('char:' + id); play(id === 'cat' ? 'meow' : 'boing'); }
-    else { anims.wobble('item:' + id); play('pop'); }
+    else {
+      const opened = actions.toggleOpen(id); // холодильник и т. п. открываются нажатием
+      if (opened === null) { anims.wobble('item:' + id); play('pop'); }
+      else { anims.squash('item:' + id); play(opened ? 'open' : 'close'); }
+    }
     invalidate();
   });
   interaction.on('tapEmpty', () => hud.closePanels());
