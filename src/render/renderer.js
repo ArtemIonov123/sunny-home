@@ -97,6 +97,14 @@ export function createRenderer(canvas, store, camera) {
     ctx.drawImage(im, -b.w / 2, -b.h, b.w, b.h);
     ctx.restore();
   }
+  // То же преобразование, что у drawSprite, но для «детей»: поворот и сплющивание вокруг низа родителя.
+  function applyPose(b, pose) {
+    const px = b.x + b.w / 2, py = b.y + b.h;
+    ctx.translate(px + (pose.dx || 0), py + (pose.dy || 0));
+    if (pose.rot) ctx.rotate(pose.rot);
+    if (pose.sx !== 1 || pose.sy !== 1) ctx.scale(pose.sx || 1, pose.sy || 1);
+    ctx.translate(-px, -py);
+  }
   const sway = { angle: 0 }; // задаёт main.js (качание от прокрутки)
   const keyOf = (e) => (e.kind === 'char' ? 'char:' : 'item:') + e.obj.id;
 
@@ -167,17 +175,29 @@ export function createRenderer(canvas, store, camera) {
     }
     ctx.setTransform(k, 0, 0, k, -camera.x * k, 0);
     const carried = [];
-    for (const e of entries(drag, carried)) {
+    const list = entries(drag, carried);
+    // Сначала позы всех вещей: вещь на мебели повторяет движение мебели (качнули шкаф — молоко качается с ним).
+    const byId = new Map();
+    for (const e of list) {
       let pose = anims.pose(keyOf(e));
       // Качание мелочи при резкой прокрутке (у каждой вещи — свой размах, чтобы не качались строем).
       if (sway.angle && e.kind === 'item' && isSmall(itemDef(e.obj.def))) {
         const r = sway.angle * (0.75 + (e.obj.id % 5) * 0.12);
         pose = pose ? { ...pose, rot: pose.rot + r } : { dx: 0, dy: 0, rot: r, sx: 1, sy: 1 };
       }
+      e.pose = pose;
+      if (e.kind === 'item') byId.set(e.obj.id, e);
+    }
+    for (const e of list) {
+      const pose = e.pose;
       if (!pose || pose.dy > -20) {
         if (e.kind === 'char' || (itemDef(e.obj.def)?.place === 'floor' && !itemDef(e.obj.def)?.layer && !e.obj.on)) shadowUnder(e.b);
       }
+      const chain = [];
+      for (let p = e.kind === 'item' ? byId.get(e.obj.on?.id) : null, n = 0; p && n < 6; p = byId.get(p.obj.on?.id), n++) if (p.pose) chain.unshift(p);
+      if (chain.length) { ctx.save(); for (const p of chain) applyPose(p.b, p.pose); }
       drawSprite(e.art, e.b, { pose });
+      if (chain.length) ctx.restore();
     }
     drawPartitions();
     if (guidesRoomId) drawGuides(guidesRoomId);
