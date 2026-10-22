@@ -2,10 +2,10 @@
 // Правило: новое поле или изменение формата → schema+1 и функция в MIGRATIONS.
 // Старые сохранения никогда не выбрасываются молча.
 import { ITEMS, itemDef, CHARS, ROOM_TYPES, WALL_PATTERNS, FLOOR_MATERIALS } from '../core/catalog.js';
-import { defaultState, newRoom, MAX_ROOMS, NEW_IN_INVENTORY, BATH_START } from '../core/house.js';
+import { defaultState, newRoom, MAX_ROOMS, NEW_IN_INVENTORY, BATH_START, BEDROOM_START } from '../core/house.js';
 import { clamp, isHex } from '../util.js';
 
-export const SCHEMA = 8;
+export const SCHEMA = 9;
 
 const MIGRATIONS = {
   // 1 → 2: появился шкафчик. Все вещи из версии 1 стоят в доме, формат вещи в доме не меняется.
@@ -67,6 +67,24 @@ const MIGRATIONS = {
       items.push({ id: next++, def: 'soap', room: bath.id, x: 0, y: 0, on: { id: ids.bath_sink, s: 0, dx: -70 } });
     }
     return { ...s, rooms, items, next, schema: 8 };
+  },
+  // 8 → 9: спальня обставлена (шкаф, кровать, тумбочка с лампой, комод). Картину сдвигаем, только если её не трогали.
+  // Одежду не трогаем — она у игрока уже где-то есть.
+  8: (s) => {
+    const items = Array.isArray(s.items) ? s.items.map((i) => ({ ...i })) : [];
+    let next = Math.max(Number(s.next) || 1, ...items.map((i) => (Number.isInteger(i?.id) ? i.id + 1 : 1)));
+    const bed = (Array.isArray(s.rooms) ? s.rooms : []).find((r) => r?.type === 'bedroom');
+    if (bed && !items.some((i) => i?.def === 'bed')) {
+      const pic = items.find((i) => i?.def === 'picture' && i.room === bed.id && i.x === 560 && i.y === 240);
+      if (pic) pic.x = 760;
+      const ids = {};
+      for (const [def, x, y] of BEDROOM_START) {
+        if (def === 'picture') continue;
+        ids[def] = next; items.push({ id: next++, def, room: bed.id, x, y });
+      }
+      items.push({ id: next++, def: 'bedside_lamp', room: bed.id, x: 0, y: 0, on: { id: ids.nightstand, s: 0, dx: 0 } });
+    }
+    return { ...s, items, next, schema: 9 };
   },
 };
 

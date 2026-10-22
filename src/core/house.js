@@ -37,6 +37,11 @@ export const BATH_START = [
   ['wall_clock', 1190, 200], ['washing_machine', 1520, 650], ['picture', 1640, 250], ['laundry_basket', 1830, 700],
 ];
 
+// Спальня: шкаф, кровать с картиной над ней, тумбочка с лампой, комод. В шкафу висят футболка и платье.
+export const BEDROOM_START = [
+  ['wardrobe', 250, 640], ['bed', 760, 660], ['picture', 760, 240], ['nightstand', 1130, 650], ['dresser', 1700, 650],
+];
+
 export function defaultState() {
   const rooms = ['lawn', 'living', 'kitchen', 'kids', 'bath', 'bedroom'].map((t) => newRoom(t, t));
   let id = 1;
@@ -52,7 +57,7 @@ export function defaultState() {
     it('kitchen_counter', 'kitchen', 1290, 640), it('kitchen_shelf', 'kitchen', 1290, 300),
     it('window', 'kids', 800, 250), it('picture', 'kids', 330, 240),
     ...BATH_START.map(([def, x, y]) => it(def, 'bath', x, y)),
-    it('window', 'bedroom', 1300, 260), it('picture', 'bedroom', 560, 240),
+    it('window', 'bedroom', 1300, 260), ...BEDROOM_START.map(([def, x, y]) => it(def, 'bedroom', x, y)),
   ];
   // Кухня обставлена: на тумбе тостер и блендер, в холодильнике еда, на полке сок.
   const byDef = (def, room) => items.find((i) => i.def === def && i.room === room).id;
@@ -66,10 +71,14 @@ export function defaultState() {
   const tub = byDef('bathtub', 'bath'), sink = byDef('bath_sink', 'bath');
   items.push({ id: id++, def: 'rubber_duck', room: 'bath', x: 0, y: 0, on: { id: tub, s: 0, dx: -60 } },
     { id: id++, def: 'soap', room: 'bath', x: 0, y: 0, on: { id: sink, s: 0, dx: -70 } });
+  const wardrobe = byDef('wardrobe', 'bedroom'), stand = byDef('nightstand', 'bedroom');
+  items.push({ id: id++, def: 'bedside_lamp', room: 'bedroom', x: 0, y: 0, on: { id: stand, s: 0, dx: 0 } },
+    { id: id++, def: 'tshirt', room: 'bedroom', x: 0, y: 0, on: { id: wardrobe, s: 1, dx: -45 } },
+    { id: id++, def: 'dress', room: 'bedroom', x: 0, y: 0, on: { id: wardrobe, s: 1, dx: 50 } });
   const rest = [...NEW_IN_INVENTORY];
-  for (const d of KITCHEN_START) { const k = rest.indexOf(d); if (k >= 0) rest.splice(k, 1); }
+  for (const d of [...KITCHEN_START, 'tshirt', 'dress']) { const k = rest.indexOf(d); if (k >= 0) rest.splice(k, 1); }
   return {
-    schema: 7,
+    schema: 9, // = SCHEMA в save/migrate.js
     rooms, items: [...items, ...['picture', 'picture', 'table', 'window', 'door', ...rest].map((def) => ({ id: id++, def, inv: true }))], next: id,
     chars: [
       { id: 'girl', room: 'living', x: 900, y: 770 },
