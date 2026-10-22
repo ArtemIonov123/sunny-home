@@ -1,7 +1,7 @@
 // Магазин в игре: большие карточки паков (обложка, вещи, значок цены), без чтения.
 // Платное — только через «родительский замок» (держать кнопку 3 секунды), затем покупка
 // (сейчас ТЕСТОВАЯ, без денег). Скачанный пак сразу в «Вещах», новые вещи — со звёздочкой.
-import { loadCatalog, getCatalog, isOffline, status, buy, download, TEST_PURCHASES } from '../core/shop.js';
+import { loadCatalog, getCatalog, isOffline, status, buy, download, TEST_PURCHASES, STORE_BASE } from '../core/shop.js';
 import { escapeHtml as esc } from '../util.js';
 import { play } from '../audio.js';
 
@@ -48,9 +48,14 @@ export function createShop({ root, onInstalled, openThings }) {
     const action = st === 'installed' ? `<button class="sh-act ok" data-sh-open aria-label="К вещам">✓ 🧺</button>`
       : st === 'buy' ? `<button class="sh-act buy" data-sh-buy>🔒 ${esc(p.priceLabel)}</button>`
       : `<button class="sh-act get" data-sh-get>${st === 'update' ? '⟳' : '⬇️'}</button>`;
+    // Фон страницы пака (цвет и/или картинка с GitHub; без сети — только цвет).
+    const page = p.page || {};
+    detail.style.backgroundColor = page.color || '';
+    detail.style.backgroundImage = page.image ? `url("${STORE_BASE}${page.image}")` : '';
+    detail.classList.toggle('has-bg', !!(page.image || page.color));
     detail.innerHTML = `<button class="sh-back" data-sh-back aria-label="Назад">←</button>
-      <img class="sh-cover" src="${p.cover}" alt="">
-      <div class="sh-items">${(p.preview || []).map((src, k) => `<img src="${src}" alt="" style="animation-delay:${k * 0.12}s">`).join('')}</div>
+      ${page.image ? '' : `<img class="sh-cover" src="${p.cover}" alt="">`}
+      <div class="sh-strip" role="list">${(p.preview || []).map((src, k) => `<button class="sh-thing" data-sh-thing role="listitem" style="animation-delay:${(k % 6) * 0.15}s"><img src="${src}" alt=""></button>`).join('')}</div>
       <div class="sh-row"><b>${esc(p.name)}</b>${action}</div>`;
     detail.hidden = false;
   }
@@ -105,6 +110,7 @@ export function createShop({ root, onInstalled, openThings }) {
     const d = t.dataset;
     if (d.shClose !== undefined) return close();
     if (d.shPack) { current = getCatalog().packs.find((p) => p.id === d.shPack); play('pop'); renderDetail(); return; }
+    if (d.shThing !== undefined) { t.classList.remove('boing'); void t.offsetWidth; t.classList.add('boing'); play('pop'); return; } // вещь в паке отзывается
     if (d.shBack !== undefined) { current = null; detail.hidden = true; play('click'); renderGrid(); return; }
     if (d.shGet !== undefined) return getPack();
     if (d.shBuy !== undefined) { gate.hidden = false; play('click'); return; }

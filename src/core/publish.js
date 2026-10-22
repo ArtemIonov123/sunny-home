@@ -53,6 +53,12 @@ async function putFile(path, text, message, sha) {
   const { branch } = getSettings();
   return gh(`contents/${path}`, { method: 'PUT', body: { message, content: toB64(text), branch, ...(sha ? { sha } : {}) } });
 }
+// Картинка (data:URL) → файл на GitHub как есть (двоичный).
+async function putImage(path, dataUrl, message) {
+  const { branch } = getSettings();
+  const prev = await gh(`contents/${path}?ref=${encodeURIComponent(branch)}`);
+  return gh(`contents/${path}`, { method: 'PUT', body: { message, content: dataUrl.split(',')[1], branch, ...(prev?.sha ? { sha: prev.sha } : {}) } });
+}
 async function deleteFile(path, message, sha) {
   const { branch } = getSettings();
   return gh(`contents/${path}`, { method: 'DELETE', body: { message, sha, branch } });
@@ -113,6 +119,7 @@ export async function readCatalog() {
 export async function publishPack(raw, onStep = () => {}) {
   const pack = { ...validatePack(raw), price: Math.max(0, Number(raw.price) || 0) };
   if (raw.coverStyle) pack.coverStyle = raw.coverStyle; // фон обложки — хранится в паке, чтобы при обновлении остался
+  if (raw.pageStyle) pack.pageStyle = raw.pageStyle;   // фон страницы пака в магазине
   onStep('Читаю магазин…');
   const { cat, sha } = await readCatalog();
   const old = cat.packs.find((p) => p.id === pack.id), k = old ? cat.packs.indexOf(old) : cat.packs.length;
@@ -122,8 +129,15 @@ export async function publishPack(raw, onStep = () => {}) {
     price: pack.price, currency: 'PLN', priceLabel: pack.price ? pack.price.toFixed(2).replace('.', ',') + ' zł' : '',
     product: 'pack_' + pack.id, file: 'packs/' + pack.id + '.json', items: pack.items.length,
     cover: pack.items.length || pack.coverStyle?.full ? await makeCover(pack.items, k, pack.coverStyle || {}) : old?.cover || '',
-    preview: await Promise.all(pack.items.slice(0, 8).map(async (it) => (await fit(it.image, 96)).toDataURL('image/webp', 0.8))),
+    // Все вещи пака (до 24) — для прокрутки на странице пака в магазине.
+    preview: await Promise.all(pack.items.slice(0, 24).map(async (it) => (await fit(it.image, 112)).toDataURL('image/webp', 0.78))),
+    page: { color: pack.pageStyle?.color || '' },
   };
+  if (pack.pageStyle?.image) { // фон страницы пака — отдельной картинкой, чтобы список магазина оставался лёгким
+    onStep('Загружаю фон пака…');
+    await putImage(`store/bg/${pack.id}.webp`, pack.pageStyle.image, `Магазин: фон пака «${pack.name}»`);
+    entry.page.image = `bg/${pack.id}.webp?v=${entry.version}`;
+  }
   onStep('Загружаю пак…');
   const prev = await gh(`contents/store/packs/${pack.id}.json?ref=${encodeURIComponent(getSettings().branch)}`);
   await putFile(`store/packs/${pack.id}.json`, JSON.stringify(pack), `Магазин: пак «${pack.name}» (из студии)`, prev?.sha);
@@ -140,6 +154,8 @@ export async function removePack(id) {
   await putFile('store/catalog.json', JSON.stringify(cat, null, 1), `Магазин: убран пак «${entry?.name || id}»`, sha);
   const f = await gh(`contents/store/packs/${id}.json?ref=${encodeURIComponent(getSettings().branch)}`);
   if (f?.sha) await deleteFile(`store/packs/${id}.json`, `Магазин: удалён файл пака ${id}`, f.sha);
+  const bg = await gh(`contents/store/bg/${id}.webp?ref=${encodeURIComponent(getSettings().branch)}`);
+  if (bg?.sha) await deleteFile(`store/bg/${id}.webp`, `Магазин: удалён фон пака ${id}`, bg.sha);
 }
 
 // Пак из магазина — в студию (чтобы поправить и опубликовать заново).

@@ -63,13 +63,15 @@ export function createAdmin({ root, store, camera, actions, toast, onChange }) {
   let packName = '', packPick = new Set(), packPrice = 0;
   // Магазин в студии: ключ GitHub, собрать пак, опубликовать, список паков в магазине.
   let storeCat = null, storeNote = '', storeBusy = '', target = '', showKey = !hasToken();
+  let ghDraft = null; // набранное в полях ключа (переживает перерисовку панели)
   let coverStyle = {}; // фон обложки пака: { color } | { bg } | { full }
+  let pageStyle = {};  // фон страницы пака в магазине: { color, image }
   // Картинка для фона: без вырезания розового, только уменьшить (до 960×600) — фон должен быть цельным.
   async function bgImage(file) {
     if (!['image/png', 'image/webp', 'image/jpeg'].includes(file.type)) throw new Error('Выбери PNG, WebP или JPG');
     const url = await new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(r.result); r.onerror = () => rej(new Error('Не удалось открыть файл')); r.readAsDataURL(file); });
     const im = await new Promise((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = () => rej(new Error('Картинка не открылась')); i.src = url; });
-    const s = Math.min(1, 960 / im.width, 600 / im.height), cv = document.createElement('canvas');
+    const max = arguments[1] || [960, 600], s = Math.min(1, max[0] / im.width, max[1] / im.height), cv = document.createElement('canvas');
     cv.width = Math.round(im.width * s); cv.height = Math.round(im.height * s);
     cv.getContext('2d').drawImage(im, 0, 0, cv.width, cv.height);
     return cv.toDataURL('image/webp', 0.85);
@@ -96,8 +98,8 @@ export function createAdmin({ root, store, camera, actions, toast, onChange }) {
       : '<p class="adm-help">Своих предметов пока нет — создай их во вкладке «Предметы».</p>';
     const keyBox = showKey ? `<div class="pk-key">
         <p class="adm-help"><b>Ключ GitHub для публикации.</b> Создаётся один раз: GitHub → Settings → Developer settings → Personal access tokens → <b>Fine-grained tokens</b> → Generate new token. Repository access: <b>Only select repositories</b> → ${esc(gs.repo.split('/')[1] || 'sunny-home')}. Permissions → Repository permissions → <b>Contents: Read and write</b>. Скопируй ключ (начинается с github_pat_) и вставь сюда. Ключ хранится только в этом браузере — не выкладывай studio.html в интернет.</p>
-        <label class="adm-field">Репозиторий<input type="text" data-gh-repo value="${esc(gs.repo)}"></label>
-        <label class="adm-field">Ключ<input type="password" data-gh-token value="${esc(gs.token)}" placeholder="github_pat_…" autocomplete="off"></label>
+        <label class="adm-field">Репозиторий<input type="text" data-gh-repo value="${esc(ghDraft?.repo ?? gs.repo)}"></label>
+        <label class="adm-field">Ключ<input type="password" data-gh-token value="${esc(ghDraft?.token ?? gs.token)}" placeholder="github_pat_…" autocomplete="off"></label>
         <div class="adm-buttons"><button data-gh-save class="primary">Проверить и сохранить</button>${gs.token ? '<button data-gh-cancel>Отмена</button>' : ''}</div></div>`
       : `<p class="adm-help">Публикация: ✓ ключ подключён (${esc(gs.repo)}). <button class="link" data-gh-change>Сменить ключ</button></p>`;
     const targets = (storeCat?.packs || []).map((p) => `<option value="${esc(p.id)}"${p.id === target ? ' selected' : ''}>Обновить: ${esc(p.name)}</option>`).join('');
@@ -122,6 +124,15 @@ export function createAdmin({ root, store, camera, actions, toast, onChange }) {
             <label class="file-btn">🎨 Обложка целиком<input type="file" accept="image/png,image/webp,image/jpeg" data-cover-full hidden></label>
             ${coverStyle.bg || coverStyle.full || coverStyle.color ? '<button data-cover-reset>Как было (авто)</button>' : ''}
           </div>
+        </div>
+      </div>
+      <h4>Фон страницы пака в магазине</h4>
+      <div class="pk-cover">
+        <div class="pk-page" style="background-color:${pageStyle.color || '#fff6e4'};${pageStyle.image ? `background-image:url(${pageStyle.image})` : ''}"><span>🧸 🦆 🍎</span></div>
+        <div class="pk-cover-opts">
+          <p class="adm-help">То, что ребёнок видит за вещами, когда открывает пак: цвет или картинка от GPT (горизонтальная, например 1280×800).</p>
+          <div class="swatches">${COVER_COLORS.map((c) => `<button class="swatch${pageStyle.color === c ? ' on' : ''}" style="--c:${c}" data-page-color="${c}" aria-label="${c}"></button>`).join('')}</div>
+          <div class="adm-buttons"><label class="file-btn">🖼 Картинка-фон<input type="file" accept="image/png,image/webp,image/jpeg" data-page-image hidden></label>${pageStyle.color || pageStyle.image ? '<button data-page-reset>Без фона</button>' : ''}</div>
         </div>
       </div>
       <div class="adm-buttons"><button data-pkall>Отметить все</button>
@@ -178,18 +189,20 @@ export function createAdmin({ root, store, camera, actions, toast, onChange }) {
       else { const r = store.layout.byId.get(res.id); camera.flyTo(r.x0); toast('Комната добавлена в конец дома'); }
     } else if (b.dataset.pkall !== undefined) { const all = listRecords().map((r) => r.id); packPick = packPick.size === all.length ? new Set() : new Set(all); }
     else if (b.dataset.ghSave !== undefined) {
-      saveSettings({ repo: el.querySelector('[data-gh-repo]').value, token: el.querySelector('[data-gh-token]').value });
+      saveSettings({ repo: el.querySelector('[data-gh-repo]').value, token: el.querySelector('[data-gh-token]').value }); ghDraft = null;
       try { const name = await testToken(); showKey = false; toast('Ключ подходит: ' + name); storeCat = null; }
       catch (err) { toast(err.message, true); }
     }
     else if (b.dataset.coverColor) coverStyle = { color: b.dataset.coverColor };
     else if (b.dataset.coverReset !== undefined) coverStyle = {};
+    else if (b.dataset.pageColor) pageStyle = { ...pageStyle, color: b.dataset.pageColor };
+    else if (b.dataset.pageReset !== undefined) pageStyle = {};
     else if (b.dataset.ghCancel !== undefined) showKey = false;
     else if (b.dataset.ghChange !== undefined) showKey = true;
     else if (b.dataset.spRefresh !== undefined) { storeCat = null; storeNote = ''; }
     else if (b.dataset.pkpublish !== undefined) {
       try {
-        const pack = makePack(packName, [...packPick], true, packPrice, target, coverStyle);
+        const pack = makePack(packName, [...packPick], true, packPrice, target, coverStyle, pageStyle);
         storeBusy = 'Публикую…'; render();
         const entry = await publishPack(pack, (step) => { storeBusy = step; render(); });
         storeBusy = ''; target = entry.id; storeCat = null;
@@ -205,7 +218,7 @@ export function createAdmin({ root, store, camera, actions, toast, onChange }) {
         const entry = storeCat?.packs.find((p) => p.id === id);
         target = id; packName = entry?.name || ''; packPrice = entry?.price || 0;
         packPick = new Set((raw.items || []).map((i) => i.id));
-        coverStyle = raw.coverStyle || {};
+        coverStyle = raw.coverStyle || {}; pageStyle = raw.pageStyle || {};
         toast(`Вещи пака загружены в студию: ${n}. Поправь и нажми «Обновить в магазине».`);
       } catch (err) { toast('Не удалось: ' + err.message, true); }
     }
@@ -218,7 +231,7 @@ export function createAdmin({ root, store, camera, actions, toast, onChange }) {
     else if (b.dataset.shopreset !== undefined) { await resetShop(); toast('Тестовые покупки сброшены — перезапусти игру'); }
     else if (b.dataset.pkexport !== undefined) {
       try {
-        const pack = makePack(packName, [...packPick], true, packPrice, target, coverStyle);
+        const pack = makePack(packName, [...packPick], true, packPrice, target, coverStyle, pageStyle);
         download(JSON.stringify(pack), `pack_${pack.id}.json`);
         toast(`Пак «${pack.name}» скачан: ${pack.items.length} предм.` + (pack.overrides.length ? `, правок: ${pack.overrides.length}` : ''));
       } catch (err) { toast(err.message, true); }
@@ -239,6 +252,13 @@ export function createAdmin({ root, store, camera, actions, toast, onChange }) {
     else if (e.target.matches('[data-pk]')) { if (e.target.checked) packPick.add(e.target.dataset.pk); else packPick.delete(e.target.dataset.pk); }
     else if (e.target.matches('[data-pkname]')) { packName = e.target.value; return; }
     else if (e.target.matches('[data-pkprice]')) { packPrice = Number(e.target.value) || 0; return; }
+    else if (e.target.matches('[data-gh-token],[data-gh-repo]')) return; // не перерисовывать — иначе набранный ключ пропадёт до нажатия «Проверить»
+    else if (e.target.matches('[data-page-image]')) {
+      const file = e.target.files?.[0]; e.target.value = '';
+      if (!file) return;
+      bgImage(file, [1280, 800]).then((src) => { pageStyle = { ...pageStyle, image: src }; render(); }).catch((err) => toast(err.message, true));
+      return;
+    }
     else if (e.target.matches('[data-cover-bg],[data-cover-full]')) {
       const file = e.target.files?.[0], full = e.target.matches('[data-cover-full]'); e.target.value = '';
       if (!file) return;
@@ -272,6 +292,10 @@ export function createAdmin({ root, store, camera, actions, toast, onChange }) {
     onChange();
   });
   el.addEventListener('change', (e) => { if (e.target.matches('[data-split],[data-walk]')) sliding = false; });
+  el.addEventListener('input', (e) => {
+    if (e.target.matches('[data-gh-token],[data-gh-repo]')) ghDraft = { repo: el.querySelector('[data-gh-repo]').value, token: el.querySelector('[data-gh-token]').value };
+    else if (e.target.matches('[data-pkname]')) packName = e.target.value; // название тоже не теряется при перерисовке
+  });
 
   function download(text, name) {
     const a = document.createElement('a');

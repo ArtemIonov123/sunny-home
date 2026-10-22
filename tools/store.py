@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """Магазин паков: store/catalog.json (список паков для игры) + store/packs/<id>.json (сами паки).
 
-  python3 tools/store.py add pack_xxx.json [--price 14.99]   — добавить/обновить пак в магазине
+  python3 tools/store.py add pack_xxx.json [--price 14.99] [--page-color #hex] [--page-image фон.png]
+                                                              — добавить/обновить пак в магазине
   python3 tools/store.py remove <id>                          — убрать пак из магазина
   python3 tools/store.py list
 
@@ -77,7 +78,7 @@ def make_cover(items, k, style=None):
     return im
 
 
-def add(path, price):
+def add(path, price, page_color=None, page_image=None):
     pack = json.load(open(path, encoding='utf8'))
     assert pack.get('format') == 'sunny-home-pack', 'это не пак «Солнечного дома»'
     pid = pack['id']
@@ -94,8 +95,19 @@ def add(path, price):
         'id': pid, 'name': pack.get('name', pid), 'version': (old or {}).get('version', 0) + 1,
         'price': price, 'currency': 'PLN', 'priceLabel': (f'{price:.2f}'.replace('.', ',') + ' zł') if price else '',
         'product': 'pack_' + pid, 'file': 'packs/' + pid + '.json', 'items': len(pack['items']),
-        'cover': cover, 'preview': [to_url(thumb(data_im(it['image']), 96), 80) for it in pack['items'][:8]],
+        'cover': cover, 'preview': [to_url(thumb(data_im(it['image']), 112), 78) for it in pack['items'][:24]],
+        'page': {'color': page_color or (pack.get('pageStyle') or {}).get('color', '')},
     }
+    # Фон страницы пака — отдельной картинкой store/bg/<id>.webp
+    bg = None
+    if page_image:
+        bg = Image.open(page_image).convert('RGB'); bg.thumbnail((1280, 800), Image.LANCZOS)
+    elif (pack.get('pageStyle') or {}).get('image'):
+        bg = data_im(pack['pageStyle']['image']).convert('RGB')
+    if bg is not None:
+        os.makedirs(os.path.join(STORE, 'bg'), exist_ok=True)
+        bg.save(os.path.join(STORE, 'bg', pid + '.webp'), 'WEBP', quality=82, method=6)
+        entry['page']['image'] = f"bg/{pid}.webp?v={entry['version']}"
     if old: cat['packs'][k] = entry
     else: cat['packs'].append(entry)
     save_cat(cat)
@@ -105,8 +117,9 @@ def add(path, price):
 if __name__ == '__main__':
     a = sys.argv[1:]
     if a[:1] == ['add']:
-        price = float(a[a.index('--price') + 1]) if '--price' in a else None
-        add(a[1], price)
+        opt = lambda k: a[a.index(k) + 1] if k in a else None
+        price = float(opt('--price')) if opt('--price') else None
+        add(a[1], price, opt('--page-color'), opt('--page-image'))
     elif a[:1] == ['remove']:
         cat = load_cat(); cat['packs'] = [p for p in cat['packs'] if p['id'] != a[1]]; save_cat(cat)
         f = os.path.join(STORE, 'packs', a[1] + '.json')
