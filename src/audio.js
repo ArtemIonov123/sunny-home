@@ -45,6 +45,8 @@ const SOUNDS = {
   flush:  () => { for (let k = 0; k < 6; k++) tone({ f0: 900 - k * 110, f1: 300 - k * 30, dur: 0.22, type: 'sine', vol: 0.05, delay: k * 0.08 }); tone({ f0: 160, f1: 90, dur: 0.5, type: 'triangle', vol: 0.05, delay: 0.05 }); },
   waterOn: () => { for (let k = 0; k < 5; k++) tone({ f0: 700 + ((k * 37) % 5) * 90, f1: 1100 + k * 40, dur: 0.07, type: 'sine', vol: 0.04, delay: k * 0.05 }); },
   waterOff: () => { tone({ f0: 900, f1: 600, dur: 0.06, type: 'sine', vol: 0.05 }); tone({ f0: 300, f1: 200, dur: 0.06, type: 'triangle', vol: 0.05, delay: 0.05 }); },
+  ring:   () => { for (let k = 0; k < 14; k++) tone({ f0: k % 2 ? 1900 : 2300, f1: k % 2 ? 1850 : 2250, dur: 0.06, type: 'square', vol: 0.025 * (1 - k / 16), delay: k * 0.075 }); },
+  squeak: () => { tone({ f0: 900, f1: 1500, dur: 0.12, type: 'sine', vol: 0.08 }); tone({ f0: 1500, f1: 1100, dur: 0.12, type: 'sine', vol: 0.06, delay: 0.11 }); },
   click:  () => tone({ f0: 900, f1: 700, dur: 0.05, type: 'triangle', vol: 0.05 }),
   whoosh: () => tone({ f0: 200, f1: 500, dur: 0.2, type: 'sawtooth', vol: 0.02 }),
 };

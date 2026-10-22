@@ -15,6 +15,7 @@
 //            glow [x,y,радиус] — тёплый свет вокруг точки (абажур),
 //            water [x,y,yКонец,ширина] — льётся вода (душ, кран). Всё в долях картинки.
 // sounds   — свои звуки: { open, close } (унитаз: крышка и смыв).
+// tap      — особый отклик на нажатие: 'ring' (будильник звенит и трясётся), 'squeak' (игрушка пищит).
 
 export const ITEMS = {
   table:   { name: 'Столик',        art: 'items/table',      w: 370, anchor: 'bottom', place: 'floor',   group: 'furniture', surfaces: [[0.08, 0.92, 0.21]] },
@@ -53,6 +54,10 @@ export const ITEMS = {
   nightstand:   { name: 'Тумбочка',    art: 'items/nightstand',   w: 150, anchor: 'bottom', place: 'floor', group: 'furniture', surfaces: [[0.08, 0.92, 0.04]] },
   dresser:      { name: 'Комод',       art: 'items/dresser',      w: 330, anchor: 'bottom', place: 'floor', group: 'furniture', surfaces: [[0.05, 0.95, 0.04]] },
   bedside_lamp: { name: 'Лампа',       art: 'items/bedside_lamp', h: 140, anchor: 'bottom', place: 'floor', group: 'decor', power: { glow: [0.5, 0.33, 1.6] } },
+  wall_shelf_small: { name: 'Полочка', art: 'items/wall_shelf_small', w: 240, anchor: 'center', place: 'wall', group: 'furniture', indoorOnly: true, surfaces: [[0.04, 0.96, 0.06]] },
+  teddy_bear:   { name: 'Мишка',     art: 'items/teddy_bear',  w: 100, anchor: 'bottom', place: 'floor', group: 'toys', tap: 'squeak' },
+  alarm_clock:  { name: 'Будильник', art: 'items/alarm_clock', w: 62,  anchor: 'bottom', place: 'floor', group: 'decor', tap: 'ring' },
+  book:         { name: 'Книжка',    art: 'items/book',        h: 70,  anchor: 'bottom', place: 'floor', group: 'toys' },
   bath_mirror: { name: 'Зеркало',       art: 'items/bath_mirror', w: 170, anchor: 'center', place: 'wall',  group: 'decor' },
   towel_rack:  { name: 'Полотенце',     art: 'items/towel_rack',  w: 230, anchor: 'center', place: 'wall',  group: 'decor' },
   wall_clock:  { name: 'Часы',          art: 'items/wall_clock',  w: 130, anchor: 'center', place: 'wall',  group: 'decor' },

@@ -40,7 +40,10 @@ export const BATH_START = [
 // Спальня: шкаф, кровать с картиной над ней, тумбочка с лампой, комод. В шкафу висят футболка и платье.
 export const BEDROOM_START = [
   ['wardrobe', 250, 640], ['bed', 760, 660], ['picture', 760, 240], ['nightstand', 1130, 650], ['dresser', 1700, 650],
+  ['wall_shelf_small', 1700, 330],
 ];
+// Мелочь спальни: мишка на кровати, будильник на комоде, книжка на полочке. [вещь, мебель, поверхность, сдвиг]
+export const BEDROOM_SMALL = [['teddy_bear', 'bed', 0, 120], ['alarm_clock', 'dresser', 0, -90], ['book', 'wall_shelf_small', 0, -40]];
 
 export function defaultState() {
   const rooms = ['lawn', 'living', 'kitchen', 'kids', 'bath', 'bedroom'].map((t) => newRoom(t, t));
@@ -73,12 +76,13 @@ export function defaultState() {
     { id: id++, def: 'soap', room: 'bath', x: 0, y: 0, on: { id: sink, s: 0, dx: -70 } });
   const wardrobe = byDef('wardrobe', 'bedroom'), stand = byDef('nightstand', 'bedroom');
   items.push({ id: id++, def: 'bedside_lamp', room: 'bedroom', x: 0, y: 0, on: { id: stand, s: 0, dx: 0 } },
-    { id: id++, def: 'tshirt', room: 'bedroom', x: 0, y: 0, on: { id: wardrobe, s: 1, dx: -45 } },
-    { id: id++, def: 'dress', room: 'bedroom', x: 0, y: 0, on: { id: wardrobe, s: 1, dx: 50 } });
+    { id: id++, def: 'tshirt', room: 'bedroom', x: 0, y: 0, on: { id: wardrobe, s: 2, dx: 0 } },
+    { id: id++, def: 'dress', room: 'bedroom', x: 0, y: 0, on: { id: wardrobe, s: 1, dx: 0 } },
+    ...BEDROOM_SMALL.map(([def, par, s, dx]) => ({ id: id++, def, room: 'bedroom', x: 0, y: 0, on: { id: byDef(par, 'bedroom'), s, dx } })));
   const rest = [...NEW_IN_INVENTORY];
   for (const d of [...KITCHEN_START, 'tshirt', 'dress']) { const k = rest.indexOf(d); if (k >= 0) rest.splice(k, 1); }
   return {
-    schema: 9, // = SCHEMA в save/migrate.js
+    schema: 10, // = SCHEMA в save/migrate.js
     rooms, items: [...items, ...['picture', 'picture', 'table', 'window', 'door', ...rest].map((def) => ({ id: id++, def, inv: true }))], next: id,
     chars: [
       { id: 'girl', room: 'living', x: 900, y: 770 },

@@ -167,7 +167,8 @@ if __name__ == '__main__':
         sprite(f'bath/{n}.png', f'items/{n}.webp', max_w=mw, max_h=mh)
     # Спальня.
     sprite_pair('bedroom/wardrobe_closed.png', 'bedroom/wardrobe_open.png', 'items/wardrobe.webp', 'items/wardrobe_open.webp', 760)
-    for n, mw, mh in [('bed', 1000, None), ('nightstand', 400, None), ('bedside_lamp', None, 360), ('dresser', 700, None)]:
+    for n, mw, mh in [('bed', 1000, None), ('nightstand', 400, None), ('bedside_lamp', None, 360), ('dresser', 700, None),
+                      ('teddy_bear', 260, None), ('alarm_clock', 200, None), ('book', None, 220), ('wall_shelf_small', 500, None)]:
         sprite(f'bedroom/{n}.png', f'items/{n}.webp', max_w=mw, max_h=mh)
     # Из прототипа 0.4.1
     copy_webp('legacy/room_table.webp', 'items/table.webp')

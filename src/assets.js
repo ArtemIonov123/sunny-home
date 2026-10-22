@@ -15,6 +15,7 @@ export const ASSET_KEYS = [
   'rooms/bath/wall_tile', 'items/bathtub', 'items/bath_sink', 'items/bath_mirror', 'items/toilet', 'items/toilet_open',
   'items/towel_rack', 'items/soap', 'items/rubber_duck', 'items/wall_clock',
   'items/wardrobe', 'items/wardrobe_open', 'items/bed', 'items/nightstand', 'items/bedside_lamp', 'items/dresser',
+  'items/teddy_bear', 'items/alarm_clock', 'items/book', 'items/wall_shelf_small',
   'chars/girl', 'chars/boy', 'chars/cat',
 ];
 

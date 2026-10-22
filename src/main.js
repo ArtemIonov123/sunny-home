@@ -123,6 +123,9 @@ async function boot() {
   interaction.on('tap', ({ kind, id }) => {
     if (kind === 'char') { anims.hop('char:' + id); play(id === 'cat' ? 'meow' : 'boing'); }
     else {
+      const tapKind = itemDef(store.state.items.find((i) => i.id === id)?.def)?.tap;
+      if (tapKind === 'ring') { anims.ring('item:' + id); play('ring'); invalidate(); return; }
+      if (tapKind === 'squeak') { anims.squash('item:' + id); play('squeak'); invalidate(); return; }
       const lit = actions.togglePower(id); // телевизор, торшер включаются нажатием
       if (lit !== null) {
         anims.squash('item:' + id);
