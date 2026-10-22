@@ -2,6 +2,9 @@
 //   live/<хозяин>/state           — { json, at } — дом хозяина (пишет хозяин, пока у него гости)
 //   live/<хозяин>/guests/<гость>  — { nick, face, bg, look, room, x, y } — гость и где его герой (пропадает сам, если гость ушёл)
 //   live/<хозяин>/ops/<ключ>      — { by, p } — что гость поменял в доме (p — JSON: { items: {id: вещь|null}, chars: {...} })
+//   live/<хозяин>/drags/<игрок>   — { kind, id, x, y } — что игрок сейчас тянет пальцем (видно всем, плавно)
+//   live/<хозяин>/pets/<id>       — путь, по которому пошло животное у хозяина (у гостей оно идёт само)
+//   live/<хозяин>/emotes/<игрок>  — { e, who, t } — смайлик над героем (👋 ❤️ 😂 …)
 // Гость играет на копии дома: переносит вещи, героев, животных, включает свет и воду, кормит героев.
 // Его изменения уходят хозяину, хозяин применяет их у себя и рассылает дом всем. Без «Вещей» и редактора.
 import { CHARS } from '../core/catalog.js';
@@ -9,18 +12,65 @@ import { validate } from '../save/migrate.js';
 import { syncChildren } from '../core/physics.js';
 import { refreshHero } from '../render/hero.js';
 import { copy } from '../util.js';
+import { roomAtX } from '../core/house.js';
 
 const VID = (uid) => 'v_' + uid; // id героя-гостя (как у Милы и Тима, только временный)
 
-export function createVisit({ friends, store, getMe, isDragging, camera, onMode, onArrive, toast }) {
+export function createVisit({ friends, store, getMe, isDragging, camera, pets, onMode, onArrive, onEmote, toast }) {
   const net = friends.net;
   let me = null;
   let mode = 'home';          // 'home' | 'guest'
   let hostId = null, homeState = null, baseline = null, applying = false, firstState = true;
   let guestSubs = [];
-  let pending = null;         // дом от хозяина пришёл во время перетаскивания — применим после
+  let pending = null;
+  let sentDrag = null, lastDragSend = 0;         // дом от хозяина пришёл во время перетаскивания — применим после
   const visitors = new Map(); // uid → { nick, face, bg, look, room, x, y }
   let hostSubs = [], publishTimer = 0;
+  const drags = new Map();    // uid → { kind, id, tx, ty, x, y } — что тянут другие (x, y — плавно догоняют tx, ty)
+  const emotes = new Map();   // кто (id героя) → { e, t0 }
+  const seenEmote = new Map(); // uid → t последнего показанного
+  let lastPets = {};
+  const hostOf = () => (mode === 'guest' ? hostId : me);
+  const inSession = () => !!me && (mode === 'guest' || visitors.size > 0);
+
+  // Чужие перетаскивания (видно, как друг несёт вещь).
+  function setDrags(v) {
+    const seen = new Set();
+    for (const [uid, d] of Object.entries(v || {})) {
+      if (uid === me || !d || !Number.isFinite(d.x)) continue;
+      seen.add(uid);
+      const prev = drags.get(uid);
+      if (prev && prev.kind === d.kind && prev.id === d.id) { prev.tx = d.x; prev.ty = d.y; }
+      else drags.set(uid, { kind: d.kind, id: d.id, tx: d.x, ty: d.y, x: d.x, y: d.y });
+    }
+    for (const uid of [...drags.keys()]) if (!seen.has(uid)) drags.delete(uid);
+  }
+  // Смайлики.
+  function setEmotes(v) {
+    for (const [uid, m] of Object.entries(v || {})) {
+      if (!m?.e || !m.who || (seenEmote.get(uid) || 0) >= m.t) continue;
+      seenEmote.set(uid, m.t);
+      if (uid === me || Date.now() - m.t > 8000) continue; // свой уже показан; старый — не показываем
+      emotes.set(m.who, { e: m.e, t0: performance.now() });
+      onEmote?.(m.who, m.e);
+    }
+  }
+  // Пути животных от хозяина.
+  function setPets(v) {
+    const cur = v || {};
+    for (const id of new Set([...Object.keys(lastPets), ...Object.keys(cur)])) {
+      const a = JSON.stringify(lastPets[id] ?? null), b = JSON.stringify(cur[id] ?? null);
+      if (a !== b) pets?.remoteWalk(Number(id), cur[id] || null);
+    }
+    lastPets = cur;
+  }
+  // Подписки, общие для хозяина и гостя (на дом хозяина).
+  function socialSubs(host) {
+    return [
+      net.on('live/' + host + '/drags', setDrags),
+      net.on('live/' + host + '/emotes', setEmotes),
+    ];
+  }
 
   // ── Герои-гости на экране ──
   function setVisitors(v) {
@@ -44,11 +94,12 @@ export function createVisit({ friends, store, getMe, isDragging, camera, onMode,
   // ── Хозяин: у меня гости ──
   function startHosting(uid) {
     hostSubs.forEach((f) => f()); hostSubs = [];
+    hostSubs.push(...socialSubs(uid));
     hostSubs.push(net.on('live/' + uid + '/guests', (v) => {
       if (mode !== 'home') return;
       const had = visitors.size;
       setVisitors(v);
-      if (visitors.size && !had) publish(true);
+      if (visitors.size && !had) { publish(true); net.remove('live/' + uid + '/pets').catch(() => {}); }
       if (!visitors.size) net.remove('live/' + uid + '/state').catch(() => {});
     }));
     hostSubs.push(net.on('live/' + uid + '/ops', (v) => {
@@ -147,6 +198,8 @@ export function createVisit({ friends, store, getMe, isDragging, camera, onMode,
       } catch (e) { this.leave(); throw e; }
       guestSubs.push(net.on('live/' + id + '/state', receive));
       guestSubs.push(net.on('live/' + id + '/guests', setVisitors));
+      guestSubs.push(...socialSubs(id));
+      guestSubs.push(net.on('live/' + id + '/pets', setPets));
       guestSubs.push(net.on('status/' + id, (v) => { if (mode === 'guest' && v && !v.on) { this.leave(); toast?.('Друг ушёл — ты дома'); } }));
       // Хозяин не ответил домом за 12 секунд — домой.
       setTimeout(() => { if (mode === 'guest' && hostId === id && firstState) { this.leave(); toast?.('Друг не открыл дверь — попробуй позже', true); } }, 12000);
@@ -159,6 +212,9 @@ export function createVisit({ friends, store, getMe, isDragging, camera, onMode,
       const id = hostId;
       net.cancelPresence?.('live/' + id + '/guests/' + me);
       net.remove('live/' + id + '/guests/' + me).catch(() => {});
+      net.remove('live/' + id + '/drags/' + me).catch(() => {});
+      for (const pid of Object.keys(lastPets)) pets?.remoteWalk(Number(pid), null);
+      lastPets = {}; drags.clear(); emotes.clear();
       mode = 'home'; hostId = null; visitors.clear(); baseline = null;
       applying = true; store.swap(homeState); applying = false; homeState = null;
       onMode?.('home');
@@ -166,7 +222,43 @@ export function createVisit({ friends, store, getMe, isDragging, camera, onMode,
     },
     // Свой герой-гость переехал (перетащили пальцем).
     moveSelf(room, x, y) { const g = visitors.get(me); if (!g) return; g.room = room; g.x = x; g.y = y; sendSelf(); },
-    // Перетаскивание кончилось — применить дом, пришедший во время него.
-    dragEnded() { if (pending) { const v = pending; pending = null; receive(v); } },
+    // Перетаскивание кончилось — применить дом, пришедший во время него; друзьям — «отпустил».
+    dragEnded() {
+      if (pending) { const v = pending; pending = null; receive(v); }
+      if (sentDrag) { sentDrag = null; net.remove('live/' + hostOf() + '/drags/' + me).catch(() => {}); }
+    },
+    inSession,
+    // Я тяну вещь или героя — друзьям, не чаще 8 раз в секунду.
+    sendDrag(g) {
+      if (!inSession() || !g || (g.kind !== 'item' && g.kind !== 'char')) return;
+      const t = performance.now(); if (t - lastDragSend < 120) return;
+      lastDragSend = t;
+      sentDrag = { kind: g.kind, id: g.id, x: Math.round(g.ax), y: Math.round(g.ay) };
+      net.set('live/' + hostOf() + '/drags/' + me, sentDrag).catch(() => {});
+    },
+    // Где сейчас то, что тянет друг (плавно), — для отрисовки. null — никто не тянет.
+    dragOverride(kind, id) {
+      for (const d of drags.values()) if (d.kind === kind && d.id === id) { const r = roomAtX(store.layout, d.x); return { room: r.room.id, x: d.x - r.x0, y: d.y, on: undefined, seat: undefined }; }
+      return null;
+    },
+    // Каждый кадр: чужие перетаскивания догоняют присланное место. true — нужны кадры.
+    tick(dt) {
+      let busy = false;
+      for (const d of drags.values()) { const k = Math.min(1, dt * 12); d.x += (d.tx - d.x) * k; d.y += (d.ty - d.y) * k; busy = true; }
+      const now = performance.now();
+      for (const [who, m] of emotes) { if (now - m.t0 > 2600) emotes.delete(who); else busy = true; }
+      return busy;
+    },
+    // Смайлик над своим героем (у друга — над моим гостем, дома — над моим героем из профиля).
+    emote(e) {
+      if (!inSession()) return false;
+      const who = mode === 'guest' ? VID(me) : getMe().face;
+      emotes.set(who, { e, t0: performance.now() });
+      net.set('live/' + hostOf() + '/emotes/' + me, { e, who, t: Date.now() }).catch(() => {});
+      return true;
+    },
+    emotesNow: () => [...emotes.entries()].map(([who, m]) => ({ who, e: m.e, age: (performance.now() - m.t0) / 1000 })),
+    // Хозяин: животное пошло/пришло — гостям.
+    petWalk(id, w) { if (mode === 'home' && me && visitors.size) net.set('live/' + me + '/pets/' + id, w).catch(() => {}); },
   };
 }

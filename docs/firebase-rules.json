@@ -53,6 +53,19 @@
           "$op": {
             ".write": "auth != null && (auth.uid === $host || (newData.child('by').val() === auth.uid && root.child('friends').child($host).child(auth.uid).exists()))"
           }
+        },
+        "drags": {
+          "$u": {
+            ".write": "auth != null && auth.uid === $u && (auth.uid === $host || root.child('friends').child($host).child(auth.uid).exists())"
+          }
+        },
+        "emotes": {
+          "$u": {
+            ".write": "auth != null && auth.uid === $u && (auth.uid === $host || root.child('friends').child($host).child(auth.uid).exists())"
+          }
+        },
+        "pets": {
+          ".write": "auth != null && auth.uid === $host"
         }
       }
     }

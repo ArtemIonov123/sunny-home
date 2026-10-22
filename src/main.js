@@ -76,17 +76,20 @@ async function boot() {
       if (what === 'hop') { anims.fall('item:' + id, -60); if (seen) play('boing'); }
       invalidate();
     },
+    onWalk: (id, w) => visit?.petWalk(id, w), // гостям — куда пошло животное
     onArrive: (id, called) => { if (called) { anims.hop('item:' + id); animalAnims.happy(id); play(itemDef(store.state.items.find((i) => i.id === id)?.def)?.animal?.voice || 'pop'); } },
   });
   renderer.setPets(pets);
   // В гости к друзьям и гости у меня (net/visit.js).
   const visit = createVisit({
-    friends: hud.friends, store, getMe: hud.getMe, camera, toast: hud.toast,
+    friends: hud.friends, store, getMe: hud.getMe, camera, toast: hud.toast, pets,
+    onEmote: () => { play('pop'); invalidate(); },
     isDragging: () => !!interaction.drag,
     onMode: (m) => { hud.setVisiting(m === 'guest'); play(m === 'guest' ? 'ding' : 'whoosh'); invalidate(); },
     onArrive: (uid, g) => { play('ding'); hud.toast('👋 ' + (g.nick || 'Друг') + ' пришёл в гости'); invalidate(); },
   });
   renderer.setVisit(visit); interaction.setVisit(visit); hud.setVisit(visit);
+  setInterval(() => { if (!running && visit.inSession()) invalidate(); }, 1000); // друзья в доме — изредка кадр (их смайлики, перенос вещей)
   interaction.on('dragend', () => visit.dragEnded());
   hud.setPets(pets, (id) => { if (pets.call(id)) { play('whoosh'); invalidate(); } });
   setInterval(() => { if (!running && !document.hidden && pets.wantsFrame()) invalidate(); }, 600); // кадров нет, а кому-то пора гулять
@@ -138,6 +141,8 @@ async function boot() {
     let busy = camera.update(dt);
     busy = interaction.frame(dt) || busy;
     busy = pets.tick(dt) || busy;
+    busy = visit.tick(dt) || busy; // друзья тянут вещи, смайлики
+    if (interaction.drag) visit.sendDrag(interaction.drag);
     busy = anims.active() || busy;
     busy = swayStep(dt, fresh) || busy;
     busy = renderer.animating || rigAnims.active() || animalAnims.active() || !!interaction.drag || busy; // включённый телевизор на экране — мультик идёт
@@ -331,7 +336,7 @@ async function boot() {
   });
 
   // Для автотестов и отладки.
-  window.__sunny = { pets, interaction, rig: { rigAnims, getRig, drawRig, LIE }, store, camera, renderer, actions, viewport, saveNow, physics: { surfacesOf, syncChildren }, mode, hud };
+  window.__sunny = { pets, visit, interaction, rig: { rigAnims, getRig, drawRig, LIE }, store, camera, renderer, actions, viewport, saveNow, physics: { surfacesOf, syncChildren }, mode, hud };
 }
 
 boot().catch((e) => {

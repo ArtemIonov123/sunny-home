@@ -73,6 +73,20 @@ await B.p.waitForTimeout(800);
 const bDog = await B.p.evaluate(() => { const d = window.__sunny.store.state.items.find((i) => i.def === 'dog'); return [d.room, d.x]; });
 await A.p.evaluate(() => { const S = window.__sunny; const r = S.store.layout.byId.get('lawn'); S.camera.holdAt(r.x0 + 200); S.camera.mode = 'idle'; S.store.touch(); });
 await A.p.waitForTimeout(500); await A.p.screenshot({ path: SH + 'visit_A.png' });
+// живое: A тянет банан — B видит, где он; смайлик B — у A; щенок A пошёл — у B идёт тоже
+const live = {};
+await A.p.evaluate(() => { const S = window.__sunny; const b = S.store.state.items.find((i) => i.def === 'banana' && i.room === 'lawn'); const r = S.store.layout.byId.get('lawn'); S.visit.sendDrag({ kind: 'item', id: b.id, ax: r.x0 + 300, ay: 700 }); });
+await B.p.waitForTimeout(700);
+live.bDragSees = await B.p.evaluate(() => { const S = window.__sunny; const b = S.store.state.items.find((i) => i.def === 'banana' && i.room === 'lawn'); return S.visit.dragOverride('item', b.id); });
+live.bSocial = await B.p.evaluate(() => document.getElementById('app').classList.contains('social'));
+live.aSocial = await A.p.evaluate(() => document.getElementById('app').classList.contains('social'));
+await B.p.click('[data-act=emote]'); await B.p.click('[data-emote="❤️"]'); await A.p.waitForTimeout(500);
+live.aEmotes = await A.p.evaluate(() => window.__sunny.visit.emotesNow().map((m) => [m.who, m.e]));
+await A.p.screenshot({ path: SH + 'emote_A.png' });
+await A.p.evaluate(() => { const S = window.__sunny; S.store.change((s) => { const d = s.items.find((i) => i.def === 'dog'); d.room = 'lawn'; d.x = 1600; d.y = 820; }, { undo: false }); const d = S.store.state.items.find((i) => i.def === 'dog'); S.pets.call(d.id); });
+await B.p.waitForTimeout(400);
+live.bDogWalk = await B.p.evaluate(() => { const S = window.__sunny; const d = S.store.state.items.find((i) => i.def === 'dog'); return !!S.pets.walkOf(d.id); });
+console.log('LIVE', JSON.stringify(live));
 // домой
 await B.p.click('[data-act=home]'); await B.p.waitForTimeout(800);
 const bHome = await B.p.evaluate(() => ({ wall: window.__sunny.store.state.rooms.find((r) => r.id === 'living').wall.color, n: window.__sunny.store.state.items.length, visiting: document.getElementById('app').classList.contains('visiting') }));

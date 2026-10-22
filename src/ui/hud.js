@@ -20,6 +20,7 @@ import { isLocked } from '../core/access.js';
 import { isSmall } from '../core/physics.js';
 
 // Иконки комнат: ребёнку не нужно читать, чтобы найти кухню.
+const EMOTES = ['👋', '❤️', '😂', '⭐', '😮', '👍'];
 const ROOM_ICONS = { lawn: '🌳', living: '🛋️', kitchen: '🍳', kids: '🧸', bath: '🛁', bedroom: '🛏️' };
 // Разделы редактора комнаты (как в Toca Boca: иконки сверху).
 const DESIGN_TABS = [['furniture', '🛋️', 'Мебель'], ['appliances', '🔌', 'Техника'], ['decor', '🖼️', 'Декор'], ['build', '🪟', 'Окна и двери'], ['garden', '🌳', 'Сад'], ['finish', '🖌️', 'Отделка']];
@@ -36,6 +37,7 @@ export function createHud({ root, store, camera, actions, onChange }) {
     </div>
     <nav class="rooms" aria-label="Комнаты"></nav>
     <div class="pets" aria-label="Позвать животное"></div>
+    <div class="emote-bar"><button class="btn round emote-btn" data-act="emote" aria-label="Смайлики">💬</button><div class="emote-pick" hidden>${EMOTES.map((e) => `<button class="emote-one" data-emote="${e}">${e}</button>`).join('')}</div></div>
     <div class="hud-bottom-right">
       <button class="btn big round" data-act="shop" aria-label="Магазин" title="Магазин">🛍️</button>
       <button class="btn big round" data-act="heroes" aria-label="Герои" title="Герои">😊</button>
@@ -179,6 +181,8 @@ export function createHud({ root, store, camera, actions, onChange }) {
     if (act === 'undo') { play(store.undo() ? 'whoosh' : 'nope'); }
     else if (act === 'settings') { showPanel(null); settings.open(); }
     else if (act === 'home') { visit?.leave(); play('whoosh'); }
+    else if (act === 'emote') { const p = q('.emote-pick'); p.hidden = !p.hidden; play('click'); }
+    else if (t.dataset.emote) { q('.emote-pick').hidden = true; if (visit?.emote(t.dataset.emote)) { play('pop'); onChange(); } }
     else if (act === 'night') actions.toggleNight();
     else if (act === 'full') fullscreen();
     else if (act === 'admin') { showPanel(null); admin.open(); }
@@ -278,6 +282,8 @@ export function createHud({ root, store, camera, actions, onChange }) {
     if (last.night !== night) { last.night = night; q('[data-act=night]').textContent = night; }
     syncSound();
     syncPets();
+    const social = !!visit?.inSession(); // смайлики — когда в доме есть друзья
+    if (last.social !== social) { last.social = social; root.closest('#app')?.classList.toggle('social', social); if (!social) q('.emote-pick').hidden = true; }
     admin.sync();
   }
 

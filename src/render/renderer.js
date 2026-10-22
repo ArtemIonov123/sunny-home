@@ -50,7 +50,7 @@ export function createRenderer(canvas, store, camera) {
     };
     for (const i0 of s.items) {
       if (drag && drag.kind === 'item' && drag.id === i0.id) continue;
-      const o = pets?.override(i0.id), i = o ? { ...i0, ...o } : i0; // животное идёт само — его место сейчас у «ума»
+      const o = visit?.dragOverride('item', i0.id) || pets?.override(i0.id), i = o ? { ...i0, ...o } : i0; // друг тянет её / животное идёт само // животное идёт само — его место сейчас у «ума»
       if (drag && drag.kind === 'item' && i.on?.id === drag.id) { // едет вместе с мебелью в руке
         if (isHidden(i, parentOf)) continue;
         const r = lay.byId.get(i.room), def = itemDef(i.def);
@@ -64,16 +64,18 @@ export function createRenderer(canvas, store, camera) {
       if (i.open && def.openBox) { const [ox, oy, ow, oh] = def.openBox; b = { x: b.x + ox * b.w, y: b.y + oy * b.h, w: ow * b.w, h: oh * b.h }; } // своя «открытая» картинка другого размера
       add('item', i, b, i.open && def.openArt ? def.openArt : def.art, r.x0);
     }
-    for (const c of s.chars) {
+    for (const c0 of s.chars) {
       if (mode.design) break; // в редакторе героев не видно — не мешают расставлять мебель
+      const o = visit?.dragOverride('char', c0.id), c = o ? { ...c0, ...o } : c0; // друг несёт героя
       if (drag && drag.kind === 'char' && drag.id === c.id) continue;
       const r = lay.byId.get(c.room); if (!r) continue;
       add('char', c, charBounds(c), CHARS[c.id].art, r.x0);
       if (c.seat && list.at(-1)?.obj === c) { const h = charHitBox(c); list.at(-1).hb = { x: h.x + r.x0, y: h.y, w: h.w, h: h.h }; }
     }
     // Гости (друзья в моём доме или я сам у друга) — такие же герои.
-    if (!mode.design) for (const v of visit?.visitors() || []) {
-      if (drag && drag.kind === 'char' && drag.id === v.id) continue;
+    if (!mode.design) for (const v0 of visit?.visitors() || []) {
+      if (drag && drag.kind === 'char' && drag.id === v0.id) continue;
+      const o = visit.dragOverride('char', v0.id), v = o ? { ...v0, ...o } : v0; // гость несёт своего героя
       const r = lay.byId.get(v.room); if (!r || !CHARS[v.id]) continue;
       add('char', v, charBounds(v), CHARS[v.id].art, r.x0);
     }
@@ -251,6 +253,24 @@ export function createRenderer(canvas, store, camera) {
     ctx.restore();
   }
   // Спит: над головой всплывают «z» (картинка, читать не нужно).
+  // Смайлики над героями (👋 ❤️ 😂 …): выпрыгивают, висят и тают.
+  function drawEmotes(list) {
+    for (const m of visit?.emotesNow() || []) {
+      const e = list.find((x) => x.kind === 'char' && x.obj.id === m.who); if (!e) continue;
+      const pop = Math.min(1, m.age / 0.25), fade = m.age > 2.1 ? Math.max(0, 1 - (m.age - 2.1) / 0.5) : 1;
+      const s = pop < 1 ? 0.5 + pop * 0.7 : 1.2 - Math.min(0.2, (m.age - 0.25) * 0.8);
+      const cx = e.b.x + e.b.w * 0.75, cy = e.b.y - 62 - m.age * 10; // выше имени
+      ctx.save(); ctx.globalAlpha = fade; ctx.translate(cx, cy); ctx.scale(s, s);
+      ctx.fillStyle = '#fff'; ctx.strokeStyle = '#c9a477'; ctx.lineWidth = 3;
+      ctx.beginPath(); ctx.arc(0, 0, 38, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(-14, 30); ctx.lineTo(-30, 52); ctx.lineTo(4, 36); ctx.closePath(); ctx.fill();
+      ctx.font = '44px "Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillText(m.e, 0, 3);
+      ctx.restore();
+      animating = true;
+    }
+  }
+
   // Имя гостя над головой (белая плашка).
   function drawNameTag(e) {
     const name = e.obj.nick || ''; if (!name) return;
@@ -407,6 +427,7 @@ export function createRenderer(canvas, store, camera) {
       else drawSprite(e.art, e.b, { pose, after });
       if (chain.length) ctx.restore();
     }
+    drawEmotes(list);
     for (const L of lateWater) { ctx.save(); ctx.setTransform(L.m); drawWater(ctx, tnow(), L.params); ctx.restore(); }
     drawPartitions();
     if (guidesRoomId) drawGuides(guidesRoomId);

@@ -24,7 +24,7 @@ const ACTS = [
 const TOTAL = ACTS.reduce((s, [, w]) => s + w, 0);
 function chooseAct() { let r = Math.random() * TOTAL; for (const [a, w] of ACTS) { r -= w; if (r <= 0) return a; } return 'rest'; }
 
-export function createPets({ store, camera, isPaused, onArrive, onAct }) {
+export function createPets({ store, camera, isPaused, onArrive, onAct, onWalk }) {
   // id вещи → { until, walk?, legs?: [следующие точки], pose?: 'sniff'|'nap', hop? }
   const st = new Map();
 
@@ -46,6 +46,8 @@ export function createPets({ store, camera, isPaused, onArrive, onAct }) {
     if (!ov && i.on) { const p = store.state.items.find((x) => x.id === i.on.id); y = p ? Math.min(floorBottom(), p.y + rnd(8, 30)) : floorBottom() - 20; } // спрыгивает с мебели
     const [first, ...rest] = legs;
     st.set(i.id, { until: 0, legs: rest, ...extra, walk: { wx, y, tx: first.tx, ty: first.ty, speed, phase: 0, dir: Math.sign(first.tx - wx) || 1, amp: 0, run: speed > WALK * 1.8 } });
+    // Гостям: куда и как идёт (у них животное пройдёт тот же путь само, плавно).
+    onWalk?.(i.id, { wx, y, legs: legs.map((l) => [Math.round(l.tx), Math.round(l.ty)]), speed: Math.round(speed) });
   }
   const rest = (id, a, b, extra = {}) => st.set(id, { until: now() + rnd(a, b), ...extra });
 
@@ -98,6 +100,7 @@ export function createPets({ store, camera, isPaused, onArrive, onAct }) {
       if (w.dir < 0) i.flip = true; else delete i.flip;
     }, { undo: false });
     if (hop) onAct?.(id, 'hop');
+    onWalk?.(id, null);
     rest(id, 2, 12);
     onArrive?.(id, w.called);
   }
@@ -105,12 +108,14 @@ export function createPets({ store, camera, isPaused, onArrive, onAct }) {
   return {
     // Шаг «ума». Возвращает true, пока кто-то идёт (нужны кадры).
     tick(dt) {
-      if (isPaused()) return false;
+      const paused = isPaused();
       let moving = false;
       const t = now(), alive = new Set();
       for (const i of animals()) {
         alive.add(i.id);
         let s = st.get(i.id);
+        if (paused) { if (!s?.walk?.remote) continue; } // в гостях: животные идут только так, как у хозяина
+        else if (s?.walk?.remote) { st.delete(i.id); s = null; }
         if (!s) { rest(i.id, 1, 6); continue; }
         if (!s.walk) {
           if (t < s.until) continue;
@@ -122,7 +127,10 @@ export function createPets({ store, camera, isPaused, onArrive, onAct }) {
         }
         const w = s.walk, dx = w.tx - w.wx, dist = Math.hypot(dx, w.ty - w.y);
         const step = Math.min(dist, w.speed * dt);
-        if (dist < 2) { arrive(i.id, s); continue; }
+        if (dist < 2) {
+          if (!w.remote) { arrive(i.id, s); continue; }
+          if (s.legs?.length) { const [n, ...more] = s.legs; s.legs = more; w.tx = n.tx; w.ty = n.ty; } else { st.delete(i.id); continue; } // дошло — дальше место пришлёт хозяин
+        }
         w.wx += (dx / dist) * step; w.y += ((w.ty - w.y) / dist) * step;
         w.phase += step * (w.run ? 0.03 : 0.05);
         w.amp = Math.min(1, w.amp + dt * 4);
@@ -134,7 +142,7 @@ export function createPets({ store, camera, isPaused, onArrive, onAct }) {
     },
     // Пора кому-то за дело (для редких проверок, когда кадров нет).
     wantsFrame() {
-      if (isPaused()) return false;
+      if (isPaused()) return [...st.values()].some((x) => x.walk?.remote);
       const t = now();
       for (const s of st.values()) if (s.walk || t >= s.until) return true;
       return st.size === 0 && animals().length > 0;
@@ -144,6 +152,12 @@ export function createPets({ store, camera, isPaused, onArrive, onAct }) {
       const w = st.get(id)?.walk; if (!w) return null;
       const r = roomAtX(store.layout, w.wx);
       return { room: r.room.id, x: w.wx - r.x0, y: w.y, on: undefined, flip: w.dir < 0 };
+    },
+    // Животное у хозяина пошло (я в гостях): пройти тот же путь у себя. null — пришло.
+    remoteWalk(id, w) {
+      if (!w || !Array.isArray(w.legs) || !w.legs.length) { if (st.get(id)?.walk?.remote) st.delete(id); return; }
+      const legs = w.legs.map(([tx, ty]) => ({ tx, ty })), [first, ...more] = legs;
+      st.set(id, { until: 0, legs: more, walk: { wx: w.wx, y: w.y, tx: first.tx, ty: first.ty, speed: w.speed || WALK, phase: 0, dir: Math.sign(first.tx - w.wx) || 1, amp: 0, run: (w.speed || WALK) > WALK * 1.8, remote: true } });
     },
     walkOf(id) { const w = st.get(id)?.walk; return w ? { phase: w.phase, amp: w.amp, dir: w.dir } : null; },
     // Чем занято, стоя на месте: 'sniff' — нюхает, 'nap' — дремлет.
