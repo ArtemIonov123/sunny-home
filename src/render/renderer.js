@@ -7,6 +7,7 @@ import { img, maskOf } from '../assets.js';
 import { itemBounds, charBounds, depthOf } from '../core/placement.js';
 import { backgroundFor, clearBackgrounds, prewarm } from './background.js';
 import { anims } from './anims.js';
+import { drawWater, waterParams } from './water.js';
 import { getRig, drawRig, heroPose } from './rig.js';
 import { sizeOf } from '../assets.js';
 import { mode } from '../ui/mode.js';
@@ -165,33 +166,6 @@ export function createRenderer(canvas, store, camera) {
     ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x + w * 0.45, y); ctx.lineTo(x + w * 0.2, y + h); ctx.lineTo(x, y + h); ctx.fill();
     ctx.restore();
   }
-  // Вода из душа или крана: несколько струек из капель, внизу брызги.
-  function drawWater(x, y, yEnd, spread) {
-    const t = tnow(), len = yEnd - y;
-    ctx.save();
-    ctx.lineCap = 'round';
-    const n = spread > 20 ? 7 : 2;
-    for (let k = 0; k < n; k++) {
-      const off = n === 1 ? 0 : (k / (n - 1) - 0.5) * spread;
-      const lean = -spread * 0.35; // душ брызгает чуть в сторону
-      ctx.strokeStyle = 'rgba(120,200,255,.6)'; ctx.lineWidth = n > 2 ? 4 : 7;
-      ctx.beginPath(); ctx.moveTo(x + off * 0.4, y); ctx.lineTo(x + off + lean * (n > 2 ? 1 : 0), yEnd); ctx.stroke();
-      // капли бегут вниз
-      ctx.fillStyle = 'rgba(225,246,255,1)';
-      for (let d = 0; d < 3; d++) {
-        const q = (t * 1.8 + k * 0.37 + d / 3) % 1;
-        const dx = x + off * 0.4 + (off * 0.6 + lean * (n > 2 ? 1 : 0)) * q;
-        ctx.beginPath(); ctx.ellipse(dx, y + len * q, 3, 6, 0, 0, Math.PI * 2); ctx.fill();
-      }
-    }
-    // брызги внизу
-    ctx.fillStyle = 'rgba(190,235,255,.85)';
-    for (let k = 0; k < 6; k++) {
-      const q = (t * 2.5 + k / 6) % 1, a = (k / 6) * Math.PI;
-      ctx.beginPath(); ctx.arc(x + (n > 2 ? -spread * 0.35 : 0) + Math.cos(a) * 30 * q * (n > 2 ? 1 : 0.4), yEnd - Math.sin(a) * 22 * q * (1 - q) * 4, 3.5 * (1 - q) + 1, 0, Math.PI * 2); ctx.fill();
-    }
-    ctx.restore();
-  }
   // Тёплый свет торшера (рисуется «добавлением» цвета — ночью особенно заметно).
   function drawGlow(cx, cy, r, strength) {
     const g = ctx.createRadialGradient(cx, cy, r * 0.05, cx, cy, r);
@@ -311,7 +285,7 @@ export function createRenderer(canvas, store, camera) {
         after = (x, y, w, h) => {
           const m = ctx.getTransform(); // запоминаем положение — ночью свет рисуется ещё раз поверх темноты
           lights.push({ m, power, x, y, w, h, since: litSince.get(e.obj.id) });
-          if (power.water) { const [wx, wy, we, ws] = power.water; drawWater(x + wx * w, y + wy * h, y + we * h, ws * w); animating = true; }
+          if (power.water) { drawWater(ctx, tnow(), waterParams(power.water, x, y, w, h)); animating = true; }
           if (power.screen) { const [a, b2, c, d] = power.screen; drawScreen(x + a * w, y + b2 * h, (c - a) * w, (d - b2) * h, litSince.get(e.obj.id)); animating = true; }
         };
       }

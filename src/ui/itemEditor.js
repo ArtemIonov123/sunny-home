@@ -3,6 +3,7 @@
 import { GROUPS, PLACES, allItemDefs, itemDef, originalDef, sizeKey } from '../core/catalog.js';
 import { listRecords, getRecord, saveRecord, deleteRecord, importPack, exportPack, newId, MIN_W, MAX_W, LIBRARY_LIMIT, getOverride, saveOverride, resetOverride } from '../core/library.js';
 import { normalize } from '../core/actions.js';
+import { streams, drawStreams } from '../render/water.js';
 import { img, loadImage } from '../assets.js';
 import { escapeHtml as esc } from '../util.js';
 
@@ -72,7 +73,9 @@ export function createItemEditor({ store, actions, toast, onChange }) {
   // Встроенный предмет: черновик правки. size — в той мере, которой задан предмет (высота или ширина).
   function builtinDraft(id) {
     const def = itemDef(id), base = originalDef(id), o = getOverride(id), key = sizeKey(id);
-    return { builtin: true, id, name: def.name, group: def.group, place: def.place, sizeKey: key, size: def[key], baseSize: base[key], image: o?.image || '', origArt: base.art };
+    const copy = (v) => (v === undefined ? undefined : JSON.parse(JSON.stringify(v)));
+    return { builtin: true, id, name: def.name, group: def.group, place: def.place, sizeKey: key, size: def[key], baseSize: base[key], image: o?.image || '', origArt: base.art,
+      surfaces: copy(def.surfaces) || [], power: copy(def.power), tap: def.tap, openArt: def.openArt, baseLiving: JSON.stringify([base.surfaces || [], base.power || null, base.tap || null]) };
   }
   const imgSrc = (d) => d.image || (d.builtin ? img(d.origArt)?.src : '') || '';
 
@@ -93,6 +96,7 @@ export function createItemEditor({ store, actions, toast, onChange }) {
         </div>
         <div class="ie-preview"><canvas width="520" height="420" data-ie-canvas aria-label="Сравнение размера с Милой"></canvas><small>Размер рядом с Милой</small></div>
       </div>
+      ${livingHtml()}
       <div class="ie-actions">
         <button data-ie-save class="primary">Сохранить</button>
         <button data-ie-save-put>Сохранить и поставить в дом</button>
@@ -133,27 +137,45 @@ export function createItemEditor({ store, actions, toast, onChange }) {
     const d = draft, pk = powerKind(d);
     const opt = (obj, cur) => Object.entries(obj).map(([k, n]) => `<option value="${k}"${k === cur ? ' selected' : ''}>${n}</option>`).join('');
     const surf = (d.surfaces || []).map((s, k) => `<span class="lv-chip">${s[3] ? '🔒 внутри' : '▭ полка'} ${k + 1}<button data-lv-delsurf="${k}" aria-label="Убрать">×</button></span>`).join('');
+    const B = !!d.builtin, w = d.power?.water;
+    const waterBox = pk === 'water' ? `<div class="lv-row lv-water">
+        <label class="adm-field">Ширина струи · <b>${Math.round(w[3] * 100)}%</b><input type="range" data-lv-ww min="1" max="40" value="${Math.round(w[3] * 100)}"></label>
+        <label class="adm-field">Направление · <b>${w[4] || 0}°</b><input type="range" data-lv-wdir min="-85" max="85" value="${w[4] || 0}"></label>
+        <label class="adm-field">Напор · <b>${Math.round((w[5] || 0) * 100)}%</b><input type="range" data-lv-wpush min="0" max="100" value="${Math.round((w[5] || 0) * 100)}"></label>
+      </div>` : '';
     return `<div class="lv"><h4>Оживить предмет</h4>
       <div class="lv-row">
-        <label class="adm-field">Что это<select data-lv-kind>${opt(KINDS, kindOf(d))}</select></label>
+        ${B ? '' : `<label class="adm-field">Что это<select data-lv-kind>${opt(KINDS, kindOf(d))}</select></label>`}
         <label class="adm-field">Нажатие<select data-lv-tap>${opt({ '': 'Покачивается', ring: 'Звенит и трясётся', squeak: 'Пищит' }, d.tap || '')}</select></label>
         <label class="adm-field">Включается<select data-lv-power>${opt({ '': 'Нет', glow: 'Свет (лампа)', screen: 'Экран с мультиком', water: 'Вода (душ, кран)' }, pk)}</select></label>
       </div>
-      <div class="lv-row">
+      ${B ? '' : `<div class="lv-row">
         <label class="ie-upload small"><em>${d.open ? 'Заменить картинку «открыто»' : '＋ Картинка «открыто» (шкаф, холодильник)'}</em><input type="file" accept="image/png,image/webp,image/jpeg" data-ie-openfile></label>
         ${d.open ? '<button data-lv-noopen>Убрать «открыто»</button>' : ''}
-      </div>
+      </div>`}
+      ${waterBox}
       <div class="lv-tools">
         <button data-lv-tool="surface" class="${tool === 'surface' ? 'on' : ''}">✏️ Полка</button>
-        ${pk ? `<button data-lv-tool="power" class="${tool === 'power' ? 'on' : ''}">${pk === 'glow' ? '💡 Где свет' : pk === 'screen' ? '📺 Где экран' : '🚿 Откуда вода'}</button>` : ''}
-        ${d.open ? `<button data-lv-view="closed" class="${view === 'closed' ? 'on' : ''}">Закрыто</button><button data-lv-view="open" class="${view === 'open' ? 'on' : ''}">Открыто</button>` : ''}
+        ${pk ? `<button data-lv-tool="power" class="${tool === 'power' ? 'on' : ''}">${pk === 'glow' ? '💡 Где свет' : pk === 'screen' ? '📺 Где экран' : '🚿 Откуда и куда вода'}</button>` : ''}
+        ${pk === 'water' ? `<button data-lv-tool="wend" class="${tool === 'wend' ? 'on' : ''}">📏 Докуда падает</button>` : ''}
+        ${hasOpen(d) ? `<span class="lv-sep"></span><button data-lv-view="closed" class="lv-view ${view === 'closed' ? 'on' : ''}">Закрыто</button><button data-lv-view="open" class="lv-view ${view === 'open' ? 'on' : ''}">Открыто</button>` : ''}
       </div>
       <p class="adm-help">${tool === 'surface' ? 'Проведи пальцем по картинке слева направо там, где вещи должны стоять (столешница, полка, сиденье).' + (d.open ? ' На картинке «Открыто» полка будет внутренней — видна только открытой.' : '')
-        : pk === 'glow' ? 'Нажми туда, откуда идёт свет (абажур).' : pk === 'screen' ? 'Обведи экран: проведи из угла в угол.' : 'Проведи от крана/лейки вниз — туда, куда льётся вода.'}</p>
+        : tool === 'wend' ? 'Нажми на высоту, где вода разбивается брызгами (дно раковины, ванна) — ниже она не полетит.'
+        : pk === 'glow' ? 'Нажми туда, откуда идёт свет (абажур).' : pk === 'screen' ? 'Обведи экран: проведи из угла в угол.' : 'Поставь палец на кран/лейку и проведи в сторону, куда бьёт вода: направление — куда ведёшь, напор — насколько далеко. Голубая дуга — как польётся.'}</p>
       <canvas class="lv-canvas" width="560" height="380" data-lv-canvas></canvas>
       <div class="lv-chips">${surf}</div></div>`;
   }
 
+  // Высота предмета в доме (единицы мира) — чтобы дуга воды в студии была как в игре.
+  function itemHeightWorld() {
+    const ar = lvIm ? lvIm.height / lvIm.width : 1;
+    if (draft.builtin) return draft.sizeKey === 'h' ? draft.size : draft.size * ar;
+    return (draft.w || 160) * ar;
+  }
+  const hasOpen = (d) => !!(d.open || (d.builtin && d.openArt));
+  const closedSrc = (d) => imgSrc(d);
+  const openSrc = (d) => d.open?.image || (d.builtin && d.openArt ? img(d.openArt)?.src : '');
   // Рамка закрытой картинки на холсте редактора и рамка «открытой» внутри неё.
   let lvIm = null, lvOpenIm = null;
   function lvFrames(cv) {
@@ -167,13 +189,14 @@ export function createItemEditor({ store, actions, toast, onChange }) {
     return { R, O };
   }
   async function drawLiving() {
-    const cv = host?.querySelector('[data-lv-canvas]'); if (!cv || !draft?.image) return;
-    if (!lvIm || lvIm.src !== draft.image) lvIm = await loadImage(draft.image);
-    if (draft.open && (!lvOpenIm || lvOpenIm.src !== draft.open.image)) lvOpenIm = await loadImage(draft.open.image);
+    const cv = host?.querySelector('[data-lv-canvas]'); const cs = draft && closedSrc(draft); if (!cv || !cs) return;
+    if (!lvIm || lvIm.src !== cs) lvIm = await loadImage(cs);
+    const os = hasOpen(draft) && openSrc(draft);
+    if (os && (!lvOpenIm || lvOpenIm.src !== os)) lvOpenIm = await loadImage(os);
     const c = cv.getContext('2d'), F = lvFrames(cv); if (!F) return;
     c.clearRect(0, 0, cv.width, cv.height);
     c.fillStyle = '#f7efe0'; c.fillRect(0, 0, cv.width, cv.height);
-    const open = view === 'open' && draft.open;
+    const open = view === 'open' && hasOpen(draft);
     const r = open ? F.O : F.R;
     c.drawImage(open ? lvOpenIm : lvIm, r.x, r.y, r.w, r.h);
     c.setLineDash([6, 5]); c.strokeStyle = '#c9a47788'; c.strokeRect(F.R.x, F.R.y, F.R.w, F.R.h); c.setLineDash([]);
@@ -187,8 +210,18 @@ export function createItemEditor({ store, actions, toast, onChange }) {
     c.lineWidth = 3;
     if (p?.glow) { const [x, y] = at(p.glow[0], p.glow[1]); c.fillStyle = '#ffd34d99'; c.beginPath(); c.arc(x, y, 26, 0, Math.PI * 2); c.fill(); c.fillStyle = '#e8a400'; c.beginPath(); c.arc(x, y, 6, 0, Math.PI * 2); c.fill(); }
     if (p?.screen) { const [x0, y0] = at(p.screen[0], p.screen[1]), [x1, y1] = at(p.screen[2], p.screen[3]); c.fillStyle = '#7fd3ff88'; c.fillRect(x0, y0, x1 - x0, y1 - y0); }
-    if (p?.water) { const [x, y] = at(p.water[0], p.water[1]), [, y1] = at(p.water[0], p.water[2]); c.strokeStyle = '#4aa8f0'; c.beginPath(); c.moveTo(x, y); c.lineTo(x, y1); c.stroke(); }
-    if (drawing) { c.strokeStyle = '#3f9a5a'; c.setLineDash([4, 4]); c.beginPath(); c.moveTo(drawing.x0, drawing.y0); c.lineTo(drawing.x1, tool === 'surface' ? drawing.y0 : drawing.y1); c.stroke(); c.setLineDash([]); }
+    if (p?.water) {
+      // Как польётся: та же «физика», что в игре (масштаб: высота картинки = её высота в доме).
+      const wv = p.water, k = F.R.h / Math.max(1, itemHeightWorld());
+      const [x, y] = at(wv[0], wv[1]), [, yEnd] = at(wv[0], wv[2]);
+      c.save(); c.translate(x, y); c.scale(k, k);
+      drawStreams(c, streams({ x: 0, y: 0, yEnd: (yEnd - y) / k, width: (wv[3] * F.R.w) / k, dir: wv[4] || 0, push: wv[5] || 0 }), 0.85);
+      c.restore();
+      c.setLineDash([8, 6]); c.strokeStyle = '#4aa8f0'; c.lineWidth = 2; c.beginPath(); c.moveTo(F.R.x, yEnd); c.lineTo(F.R.x + F.R.w, yEnd); c.stroke(); c.setLineDash([]);
+      c.fillStyle = '#4aa8f0'; c.beginPath(); c.arc(x, y, 6, 0, Math.PI * 2); c.fill();
+    }
+    if (drawing && tool === 'power' && draft.power?.water) { c.strokeStyle = '#4aa8f0'; c.lineWidth = 3; c.beginPath(); c.moveTo(drawing.x0, drawing.y0); c.lineTo(drawing.x1, drawing.y1); c.stroke(); }
+    else if (drawing) { c.strokeStyle = '#3f9a5a'; c.setLineDash([4, 4]); c.beginPath(); c.moveTo(drawing.x0, drawing.y0); c.lineTo(drawing.x1, tool === 'surface' ? drawing.y0 : drawing.y1); c.stroke(); c.setLineDash([]); }
   }
   // Точка на холсте → доли закрытой картинки.
   function toFrac(cv, e) {
@@ -202,6 +235,7 @@ export function createItemEditor({ store, actions, toast, onChange }) {
     const p = toFrac(cv, e);
     drawing = { x0: p.x, y0: p.y, x1: p.x, y1: p.y, f0: p };
     if (tool === 'power' && draft.power?.glow) { draft.power = { glow: [round(p.fx), round(p.fy), 1.2] }; dirty = true; drawing = null; drawLiving(); }
+    else if (tool === 'wend' && draft.power?.water) { const w = draft.power.water; w[2] = round(Math.max(w[1] + 0.03, p.fy)); dirty = true; drawing = null; render(); }
   }
   function lvMove(e) {
     if (!drawing) return;
@@ -214,11 +248,16 @@ export function createItemEditor({ store, actions, toast, onChange }) {
     const a = drawing.f0, b = drawing.f1 || a; drawing = null;
     if (tool === 'surface') {
       const x0 = Math.min(a.fx, b.fx), x1 = Math.max(a.fx, b.fx);
-      if (x1 - x0 > 0.05) { (draft.surfaces ||= []).push(view === 'open' && draft.open ? [round(x0), round(x1), round(a.fy), 1] : [round(x0), round(x1), round(a.fy)]); dirty = true; }
+      if (x1 - x0 > 0.05) { (draft.surfaces ||= []).push(view === 'open' && hasOpen(draft) ? [round(x0), round(x1), round(a.fy), 1] : [round(x0), round(x1), round(a.fy)]); dirty = true; }
     } else if (draft.power?.screen) {
       if (Math.abs(b.fx - a.fx) > 0.05 && Math.abs(b.fy - a.fy) > 0.05) { draft.power = { screen: [round(Math.min(a.fx, b.fx)), round(Math.min(a.fy, b.fy)), round(Math.max(a.fx, b.fx)), round(Math.max(a.fy, b.fy))] }; dirty = true; }
     } else if (draft.power?.water) {
-      if (b.fy - a.fy > 0.05) { draft.power = { water: [round(a.fx), round(a.fy), round(b.fy), 0.12] }; dirty = true; }
+      // Откуда (точка нажатия), направление (куда повёл) и напор (насколько далеко повёл). «Докуда» не трогаем.
+      const w = draft.power.water, dx = b.fx - a.fx, dy = b.fy - a.fy, len = Math.hypot(dx, dy);
+      w[0] = round(a.fx); w[1] = round(a.fy);
+      if (len > 0.03) { w[4] = Math.max(-85, Math.min(85, Math.round(Math.atan2(dx, Math.max(0.0001, dy)) * 180 / Math.PI))); w[5] = Math.round(Math.min(1, Math.max(0, (len - 0.05) / 0.6)) * 100) / 100; }
+      if (w[2] <= w[1] + 0.03) w[2] = round(Math.min(1.2, w[1] + 0.25));
+      dirty = true;
     }
     render();
   }
@@ -284,7 +323,9 @@ export function createItemEditor({ store, actions, toast, onChange }) {
     busy = true;
     try {
       const d = draft, base = originalDef(d.id);
-      await saveOverride({ id: d.id, name: d.name !== base.name ? d.name : undefined, group: d.group !== base.group ? d.group : undefined, size: d.size !== d.baseSize ? d.size : undefined, image: d.image || undefined });
+      const livingChanged = JSON.stringify([d.surfaces || [], d.power || null, d.tap || null]) !== d.baseLiving;
+      await saveOverride({ id: d.id, name: d.name !== base.name ? d.name : undefined, group: d.group !== base.group ? d.group : undefined, size: d.size !== d.baseSize ? d.size : undefined, image: d.image || undefined,
+        ...(livingChanged ? { surfaces: d.surfaces || [], power: d.power, tap: d.tap } : {}) });
       dirty = false;
       store.change((s) => normalize(s), { undo: false }); // новый размер — вещи в доме перестраиваются
       if (put) { const id = actions.take(d.id); if (id) actions.placeFromInventory(id); }
@@ -366,7 +407,7 @@ export function createItemEditor({ store, actions, toast, onChange }) {
     } else if (e.target.matches('[data-lv-tap]')) { read(); if (e.target.value) draft.tap = e.target.value; else delete draft.tap; dirty = true; }
     else if (e.target.matches('[data-lv-power]')) {
       read(); const v = e.target.value;
-      draft.power = v === 'glow' ? { glow: [0.5, 0.25, 1.2] } : v === 'screen' ? { screen: [0.15, 0.1, 0.85, 0.6] } : v === 'water' ? { water: [0.5, 0.15, 0.6, 0.12] } : undefined;
+      draft.power = v === 'glow' ? { glow: [0.5, 0.25, 1.2] } : v === 'screen' ? { screen: [0.15, 0.1, 0.85, 0.6] } : v === 'water' ? { water: [0.5, 0.15, 0.6, 0.04, 0, 0.1] } : undefined;
       if (!draft.power) delete draft.power; else tool = 'power';
       dirty = true; render();
     }
@@ -375,6 +416,12 @@ export function createItemEditor({ store, actions, toast, onChange }) {
   const onInput = (e) => {
     if (!host?.contains(e.target) || !draft) return;
     if (e.target.matches('[data-ie-w]')) { read(); dirty = true; host.querySelector('[data-ie-wv]').textContent = draft.w; drawPreview(); }
+    if (e.target.matches('[data-lv-ww],[data-lv-wdir],[data-lv-wpush]') && draft.power?.water) {
+      const w = draft.power.water, v = Number(e.target.value);
+      if (e.target.matches('[data-lv-ww]')) w[3] = v / 100; else if (e.target.matches('[data-lv-wdir]')) w[4] = v; else w[5] = v / 100;
+      e.target.previousElementSibling.textContent = e.target.matches('[data-lv-wdir]') ? v + '°' : v + '%';
+      dirty = true; drawLiving();
+    }
     if (e.target.matches('[data-ie-size]')) { read(); dirty = true; host.querySelector('[data-ie-wv]').textContent = draft.size; drawPreview(); }
     if (e.target.matches('[data-ie-name]')) { dirty = true; }
   };

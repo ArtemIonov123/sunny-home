@@ -15,7 +15,7 @@
 // drink    — напиток (пьют, а не кусают); wear — одежда, которая надевается на героя (tshirt/pants/dress).
 // power    — вещь включается нажатием (item.lit): screen [x0,y0,x1,y1] — экран с мультиком,
 //            glow [x,y,радиус] — тёплый свет вокруг точки (абажур),
-//            water [x,y,yКонец,ширина] — льётся вода (душ, кран). Всё в долях картинки.
+//            water [x,y,yКонец,ширина, направление°, напор] — льётся вода по дуге (render/water.js). x,y,yКонец,ширина — в долях картинки.
 // sounds   — свои звуки: { open, close } (унитаз: крышка и смыв).
 // tap      — особый отклик на нажатие: 'ring' (будильник звенит и трясётся), 'squeak' (игрушка пищит).
 
@@ -40,15 +40,15 @@ export const ITEMS = {
   fridge:          { name: 'Холодильник', art: 'items/fridge', openArt: 'items/fridge_open', h: 420, anchor: 'bottom', place: 'floor', group: 'appliances',
                      surfaces: [[0.05, 0.6, 0.01], [0.08, 0.5, 0.255, 1], [0.08, 0.5, 0.455, 1], [0.08, 0.5, 0.575, 1], [0.08, 0.5, 0.70, 1], [0.08, 0.5, 0.885, 1]] },
   stove:           { name: 'Плита',        art: 'items/stove',           h: 260, anchor: 'bottom', place: 'floor', group: 'appliances', surfaces: [[0.06, 0.94, 0.13]] },
-  sink_counter:    { name: 'Мойка',        art: 'items/sink_counter',    w: 380, anchor: 'bottom', place: 'floor', group: 'furniture', surfaces: [[0.03, 0.97, 0.22]] },
+  sink_counter:    { name: 'Мойка',        art: 'items/sink_counter',    w: 380, power: { water: [0.565, 0.1, 0.31, 0.025, 0, 0.05] }, anchor: 'bottom', place: 'floor', group: 'furniture', surfaces: [[0.03, 0.97, 0.22]] },
   kitchen_counter: { name: 'Кухонная тумба', art: 'items/kitchen_counter', w: 380, anchor: 'bottom', place: 'floor', group: 'furniture', surfaces: [[0.03, 0.97, 0.04]] },
   kitchen_shelf:   { name: 'Полка',        art: 'items/kitchen_shelf',   w: 420, anchor: 'center', place: 'wall', group: 'furniture', indoorOnly: true, surfaces: [[0.03, 0.97, 0.08]] },
   toaster:         { name: 'Тостер',       art: 'items/toaster',         w: 110, anchor: 'bottom', place: 'floor', group: 'appliances' },
   tshirt:  { name: 'Футболка', art: 'items/tshirt', wear: 'tshirt', w: 140, anchor: 'bottom', place: 'floor', group: 'clothes' },
   pants:   { name: 'Штанишки', art: 'items/pants',  wear: 'pants', h: 160, anchor: 'bottom', place: 'floor', group: 'clothes' },
   dress:   { name: 'Платье',   art: 'items/dress',  wear: 'dress', h: 160, anchor: 'bottom', place: 'floor', group: 'clothes' },
-  bathtub:     { name: 'Ванна с душем', art: 'items/bathtub',     w: 540, anchor: 'bottom', place: 'floor', group: 'furniture', power: { water: [0.775, 0.185, 0.5, 0.13] }, surfaces: [[0.06, 0.74, 0.5]] },
-  bath_sink:   { name: 'Раковина',      art: 'items/bath_sink',   h: 280, anchor: 'bottom', place: 'floor', group: 'furniture', power: { water: [0.53, 0.095, 0.27, 0.02] }, surfaces: [[0.06, 0.94, 0.205]] },
+  bathtub:     { name: 'Ванна с душем', art: 'items/bathtub',     w: 540, anchor: 'bottom', place: 'floor', group: 'furniture', power: { water: [0.775, 0.185, 0.5, 0.13, -18, 0.18] }, surfaces: [[0.06, 0.74, 0.5]] },
+  bath_sink:   { name: 'Раковина',      art: 'items/bath_sink',   h: 280, anchor: 'bottom', place: 'floor', group: 'furniture', power: { water: [0.53, 0.095, 0.27, 0.02, 0, 0.05] }, surfaces: [[0.06, 0.94, 0.205]] },
   toilet:      { name: 'Унитаз',        art: 'items/toilet', openArt: 'items/toilet_open', h: 240, anchor: 'bottom', place: 'floor', group: 'furniture', sounds: { open: 'lid', close: 'flush' } },
   wardrobe:     { name: 'Шкаф',        art: 'items/wardrobe', openArt: 'items/wardrobe_open', h: 440, anchor: 'bottom', place: 'floor', group: 'furniture',
                   surfaces: [[0.2, 0.8, 0.0], [0.27, 0.7, 0.5, 1], [0.27, 0.7, 0.715, 1], [0.27, 0.7, 0.87, 1]] },
@@ -126,6 +126,9 @@ export function applyOverride(o) {
   if (o.group && GROUPS[o.group]) d.group = o.group;
   if (o.size) d[sizeKey(o.id)] = o.size;
   if (o.art) d.art = o.art;
+  if (o.surfaces) d.surfaces = o.surfaces.length ? o.surfaces : undefined;
+  if (o.power) d.power = o.power;
+  if (o.tap) d.tap = o.tap;
   return true;
 }
 export function clearOverride(id) { const base = original.get(id); if (base && ITEMS[id]) { for (const k of Object.keys(ITEMS[id])) delete ITEMS[id][k]; Object.assign(ITEMS[id], base); } }

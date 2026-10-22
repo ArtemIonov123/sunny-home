@@ -17,7 +17,14 @@ const fracs = (a, n) => Array.isArray(a) && a.length >= n && a.slice(0, n).every
 const IMG_RE = /^data:image\/(webp|png|jpeg);base64,[A-Za-z0-9+/]+=*$/;
 export const TAPS = { ring: 'Звенит и трясётся', squeak: 'Пищит' };
 export const WEARS = { tshirt: 'Футболка', pants: 'Штанишки', dress: 'Платье' };
-function cleanLiving(raw) {
+// Вода: [x, y, докуда, ширина] в долях картинки + направление (−85…85°) и напор (0…1).
+function cleanWater(a) {
+  const w = a.slice(0, 4).map((v) => Math.round(v * 1000) / 1000);
+  const dir = Number.isFinite(a[4]) ? Math.max(-85, Math.min(85, Math.round(a[4]))) : 0;
+  const push = Number.isFinite(a[5]) ? Math.max(0, Math.min(1, Math.round(a[5] * 100) / 100)) : 0;
+  return [...w, dir, push];
+}
+export function cleanLiving(raw) {
   const out = {};
   if (Array.isArray(raw.crop) && raw.crop.length === 6 && raw.crop.every(Number.isFinite)) out.crop = raw.crop.map(Math.round);
   if (Array.isArray(raw.surfaces)) {
@@ -30,7 +37,7 @@ function cleanLiving(raw) {
   const p = raw.power;
   if (p && fracs(p.glow, 3)) out.power = { glow: p.glow.slice(0, 3) };
   else if (p && fracs(p.screen, 4)) out.power = { screen: p.screen.slice(0, 4) };
-  else if (p && fracs(p.water, 4)) out.power = { water: p.water.slice(0, 4) };
+  else if (p && fracs(p.water, 4)) out.power = { water: cleanWater(p.water) };
   if (TAPS[raw.tap]) out.tap = raw.tap;
   if (raw.drink === true) out.drink = true;
   if (WEARS[raw.wear]) out.wear = raw.wear;
@@ -72,6 +79,11 @@ export function validateOverride(raw) {
   if (typeof raw.name === 'string' && raw.name.trim()) o.name = raw.name.trim().slice(0, 40);
   if (GROUPS[raw.group]) o.group = raw.group;
   if (Number.isFinite(raw.size)) o.size = Math.round(Math.max(30, Math.min(1200, raw.size)));
+  // «Живые» правки встроенных: полки, включение (свет/экран/вода), отклик на нажатие.
+  const lv = cleanLiving(raw);
+  if (raw.surfaces !== undefined) o.surfaces = lv.surfaces || [];
+  if (lv.power) o.power = lv.power;
+  if (lv.tap) o.tap = lv.tap;
   if (typeof raw.image === 'string' && raw.image) {
     if (!/^data:image\/(webp|png|jpeg);base64,[A-Za-z0-9+/]+=*$/.test(raw.image) || raw.image.length > 2_000_000) throw new Error('Картинка не подходит');
     o.image = raw.image;
@@ -82,7 +94,7 @@ export function validateOverride(raw) {
 async function applyOv(o) {
   let art = null;
   if (o.image) { const im = await loadImage(o.image); art = 'override/' + o.id; registerImage(art, im); }
-  applyOverride({ id: o.id, name: o.name, group: o.group, size: o.size, art });
+  applyOverride({ id: o.id, name: o.name, group: o.group, size: o.size, art, surfaces: o.surfaces, power: o.power, tap: o.tap });
 }
 
 // Сохранить правку встроенного предмета (null-поля — вернуть исходное).

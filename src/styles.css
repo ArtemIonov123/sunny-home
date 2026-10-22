@@ -323,3 +323,6 @@ button.link { border: 0; background: none; color: #a8794c; text-decoration: unde
 .sh-count { position: absolute; left: 12px; top: 12px; font-style: normal; font-size: 9px; letter-spacing: 2px; color: #fff; background: #0005; border-radius: 999px; padding: 3px 8px; }
 #app.rotated .sh-slides { touch-action: pan-y; }
 #app.compact .sh-carousel { width: min(520px, 70%, 62vh); }
+.lv-sep { width: 1px; background: #ead6b4; margin: 0 4px; }
+.lv-tools button.lv-view.on { background: #d9ecff; border-color: #8fb8e0; }
+.lv-water .adm-field b { color: #3d7fc4; }
