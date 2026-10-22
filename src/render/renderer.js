@@ -401,9 +401,9 @@ export function createRenderer(canvas, store, camera) {
         else drawAnimalItem(drag.obj, drag.b, null, { carried: true, tilt: drag.tilt || 0, lift: true });
       } else if (drag.kind === 'char' && getRig(drag.id) && drag.walk) drawHeroRig(drag.id, drag.b, null, { walk: drag.walk }); // идёт сам по полу
       else if (drag.kind === 'char' && getRig(drag.id)) drawHeroRig(drag.id, drag.b, { dx: 0, dy: 0, rot: drag.tilt || 0, sx: 1.06, sy: 1.06 }, { carried: true, tilt: drag.tilt || 0 });
+      else drawSprite(drag.art, drag.b, { glow: true, tilt: drag.tilt || 0 });
       const dwl = wetness((drag.kind === 'char' ? 'char:' : 'item:') + drag.id);
       if (dwl) { drawDrips(ctx, drag.b, dwl, 99, [0.1, 0.7], drag.b.y + drag.b.h + 18); animating = true; } // несёшь мокрого — капает
-      else drawSprite(drag.art, drag.b, { glow: true, tilt: drag.tilt || 0 });
       // Вещи с полок и столешницы едут вместе с мебелью.
       if (carried.length && drag.from) {
         const ddx = drag.b.x - drag.from.x, ddy = drag.b.y - drag.from.y;
