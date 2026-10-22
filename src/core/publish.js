@@ -120,6 +120,7 @@ export async function publishPack(raw, onStep = () => {}) {
   const pack = { ...validatePack(raw), price: Math.max(0, Number(raw.price) || 0) };
   if (raw.coverStyle) pack.coverStyle = raw.coverStyle; // фон обложки — хранится в паке, чтобы при обновлении остался
   if (raw.pageStyle) pack.pageStyle = raw.pageStyle;   // фон страницы пака в магазине
+  if (raw.slides) pack.slides = raw.slides;             // слайды «что внутри»
   onStep('Читаю магазин…');
   const { cat, sha } = await readCatalog();
   const old = cat.packs.find((p) => p.id === pack.id), k = old ? cat.packs.indexOf(old) : cat.packs.length;
@@ -138,6 +139,14 @@ export async function publishPack(raw, onStep = () => {}) {
     await putImage(`store/bg/${pack.id}.webp`, pack.pageStyle.image, `Магазин: фон пака «${pack.name}»`);
     entry.page.image = `bg/${pack.id}.webp?v=${entry.version}`;
   }
+  // Слайды: отдельными картинками store/slides/<id>_<n>.webp (лишние старые — удаляем).
+  entry.slides = [];
+  for (let n = 0; n < (pack.slides || []).length; n++) {
+    onStep(`Загружаю слайд ${n + 1} из ${pack.slides.length}…`);
+    await putImage(`store/slides/${pack.id}_${n + 1}.webp`, pack.slides[n], `Магазин: слайд ${n + 1} пака «${pack.name}»`);
+    entry.slides.push(`slides/${pack.id}_${n + 1}.webp?v=${entry.version}`);
+  }
+  await removeSlides(pack.id, entry.slides.length);
   onStep('Загружаю пак…');
   const prev = await gh(`contents/store/packs/${pack.id}.json?ref=${encodeURIComponent(getSettings().branch)}`);
   await putFile(`store/packs/${pack.id}.json`, JSON.stringify(pack), `Магазин: пак «${pack.name}» (из студии)`, prev?.sha);
@@ -147,6 +156,16 @@ export async function publishPack(raw, onStep = () => {}) {
   return entry;
 }
 
+// Удалить слайды пака с номером больше keep.
+async function removeSlides(id, keep) {
+  const list = await gh(`contents/store/slides?ref=${encodeURIComponent(getSettings().branch)}`);
+  if (!Array.isArray(list)) return;
+  for (const f of list) {
+    const m = f.name.match(/^(.+)_(\d+)\.webp$/);
+    if (m && m[1] === id && Number(m[2]) > keep) await deleteFile(f.path, `Магазин: убран слайд ${f.name}`, f.sha);
+  }
+}
+
 export async function removePack(id) {
   const { cat, sha } = await readCatalog();
   const entry = cat.packs.find((p) => p.id === id);
@@ -154,6 +173,7 @@ export async function removePack(id) {
   await putFile('store/catalog.json', JSON.stringify(cat, null, 1), `Магазин: убран пак «${entry?.name || id}»`, sha);
   const f = await gh(`contents/store/packs/${id}.json?ref=${encodeURIComponent(getSettings().branch)}`);
   if (f?.sha) await deleteFile(`store/packs/${id}.json`, `Магазин: удалён файл пака ${id}`, f.sha);
+  await removeSlides(id, 0);
   const bg = await gh(`contents/store/bg/${id}.webp?ref=${encodeURIComponent(getSettings().branch)}`);
   if (bg?.sha) await deleteFile(`store/bg/${id}.webp`, `Магазин: удалён фон пака ${id}`, bg.sha);
 }

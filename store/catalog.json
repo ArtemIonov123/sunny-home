@@ -27,7 +27,7 @@
   {
    "id": "test_fairy",
    "name": "Сказочная мебель",
-   "version": 2,
+   "version": 3,
    "price": 14.99,
    "currency": "PLN",
    "priceLabel": "14,99 zł",
@@ -44,8 +44,12 @@
    ],
    "page": {
     "color": "",
-    "image": "bg/test_fairy.webp?v=2"
-   }
+    "image": "bg/test_fairy.webp?v=3"
+   },
+   "slides": [
+    "slides/test_fairy_1.webp?v=3",
+    "slides/test_fairy_2.webp?v=3"
+   ]
   }
  ]
 }

@@ -66,6 +66,7 @@ export function createAdmin({ root, store, camera, actions, toast, onChange }) {
   let ghDraft = null; // набранное в полях ключа (переживает перерисовку панели)
   let coverStyle = {}; // фон обложки пака: { color } | { bg } | { full }
   let pageStyle = {};  // фон страницы пака в магазине: { color, image }
+  let slides = [];     // слайды-обложки «что внутри» (картинки), листаются в магазине
   // Картинка для фона: без вырезания розового, только уменьшить (до 960×600) — фон должен быть цельным.
   async function bgImage(file) {
     if (!['image/png', 'image/webp', 'image/jpeg'].includes(file.type)) throw new Error('Выбери PNG, WebP или JPG');
@@ -80,9 +81,9 @@ export function createAdmin({ root, store, camera, actions, toast, onChange }) {
   function drawCoverPreview() {
     clearTimeout(coverTimer);
     coverTimer = setTimeout(async () => {
-      const img = el.querySelector('[data-cover-preview]'); if (!img) return;
+      const imgs = el.querySelectorAll('[data-cover-preview]'); if (!imgs.length) return;
       const items = listRecords().filter((r) => packPick.has(r.id));
-      try { img.src = await makeCover(items, 0, coverStyle); } catch (e) { /* пропуск */ }
+      try { const src = await makeCover(items, 0, coverStyle); for (const im of imgs) im.src = src; } catch (e) { /* пропуск */ }
     }, 60);
   }
   async function refreshStore() {
@@ -125,6 +126,14 @@ export function createAdmin({ root, store, camera, actions, toast, onChange }) {
             ${coverStyle.bg || coverStyle.full || coverStyle.color ? '<button data-cover-reset>Как было (авто)</button>' : ''}
           </div>
         </div>
+      </div>
+      <h4>Слайды «что внутри» (${slides.length} из 10)</h4>
+      <p class="adm-help">Картинки, которые ребёнок листает вправо-влево на странице пака: 1-я — обложка, дальше твои слайды (например, комната с вещами пака). Горизонтальные 16:10.</p>
+      <div class="pk-slides">
+        <figure class="pk-slide"><img data-cover-preview alt=""><figcaption>1 · обложка</figcaption></figure>
+        ${slides.map((src, k) => `<figure class="pk-slide"><img src="${src}" alt=""><figcaption>${k + 2}
+          <button data-slide-left="${k}"${k ? '' : ' disabled'} aria-label="Левее">←</button><button data-slide-right="${k}"${k < slides.length - 1 ? '' : ' disabled'} aria-label="Правее">→</button><button data-slide-del="${k}" aria-label="Убрать">×</button></figcaption></figure>`).join('')}
+        ${slides.length < 10 ? '<label class="pk-slide add"><span>＋</span><input type="file" accept="image/png,image/webp,image/jpeg" data-slide-add multiple hidden></label>' : ''}
       </div>
       <h4>Фон страницы пака в магазине</h4>
       <div class="pk-cover">
@@ -197,12 +206,17 @@ export function createAdmin({ root, store, camera, actions, toast, onChange }) {
     else if (b.dataset.coverReset !== undefined) coverStyle = {};
     else if (b.dataset.pageColor) pageStyle = { ...pageStyle, color: b.dataset.pageColor };
     else if (b.dataset.pageReset !== undefined) pageStyle = {};
+    else if (b.dataset.slideDel !== undefined) slides.splice(Number(b.dataset.slideDel), 1);
+    else if (b.dataset.slideLeft !== undefined || b.dataset.slideRight !== undefined) {
+      const k = Number(b.dataset.slideLeft ?? b.dataset.slideRight), j = b.dataset.slideLeft !== undefined ? k - 1 : k + 1;
+      if (j >= 0 && j < slides.length) [slides[k], slides[j]] = [slides[j], slides[k]];
+    }
     else if (b.dataset.ghCancel !== undefined) showKey = false;
     else if (b.dataset.ghChange !== undefined) showKey = true;
     else if (b.dataset.spRefresh !== undefined) { storeCat = null; storeNote = ''; }
     else if (b.dataset.pkpublish !== undefined) {
       try {
-        const pack = makePack(packName, [...packPick], true, packPrice, target, coverStyle, pageStyle);
+        const pack = makePack(packName, [...packPick], true, packPrice, target, coverStyle, pageStyle, slides);
         storeBusy = 'Публикую…'; render();
         const entry = await publishPack(pack, (step) => { storeBusy = step; render(); });
         storeBusy = ''; target = entry.id; storeCat = null;
@@ -218,7 +232,7 @@ export function createAdmin({ root, store, camera, actions, toast, onChange }) {
         const entry = storeCat?.packs.find((p) => p.id === id);
         target = id; packName = entry?.name || ''; packPrice = entry?.price || 0;
         packPick = new Set((raw.items || []).map((i) => i.id));
-        coverStyle = raw.coverStyle || {}; pageStyle = raw.pageStyle || {};
+        coverStyle = raw.coverStyle || {}; pageStyle = raw.pageStyle || {}; slides = raw.slides || [];
         toast(`Вещи пака загружены в студию: ${n}. Поправь и нажми «Обновить в магазине».`);
       } catch (err) { toast('Не удалось: ' + err.message, true); }
     }
@@ -231,7 +245,7 @@ export function createAdmin({ root, store, camera, actions, toast, onChange }) {
     else if (b.dataset.shopreset !== undefined) { await resetShop(); toast('Тестовые покупки сброшены — перезапусти игру'); }
     else if (b.dataset.pkexport !== undefined) {
       try {
-        const pack = makePack(packName, [...packPick], true, packPrice, target, coverStyle, pageStyle);
+        const pack = makePack(packName, [...packPick], true, packPrice, target, coverStyle, pageStyle, slides);
         download(JSON.stringify(pack), `pack_${pack.id}.json`);
         toast(`Пак «${pack.name}» скачан: ${pack.items.length} предм.` + (pack.overrides.length ? `, правок: ${pack.overrides.length}` : ''));
       } catch (err) { toast(err.message, true); }
@@ -253,6 +267,11 @@ export function createAdmin({ root, store, camera, actions, toast, onChange }) {
     else if (e.target.matches('[data-pkname]')) { packName = e.target.value; return; }
     else if (e.target.matches('[data-pkprice]')) { packPrice = Number(e.target.value) || 0; return; }
     else if (e.target.matches('[data-gh-token],[data-gh-repo]')) return; // не перерисовывать — иначе набранный ключ пропадёт до нажатия «Проверить»
+    else if (e.target.matches('[data-slide-add]')) {
+      const files = [...(e.target.files || [])].slice(0, 10 - slides.length); e.target.value = '';
+      Promise.all(files.map((f) => bgImage(f, [960, 600]))).then((list) => { slides.push(...list); render(); }).catch((err) => toast(err.message, true));
+      return;
+    }
     else if (e.target.matches('[data-page-image]')) {
       const file = e.target.files?.[0]; e.target.value = '';
       if (!file) return;

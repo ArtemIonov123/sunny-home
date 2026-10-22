@@ -303,3 +303,23 @@ button.link { border: 0; background: none; color: #a8794c; text-decoration: unde
 #app.rotated .sh-strip { touch-action: pan-y; }
 .pk-page { width: 240px; aspect-ratio: 16 / 10; border-radius: 18px; background-size: cover; background-position: center; display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 12px #6e4a2622; }
 .pk-page span { background: #fffaf0e6; border-radius: 14px; padding: 6px 10px; font-size: 22px; }
+.pk-slides { display: flex; gap: 10px; overflow-x: auto; padding-bottom: 6px; touch-action: pan-x; }
+.pk-slide { flex: 0 0 auto; margin: 0; width: 176px; display: flex; flex-direction: column; gap: 4px; }
+.pk-slide img { width: 176px; aspect-ratio: 16 / 10; object-fit: cover; border-radius: 14px; background: #f2e2c8; }
+.pk-slide figcaption { display: flex; align-items: center; gap: 4px; font-size: 13px; color: #9a7a58; }
+.pk-slide figcaption button { width: 28px; height: 28px; border-radius: 50%; border: 1px solid #ead6b4; background: #fff; padding: 0; }
+.pk-slide.add { height: 110px; border: 2px dashed #d8bf98; border-radius: 14px; align-items: center; justify-content: center; font-size: 40px; color: #b99566; cursor: pointer; }
+#app.rotated .pk-slides { touch-action: pan-y; }
+/* Слайды пака */
+.sh-carousel { position: relative; width: min(560px, 76%, 56vh); display: flex; flex-direction: column; align-items: center; }
+.sh-slides { width: 100%; display: flex; overflow-x: auto; scroll-snap-type: x mandatory; scrollbar-width: none; border-radius: 26px; box-shadow: 0 8px 24px #6e4a2630; touch-action: pan-x; overscroll-behavior: contain; }
+.sh-slides::-webkit-scrollbar { display: none; }
+.sh-slide { flex: 0 0 100%; width: 100%; aspect-ratio: 16 / 10; object-fit: cover; scroll-snap-align: center; display: block; }
+.sh-arrow { position: absolute; top: 40%; transform: translateY(-50%); width: 44px; height: 44px; border-radius: 50%; border: 0; background: #fffaf0e6; font-size: 30px; line-height: 1; color: #6b4a2c; box-shadow: 0 2px 8px #0002; z-index: 1; }
+.sh-arrow.l { left: -22px; } .sh-arrow.r { right: -22px; }
+.sh-dots { display: flex; gap: 6px; margin-top: 6px; }
+.sh-dots i { width: 9px; height: 9px; border-radius: 50%; background: #d8c09c; }
+.sh-dots i.on { background: #a8794c; transform: scale(1.25); }
+.sh-count { position: absolute; left: 12px; top: 12px; font-style: normal; font-size: 9px; letter-spacing: 2px; color: #fff; background: #0005; border-radius: 999px; padding: 3px 8px; }
+#app.rotated .sh-slides { touch-action: pan-y; }
+#app.compact .sh-carousel { width: min(520px, 70%, 62vh); }

@@ -38,7 +38,7 @@ export function createShop({ root, onInstalled, openThings }) {
     const c = getCatalog();
     q('.shop-off').hidden = !isOffline();
     grid.innerHTML = (c?.packs || []).map((p) => `<button class="sh-card" data-sh-pack="${esc(p.id)}" aria-label="${esc(p.name)}">
-        <img src="${p.cover}" alt="">${badge(p)}<span class="sh-name">${esc(p.name)}</span></button>`).join('')
+        <img src="${p.cover}" alt="">${badge(p)}${p.slides?.length ? `<i class="sh-count">${'●'.repeat(Math.min(6, p.slides.length + 1))}</i>` : ''}<span class="sh-name">${esc(p.name)}</span></button>`).join('')
       || '<p class="sh-empty">⏳</p>';
   }
 
@@ -54,11 +54,29 @@ export function createShop({ root, onInstalled, openThings }) {
     detail.style.backgroundImage = page.image ? `url("${STORE_BASE}${page.image}")` : '';
     detail.classList.toggle('has-bg', !!(page.image || page.color));
     detail.innerHTML = `<button class="sh-back" data-sh-back aria-label="Назад">←</button>
-      ${page.image ? '' : `<img class="sh-cover" src="${p.cover}" alt="">`}
+      ${carousel(p)}
       <div class="sh-strip" role="list">${(p.preview || []).map((src, k) => `<button class="sh-thing" data-sh-thing role="listitem" style="animation-delay:${(k % 6) * 0.15}s"><img src="${src}" alt=""></button>`).join('')}</div>
       <div class="sh-row"><b>${esc(p.name)}</b>${action}</div>`;
     detail.hidden = false;
   }
+
+  // Слайды пака: обложка + картинки «что внутри», листаются пальцем вправо-влево; точки — какой сейчас.
+  function carousel(p) {
+    const list = [p.cover, ...(p.slides || []).map((s) => STORE_BASE + s)];
+    const many = list.length > 1;
+    return `<div class="sh-carousel${many ? ' many' : ''}">
+      ${many ? '<button class="sh-arrow l" data-sh-slide="-1" aria-label="Назад">‹</button>' : ''}
+      <div class="sh-slides">${list.map((src) => `<img class="sh-slide" src="${src}" alt="" draggable="false">`).join('')}</div>
+      ${many ? '<button class="sh-arrow r" data-sh-slide="1" aria-label="Дальше">›</button>' : ''}
+      ${many ? `<div class="sh-dots">${list.map((_, k) => `<i class="${k ? '' : 'on'}"></i>`).join('')}</div>` : ''}
+    </div>`;
+  }
+  // Точки следуют за прокруткой слайдов.
+  detail.addEventListener('scroll', (e) => {
+    const box = e.target.closest?.('.sh-slides'); if (!box) return;
+    const k = Math.round(box.scrollLeft / Math.max(1, box.clientWidth));
+    detail.querySelectorAll('.sh-dots i').forEach((d, i) => d.classList.toggle('on', i === k));
+  }, true);
 
   async function open() {
     el.hidden = false; requestAnimationFrame(() => el.classList.add('open'));
@@ -110,6 +128,7 @@ export function createShop({ root, onInstalled, openThings }) {
     const d = t.dataset;
     if (d.shClose !== undefined) return close();
     if (d.shPack) { current = getCatalog().packs.find((p) => p.id === d.shPack); play('pop'); renderDetail(); return; }
+    if (d.shSlide) { const box = detail.querySelector('.sh-slides'); box?.scrollBy({ left: Number(d.shSlide) * box.clientWidth, behavior: 'smooth' }); play('click'); return; }
     if (d.shThing !== undefined) { t.classList.remove('boing'); void t.offsetWidth; t.classList.add('boing'); play('pop'); return; } // вещь в паке отзывается
     if (d.shBack !== undefined) { current = null; detail.hidden = true; play('click'); renderGrid(); return; }
     if (d.shGet !== undefined) return getPack();

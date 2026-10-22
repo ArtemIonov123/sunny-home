@@ -2,7 +2,7 @@
 """Магазин паков: store/catalog.json (список паков для игры) + store/packs/<id>.json (сами паки).
 
   python3 tools/store.py add pack_xxx.json [--price 14.99] [--page-color #hex] [--page-image фон.png]
-                                                              — добавить/обновить пак в магазине
+                                                              [--slides 1.png,2.png] — добавить/обновить пак в магазине
   python3 tools/store.py remove <id>                          — убрать пак из магазина
   python3 tools/store.py list
 
@@ -78,7 +78,7 @@ def make_cover(items, k, style=None):
     return im
 
 
-def add(path, price, page_color=None, page_image=None):
+def add(path, price, page_color=None, page_image=None, slide_files=None):
     pack = json.load(open(path, encoding='utf8'))
     assert pack.get('format') == 'sunny-home-pack', 'это не пак «Солнечного дома»'
     pid = pack['id']
@@ -108,6 +108,15 @@ def add(path, price, page_color=None, page_image=None):
         os.makedirs(os.path.join(STORE, 'bg'), exist_ok=True)
         bg.save(os.path.join(STORE, 'bg', pid + '.webp'), 'WEBP', quality=82, method=6)
         entry['page']['image'] = f"bg/{pid}.webp?v={entry['version']}"
+    # Слайды «что внутри»: store/slides/<id>_<n>.webp (из --slides или из пака студии)
+    sl = [Image.open(f).convert('RGB') for f in (slide_files or [])] or [data_im(x).convert('RGB') for x in pack.get('slides', [])]
+    d = os.path.join(STORE, 'slides'); os.makedirs(d, exist_ok=True)
+    for f in os.listdir(d):
+        if f.startswith(pid + '_'): os.remove(os.path.join(d, f))
+    entry['slides'] = []
+    for n, im in enumerate(sl[:10], 1):
+        im.thumbnail((960, 600), Image.LANCZOS); im.save(os.path.join(d, f'{pid}_{n}.webp'), 'WEBP', quality=82, method=6)
+        entry['slides'].append(f"slides/{pid}_{n}.webp?v={entry['version']}")
     if old: cat['packs'][k] = entry
     else: cat['packs'].append(entry)
     save_cat(cat)
@@ -119,7 +128,7 @@ if __name__ == '__main__':
     if a[:1] == ['add']:
         opt = lambda k: a[a.index(k) + 1] if k in a else None
         price = float(opt('--price')) if opt('--price') else None
-        add(a[1], price, opt('--page-color'), opt('--page-image'))
+        add(a[1], price, opt('--page-color'), opt('--page-image'), opt('--slides').split(',') if opt('--slides') else None)
     elif a[:1] == ['remove']:
         cat = load_cat(); cat['packs'] = [p for p in cat['packs'] if p['id'] != a[1]]; save_cat(cat)
         f = os.path.join(STORE, 'packs', a[1] + '.json')

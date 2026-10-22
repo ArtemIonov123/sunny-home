@@ -119,13 +119,13 @@ export const listPacks = () => [...packs.values()];
 const TR = { а: 'a', б: 'b', в: 'v', г: 'g', д: 'd', е: 'e', ё: 'e', ж: 'zh', з: 'z', и: 'i', й: 'y', к: 'k', л: 'l', м: 'm', н: 'n', о: 'o', п: 'p', р: 'r', с: 's', т: 't', у: 'u', ф: 'f', х: 'h', ц: 'c', ч: 'ch', ш: 'sh', щ: 'sch', ъ: '', ы: 'y', ь: '', э: 'e', ю: 'yu', я: 'ya', ą: 'a', ć: 'c', ę: 'e', ł: 'l', ń: 'n', ó: 'o', ś: 's', ź: 'z', ż: 'z' };
 const translit = (s) => [...s].map((ch) => TR[ch] ?? ch).join('');
 
-export function makePack(name, ids, withOverrides = true, price = 0, keepId = '', coverStyle = null, pageStyle = null) {
+export function makePack(name, ids, withOverrides = true, price = 0, keepId = '', coverStyle = null, pageStyle = null, slides = []) {
   const clean = String(name || '').trim().slice(0, 40) || 'Новый пак';
   const slug = translit(clean.toLowerCase()).replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '') || 'pack';
   const items = ids.map((id) => records.get(id)).filter(Boolean);
   const ovs = withOverrides ? listOverrides() : [];
   if (!items.length && !ovs.length) throw new Error('Выбери хотя бы один предмет');
-  return { format: PACK_FORMAT, version: 1, id: /^[a-z0-9_]{1,80}$/.test(keepId) ? keepId : slug + '_' + Date.now().toString(36), name: clean, created: new Date().toISOString().slice(0, 10), price: Math.max(0, Math.round(Number(price) * 100) / 100) || 0, items, overrides: ovs, ...(coverStyle && Object.keys(coverStyle).length ? { coverStyle } : {}), ...(pageStyle && Object.keys(pageStyle).length ? { pageStyle } : {}) };
+  return { format: PACK_FORMAT, version: 1, id: /^[a-z0-9_]{1,80}$/.test(keepId) ? keepId : slug + '_' + Date.now().toString(36), name: clean, created: new Date().toISOString().slice(0, 10), price: Math.max(0, Math.round(Number(price) * 100) / 100) || 0, items, overrides: ovs, ...(coverStyle && Object.keys(coverStyle).length ? { coverStyle } : {}), ...(pageStyle && Object.keys(pageStyle).length ? { pageStyle } : {}), ...(slides?.length ? { slides } : {}) };
 }
 
 export function validatePack(raw) {
@@ -151,6 +151,11 @@ export function validatePack(raw) {
     if (/^#[0-9a-f]{6}$/i.test(ps.color || '')) st.color = ps.color;
     if (typeof ps.image === 'string' && IMG_RE.test(ps.image) && ps.image.length < 3_000_000) st.image = ps.image;
     if (Object.keys(st).length) out.pageStyle = st;
+  }
+  // Слайды-обложки: что внутри пака (листаются вправо-влево на странице пака). До 10 картинок.
+  if (Array.isArray(raw.slides)) {
+    const sl = raw.slides.filter((x) => typeof x === 'string' && IMG_RE.test(x) && x.length < 3_000_000).slice(0, 10);
+    if (sl.length) out.slides = sl;
   }
   return out;
 }
