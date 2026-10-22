@@ -5,6 +5,8 @@ import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { mkdirSync } from 'node:fs';
+// Сервер друзей в тестах не нужен (и сети нет): «нет связи» вместо Firebase. Друзья проверяются отдельно (с сервером в памяти).
+const NO_NET = () => { window.__NET_FAKE__ = { init: () => Promise.reject(new Error('нет сети в тесте')), on: () => () => {} }; };
 const require = createRequire(import.meta.url);
 const { chromium } = require(process.env.PLAYWRIGHT_PATH || 'playwright');
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
@@ -23,6 +25,7 @@ async function device(name, width, height, touch) {
   console.log(`\n${name} ${width}×${height}${touch ? ' (касания)' : ''}`);
   const ctx = await browser.newContext({ viewport: { width, height }, hasTouch: touch, isMobile: touch, deviceScaleFactor: touch ? 2.5 : 1 });
   const p = await ctx.newPage();
+  await p.addInitScript(NO_NET);
   const errors = [];
   p.on('pageerror', (e) => errors.push(e.message));
   p.on('console', (m) => { if (m.type() === 'error') errors.push(m.text()); });
@@ -385,7 +388,7 @@ async function device(name, width, height, touch) {
 // Игра для детей: без админки, но со всем остальным; встроенные паки видны в «Вещах».
 {
   const ctx = await browser.newContext({ viewport: { width: 844, height: 390 } });
-  const p = await ctx.newPage(); const errs = []; p.on('pageerror', (e) => errs.push(e.message));
+  const p = await ctx.newPage(); await p.addInitScript(NO_NET); const errs = []; p.on('pageerror', (e) => errs.push(e.message));
   await p.goto(GAME_URL); await p.waitForFunction(() => window.__sunny); await p.waitForTimeout(400);
   const r = await p.evaluate(() => ({ admin: !!document.querySelector('[data-act=admin]'), sheet: !!document.querySelector('.admin-sheet'), things: !!document.querySelector('[data-act=things]'), heroes: !!document.querySelector('[data-act=heroes]'), packs: (window.EMBEDDED_PACKS || []).length }));
   console.log('\nигра (sunny-home.html)');

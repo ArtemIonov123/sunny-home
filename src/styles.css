@@ -397,3 +397,34 @@ button.link { border: 0; background: none; color: #a8794c; text-decoration: unde
 .st-friends { display: flex; gap: 10px; align-items: center; margin-top: 14px; padding: 10px 12px; border-radius: 16px; background: #f4ecdf; color: #7a6a56; }
 .st-friends span { font-size: 28px; }
 .st-friends small { display: block; font-size: 12px; }
+/* Друзья */
+.avatar-btn { position: relative; overflow: visible; }
+.avatar-btn img { border-radius: 50%; }
+.avatar-btn.has-req::after { content: attr(data-n); position: absolute; right: -6px; top: -6px; min-width: 22px; height: 22px; border-radius: 11px; background: #ff5b5b; color: #fff; font-size: 13px; font-weight: 900; display: grid; place-items: center; border: 2px solid #fff; }
+.st-friends-on { display: block; }
+.st-friends > button:not(.fr-addbtn) { margin-left: auto; width: 44px; height: 44px; border-radius: 50%; border: 2px solid #ead6b4; background: #fff; font-size: 20px; }
+.fr-code { display: flex; align-items: center; gap: 10px; }
+.fr-code span { font-size: 28px; }
+.fr-code b { display: block; font-size: 22px; letter-spacing: 2px; color: #5a3b1f; font-family: ui-monospace, monospace; }
+.fr-code button { margin-left: auto; width: 44px; height: 44px; border-radius: 50%; border: 2px solid #ead6b4; background: #fff; font-size: 20px; }
+.fr-list { display: flex; flex-direction: column; gap: 6px; margin-top: 10px; }
+.fr-req { padding: 8px; border-radius: 14px; background: #fff3c8; }
+.fr-person { display: flex; align-items: center; gap: 10px; color: #5a3b1f; }
+.fr-person b { flex: 1; font-size: 15px; }
+.fr-ava { position: relative; width: 46px; height: 46px; flex: none; }
+.fr-ava img { width: 100%; height: 100%; border-radius: 50%; }
+.fr-ava::after { content: ''; position: absolute; right: 0; bottom: 0; width: 13px; height: 13px; border-radius: 50%; background: #b9b0a4; border: 2px solid #fff; }
+.fr-ava.on::after { background: #4cc46a; }
+.fr-person button { width: 42px; height: 42px; border-radius: 50%; border: 2px solid #ead6b4; background: #fff; font-size: 18px; }
+.fr-person .fr-yes { background: #e3f6d8; border-color: #8fc07a; }
+.fr-person .fr-no, .fr-person .fr-del { color: #b06a5a; }
+.fr-person button:disabled { opacity: .35; }
+.fr-empty { margin: 4px 0; font-size: 13px; }
+.fr-addbtn { margin-top: 10px; width: 100%; min-height: 48px; border-radius: 14px; border: 2px dashed #c9a477; background: #fffaf0; font-size: 16px; }
+.fr-add { display: flex; gap: 8px; margin-top: 10px; }
+.fr-add input { flex: 1; min-height: 46px; border-radius: 12px; border: 2px solid #c9a477; padding: 0 12px; font-size: 20px; letter-spacing: 2px; text-transform: uppercase; font-family: ui-monospace, monospace; }
+.fr-add .primary { border-radius: 12px; border: 0; background: #678a6a; color: #fff; padding: 0 14px; font-size: 15px; }
+.fr-msg { margin: 6px 0 0; font-size: 13px; }
+.st-gate { position: absolute; inset: 0; background: #fffaf0f5; border-radius: 26px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; text-align: center; }
+.st-card { position: relative; }
+.st-gate .gate-cancel { border: 0; background: none; color: #8a7a66; font-size: 15px; min-height: 40px; }

@@ -14,6 +14,7 @@ import { play, soundOn, setSound } from '../audio.js';
 import { mode } from './mode.js';
 import { createSettings, avatarSrc } from './settings.js';
 import { getProfile } from '../core/profile.js';
+import { createFriends } from '../net/friends.js';
 import { getAnimal } from '../render/animal.js';
 import { isLocked } from '../core/access.js';
 import { isSmall } from '../core/physics.js';
@@ -58,7 +59,19 @@ export function createHud({ root, store, camera, actions, onChange }) {
   // В игре админки нет вовсе (код студии не попадает в сборку игры).
   const admin = __STUDIO__ ? createAdmin({ root, store, camera, actions, toast, onChange }) : { open() {}, sync() {}, guides: null, setStorageNote() {} };
   const heroEditor = createHeroEditor({ root, store, actions, onChange });
-  const settings = createSettings({ root, onChange });
+  // Друзья (сервер Firebase): запускаются сами при старте, если есть интернет.
+  const friends = createFriends({
+    getMe: () => { const p = getProfile(); return { ...p, look: store.state.chars.find((c) => c.id === p.face)?.look || null }; },
+    onUpdate: (st) => {
+      settings?.refresh();
+      const n = st.requests.length, badge = q('.avatar-btn');
+      if (badge.dataset.n !== String(n)) { badge.dataset.n = n; badge.classList.toggle('has-req', n > 0); }
+      if (st.newRequest && st.newRequest !== lastReq) { lastReq = st.newRequest; play('ding'); } // пришёл запрос в друзья
+    },
+  });
+  let lastReq = 0;
+  const settings = createSettings({ root, onChange, friends, toast });
+  setTimeout(() => { if (navigator.onLine !== false) friends.start(); }, 1500);
   const shop = createShop({ root, onInstalled: () => { actions.restoreMissing(); onChange(); }, openThings: () => showPanel('things', true) });
 
   const last = {};
