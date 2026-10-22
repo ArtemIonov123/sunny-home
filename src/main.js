@@ -15,6 +15,7 @@ import { anims } from './render/anims.js';
 import { play } from './audio.js';
 import { surfacesOf } from './core/physics.js';
 import { mode } from './ui/mode.js';
+import { itemDef } from './core/catalog.js';
 
 const $ = (id) => document.getElementById(id);
 
@@ -86,6 +87,7 @@ async function boot() {
     busy = interaction.frame(dt) || busy;
     busy = anims.active() || busy;
     busy = swayStep(dt, fresh) || busy;
+    busy = renderer.animating || busy; // включённый телевизор на экране — мультик идёт
     const goal = store.state.night ? 1 : 0;
     if (Math.abs(goal - night) > 0.005) { night += (goal - night) * Math.min(1, dt * 3); busy = true; } else night = goal;
     renderer.draw(interaction.drag, night, hud.guides);
@@ -121,6 +123,14 @@ async function boot() {
   interaction.on('tap', ({ kind, id }) => {
     if (kind === 'char') { anims.hop('char:' + id); play(id === 'cat' ? 'meow' : 'boing'); }
     else {
+      const lit = actions.togglePower(id); // телевизор, торшер включаются нажатием
+      if (lit !== null) {
+        anims.squash('item:' + id);
+        const glow = !!itemDef(store.state.items.find((i) => i.id === id)?.def)?.power?.glow;
+        play(glow ? (lit ? 'lampOn' : 'lampOff') : (lit ? 'tvOn' : 'tvOff'));
+        invalidate();
+        return;
+      }
       const opened = actions.toggleOpen(id); // холодильник и т. п. открываются нажатием
       if (opened === null) { anims.wobble('item:' + id); play('pop'); }
       else {

@@ -37,6 +37,10 @@ const SOUNDS = {
   nope:   () => { tone({ f0: 330, f1: 300, dur: 0.08, type: 'triangle', vol: 0.06 }); tone({ f0: 300, f1: 260, dur: 0.1, type: 'triangle', vol: 0.06, delay: 0.09 }); },
   open:   () => { tone({ f0: 180, f1: 260, dur: 0.12, type: 'triangle', vol: 0.09 }); tone({ f0: 700, f1: 900, dur: 0.08, type: 'sine', vol: 0.05, delay: 0.08 }); },
   close:  () => { tone({ f0: 260, f1: 140, dur: 0.1, type: 'triangle', vol: 0.1 }); tone({ f0: 120, f1: 90, dur: 0.06, type: 'sine', vol: 0.08, delay: 0.07 }); },
+  tvOn:   () => { tone({ f0: 1400, f1: 1500, dur: 0.05, type: 'square', vol: 0.025 }); tone({ f0: 300, f1: 900, dur: 0.22, type: 'sine', vol: 0.07, delay: 0.04 }); },
+  tvOff:  () => { tone({ f0: 900, f1: 120, dur: 0.18, type: 'sine', vol: 0.07 }); },
+  lampOn: () => { tone({ f0: 1200, f1: 1000, dur: 0.04, type: 'triangle', vol: 0.06 }); tone({ f0: 520, f1: 780, dur: 0.16, type: 'sine', vol: 0.05, delay: 0.03 }); },
+  lampOff:() => { tone({ f0: 1000, f1: 800, dur: 0.04, type: 'triangle', vol: 0.06 }); },
   click:  () => tone({ f0: 900, f1: 700, dur: 0.05, type: 'triangle', vol: 0.05 }),
   whoosh: () => tone({ f0: 200, f1: 500, dur: 0.2, type: 'sawtooth', vol: 0.02 }),
 };

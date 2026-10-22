@@ -85,7 +85,7 @@ export function createRenderer(canvas, store, camera) {
   }
 
   // Спрайт с анимацией: смещение, поворот и «сплющивание» вокруг нижней точки.
-  function drawSprite(art, b, { glow = false, pose = null, tilt = 0 } = {}) {
+  function drawSprite(art, b, { glow = false, pose = null, tilt = 0, after = null } = {}) {
     const im = img(art); if (!im) return;
     const rot = (pose?.rot || 0) + tilt, sx = pose?.sx || 1, sy = pose?.sy || 1;
     ctx.save();
@@ -95,7 +95,66 @@ export function createRenderer(canvas, store, camera) {
     // «Поднятая» вещь: чуть крупнее, без размытой тени (shadowBlur на телефоне очень дорогой).
     if (glow) ctx.scale(1.06, 1.06);
     ctx.drawImage(im, -b.w / 2, -b.h, b.w, b.h);
+    if (after) after(-b.w / 2, -b.h, b.w, b.h); // рисунок поверх (экран телевизора) — качается вместе с вещью
     ctx.restore();
+  }
+
+  // ── Включённые вещи ──
+  // Экран телевизора: короткая «вспышка» включения, потом мультик — небо, облака, солнце и мячик.
+  const litSince = new Map(); // id → когда включили (для вспышки)
+  const tnow = () => performance.now() / 1000;
+  function drawScreen(x, y, w, h, since) {
+    const t = tnow(), age = t - since;
+    ctx.save();
+    ctx.beginPath(); ctx.roundRect ? ctx.roundRect(x, y, w, h, Math.min(w, h) * 0.04) : ctx.rect(x, y, w, h); ctx.clip();
+    if (age < 0.35) { // старый телевизор: белая полоска раскрывается в картинку
+      ctx.fillStyle = '#1d2230'; ctx.fillRect(x, y, w, h);
+      const q = age / 0.35, lh = Math.max(2, h * q * q);
+      ctx.fillStyle = '#f4fbff'; ctx.fillRect(x + w * 0.5 * (1 - Math.min(1, q * 3)), y + (h - lh) / 2, w * Math.min(1, q * 3), lh);
+      ctx.restore(); return;
+    }
+    const sky = ctx.createLinearGradient(0, y, 0, y + h);
+    sky.addColorStop(0, '#7fd3ff'); sky.addColorStop(1, '#d9f4ff');
+    ctx.fillStyle = sky; ctx.fillRect(x, y, w, h);
+    // солнце покачивается
+    const sx = x + w * 0.8, sy = y + h * (0.26 + 0.04 * Math.sin(t * 1.6)), sr = h * 0.13;
+    ctx.fillStyle = '#ffd84a'; ctx.beginPath(); ctx.arc(sx, sy, sr, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = '#ffd84a'; ctx.lineWidth = h * 0.025; ctx.lineCap = 'round';
+    for (let i = 0; i < 8; i++) {
+      const a = t * 0.8 + (i * Math.PI) / 4;
+      ctx.beginPath(); ctx.moveTo(sx + Math.cos(a) * sr * 1.3, sy + Math.sin(a) * sr * 1.3); ctx.lineTo(sx + Math.cos(a) * sr * 1.65, sy + Math.sin(a) * sr * 1.65); ctx.stroke();
+    }
+    // облака плывут
+    ctx.fillStyle = '#ffffff';
+    for (const [k, cy, sp] of [[0, 0.22, 0.05], [0.55, 0.38, 0.035]]) {
+      const cx = x + (((k + t * sp) % 1.3) - 0.15) * w, r = h * 0.07;
+      ctx.beginPath(); ctx.arc(cx, y + h * cy, r, 0, Math.PI * 2); ctx.arc(cx + r * 1.1, y + h * cy - r * 0.4, r * 1.2, 0, Math.PI * 2); ctx.arc(cx + r * 2.3, y + h * cy, r, 0, Math.PI * 2); ctx.fill();
+    }
+    // холмы
+    ctx.fillStyle = '#7ccf6a';
+    ctx.beginPath(); ctx.ellipse(x + w * 0.25, y + h * 1.05, w * 0.45, h * 0.32, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#63bb57';
+    ctx.beginPath(); ctx.ellipse(x + w * 0.85, y + h * 1.1, w * 0.5, h * 0.3, 0, 0, Math.PI * 2); ctx.fill();
+    // мячик прыгает и сплющивается у земли
+    const ph = (t * 1.4) % 1, up = 4 * ph * (1 - ph), ground = y + h * 0.8, br = h * 0.11;
+    const squash = up < 0.12 ? 1 - (0.12 - up) * 2 : 1;
+    const bx = x + w * (0.3 + 0.12 * Math.sin(t * 0.7)), by = ground - br * squash - up * h * 0.45;
+    ctx.fillStyle = 'rgba(40,80,40,.25)'; ctx.beginPath(); ctx.ellipse(bx, ground + 2, br * (1.2 - up * 0.5), br * 0.25, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#ff5d6c'; ctx.beginPath(); ctx.ellipse(bx, by, br * (2 - squash), br * squash, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#ffffff'; ctx.beginPath(); ctx.ellipse(bx - br * 0.3, by - br * 0.35 * squash, br * 0.25, br * 0.18, -0.5, 0, Math.PI * 2); ctx.fill();
+    // блик на стекле
+    ctx.fillStyle = 'rgba(255,255,255,.12)';
+    ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x + w * 0.45, y); ctx.lineTo(x + w * 0.2, y + h); ctx.lineTo(x, y + h); ctx.fill();
+    ctx.restore();
+  }
+  // Тёплый свет торшера (рисуется «добавлением» цвета — ночью особенно заметно).
+  function drawGlow(cx, cy, r, strength) {
+    const g = ctx.createRadialGradient(cx, cy, r * 0.05, cx, cy, r);
+    g.addColorStop(0, `rgba(255,214,130,${0.55 * strength})`);
+    g.addColorStop(0.35, `rgba(255,190,100,${0.22 * strength})`);
+    g.addColorStop(1, 'rgba(255,180,90,0)');
+    ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.fillStyle = g;
+    ctx.fillRect(cx - r, cy - r, r * 2, r * 2); ctx.restore();
   }
   // То же преобразование, что у drawSprite, но для «детей»: поворот и сплющивание вокруг низа родителя.
   function applyPose(b, pose) {
@@ -105,6 +164,7 @@ export function createRenderer(canvas, store, camera) {
     if (pose.sx !== 1 || pose.sy !== 1) ctx.scale(pose.sx || 1, pose.sy || 1);
     ctx.translate(-px, -py);
   }
+  let animating = false; // в этом кадре на экране идёт мультик — нужен следующий кадр
   const sway = { angle: 0 }; // задаёт main.js (качание от прокрутки)
   const keyOf = (e) => (e.kind === 'char' ? 'char:' : 'item:') + e.obj.id;
 
@@ -176,6 +236,7 @@ export function createRenderer(canvas, store, camera) {
     ctx.setTransform(k, 0, 0, k, -camera.x * k, 0);
     const carried = [];
     const list = entries(drag, carried);
+    const lights = []; animating = false;
     // Сначала позы всех вещей: вещь на мебели повторяет движение мебели (качнули шкаф — молоко качается с ним).
     const byId = new Map();
     for (const e of list) {
@@ -196,7 +257,17 @@ export function createRenderer(canvas, store, camera) {
       const chain = [];
       for (let p = e.kind === 'item' ? byId.get(e.obj.on?.id) : null, n = 0; p && n < 6; p = byId.get(p.obj.on?.id), n++) if (p.pose) chain.unshift(p);
       if (chain.length) { ctx.save(); for (const p of chain) applyPose(p.b, p.pose); }
-      drawSprite(e.art, e.b, { pose });
+      const power = e.kind === 'item' && e.obj.lit ? itemDef(e.obj.def)?.power : null;
+      let after = null;
+      if (power) {
+        if (!litSince.has(e.obj.id)) litSince.set(e.obj.id, tnow());
+        after = (x, y, w, h) => {
+          const m = ctx.getTransform(); // запоминаем положение — ночью свет рисуется ещё раз поверх темноты
+          lights.push({ m, power, x, y, w, h, since: litSince.get(e.obj.id) });
+          if (power.screen) { const [a, b2, c, d] = power.screen; drawScreen(x + a * w, y + b2 * h, (c - a) * w, (d - b2) * h, litSince.get(e.obj.id)); animating = true; }
+        };
+      }
+      drawSprite(e.art, e.b, { pose, after });
       if (chain.length) ctx.restore();
     }
     drawPartitions();
@@ -222,6 +293,19 @@ export function createRenderer(canvas, store, camera) {
       ctx.fillStyle = `rgba(28,40,85,${nightLevel * 0.38})`;
       ctx.fillRect(0, 0, canvas.width, canvas.height);
     }
+    // Свет поверх всего (и поверх ночной темноты): экран светится, торшер греет комнату.
+    for (const L of lights) {
+      ctx.setTransform(L.m);
+      if (L.power.screen && nightLevel > 0.01) {
+        const [a, b2, c, d] = L.power.screen;
+        ctx.globalAlpha = Math.min(1, nightLevel * 0.9);
+        drawScreen(L.x + a * L.w, L.y + b2 * L.h, (c - a) * L.w, (d - b2) * L.h, L.since);
+        ctx.globalAlpha = 1;
+        drawGlow(L.x + (a + c) / 2 * L.w, L.y + (b2 + d) / 2 * L.h, L.w * 0.7, 0.25 + nightLevel * 0.35);
+      }
+      if (L.power.glow) { const [gx, gy, gr] = L.power.glow; drawGlow(L.x + gx * L.w, L.y + gy * L.h, L.w * gr * (2.2 + 1.3 * nightLevel), 0.5 + nightLevel * 0.7); }
+    }
+    for (const id of litSince.keys()) if (!store.state.items.find((i) => i.id === id && i.lit)) litSince.delete(id);
   }
 
   // Подготовить фоны всех комнат, начиная с ближайших к камере.
@@ -240,5 +324,5 @@ export function createRenderer(canvas, store, camera) {
     return true;
   }
 
-  return { sway, resize, draw, hit, warmup, lowerQuality, get quality() { return quality; }, get scale() { return k; } };
+  return { sway, get animating() { return animating; }, resize, draw, hit, warmup, lowerQuality, get quality() { return quality; }, get scale() { return k; } };
 }

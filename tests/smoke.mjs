@@ -291,6 +291,27 @@ async function device(name, width, height, touch) {
     }
   }
 
+  // 17. Телевизор: нажатие включает (идёт мультик), повторное — выключает
+  {
+    const tv = await p.evaluate(() => {
+      const S = window.__sunny, i = S.store.state.items.find((i) => i.def === 'tv_stand' && !i.inv);
+      if (!i) return null;
+      const x0 = S.store.layout.byId.get(i.room).x0;
+      S.camera.holdAt(x0 + i.x - S.camera.viewW / 2); S.camera.mode = 'idle'; S.store.touch();
+      return { id: i.id, wx: x0 + i.x, wy: i.y - 200 };
+    });
+    if (tv) {
+      await p.waitForTimeout(300);
+      const tapTv = async () => { const pt = await toClient(tv.wx, tv.wy); if (touch) await p.touchscreen.tap(pt.x, pt.y); else await p.mouse.click(pt.x, pt.y); await p.waitForTimeout(500); };
+      await tapTv();
+      const on = await p.evaluate((id) => [!!window.__sunny.store.state.items.find((i) => i.id === id).lit, window.__sunny.renderer.animating], tv.id);
+      check(on[0] && on[1], 'нажатие включает телевизор, на экране мультик');
+      await tapTv();
+      const off = await p.evaluate((id) => !!window.__sunny.store.state.items.find((i) => i.id === id).lit, tv.id);
+      check(!off, 'повторное нажатие выключает телевизор');
+    }
+  }
+
   await p.screenshot({ path: `${SHOTS}/${name}_4_end.png` });
   check(errors.length === 0, 'нет ошибок за всё время ' + errors.join(' | '));
   await ctx.close();

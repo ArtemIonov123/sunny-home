@@ -104,6 +104,7 @@ export function validate(raw) {
       item.on = { id: i.on.id, s: i.on.s, dx: i.on.dx }; // проверка, что мебель существует, — в syncChildren
     }
     if (!inInventory && i.open === true) item.open = true;
+    if (!inInventory && i.lit === true) item.lit = true;
     (itemDef(item.def) ? items : missing).push(item); // неизвестный предмет откладываем, а не удаляем
   }
 

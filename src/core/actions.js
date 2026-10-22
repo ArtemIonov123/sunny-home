@@ -171,6 +171,14 @@ export function createActions(store, camera) {
       return store.state.items.find((i) => i.id === itemId).open;
     },
 
+    // Включить / выключить (телевизор, торшер; позже — плита, стиралка, блендер).
+    togglePower(itemId) {
+      const item = store.state.items.find((i) => i.id === itemId);
+      if (!item || !itemDef(item.def)?.power) return null;
+      store.change((s) => { const i = s.items.find((i) => i.id === itemId); if (i.lit) delete i.lit; else i.lit = true; });
+      return !!store.state.items.find((i) => i.id === itemId).lit;
+    },
+
     // «По местам»: расставить комнату аккуратно. Вещи из стандартной расстановки встают
     // на свои места, остальное — на свободные места вдоль стены, мелочь — на мебель или пол.
     arrangeRoom(roomId) {

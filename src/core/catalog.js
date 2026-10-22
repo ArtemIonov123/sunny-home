@@ -11,6 +11,8 @@
 // surfaces — куда можно ставить мелкие вещи: [x0, x1, y] в долях картинки (столешница, сиденье, полка);
 //            четвёртое число 1 — поверхность ВНУТРИ: работает и видна, только когда вещь открыта.
 // openArt  — картинка открытого состояния; такая вещь открывается и закрывается нажатием.
+// power    — вещь включается нажатием (item.lit): screen [x0,y0,x1,y1] — экран с мультиком,
+//            glow [x,y,радиус] — тёплый свет вокруг точки (абажур). Всё в долях картинки.
 
 export const ITEMS = {
   table:   { name: 'Столик',        art: 'items/table',      w: 370, anchor: 'bottom', place: 'floor',   group: 'furniture', surfaces: [[0.08, 0.92, 0.21]] },
@@ -23,8 +25,8 @@ export const ITEMS = {
   sofa:       { name: 'Диван',     art: 'items/sofa',       w: 620, anchor: 'bottom', place: 'floor', group: 'furniture', surfaces: [[0.13, 0.87, 0.60]] },
   armchair:   { name: 'Кресло',    art: 'items/armchair',   w: 300, anchor: 'bottom', place: 'floor', group: 'furniture', surfaces: [[0.22, 0.78, 0.575]] },
   rug:        { name: 'Ковёр',     art: 'items/rug',        w: 560, anchor: 'bottom', place: 'floor', group: 'decor', layer: 'under' },
-  floor_lamp: { name: 'Торшер',    art: 'items/floor_lamp', h: 470, anchor: 'bottom', place: 'floor', group: 'decor' },
-  tv_stand:   { name: 'Тумба с телевизором', art: 'items/tv_stand', w: 420, anchor: 'bottom', place: 'floor', group: 'furniture', surfaces: [[0.05, 0.27, 0.60], [0.73, 0.95, 0.60]] },
+  floor_lamp: { name: 'Торшер',    art: 'items/floor_lamp', h: 470, power: { glow: [0.5, 0.2, 1.1] }, anchor: 'bottom', place: 'floor', group: 'decor' },
+  tv_stand:   { name: 'Тумба с телевизором', art: 'items/tv_stand', w: 420, power: { screen: [0.135, 0.04, 0.865, 0.525] }, anchor: 'bottom', place: 'floor', group: 'furniture', surfaces: [[0.05, 0.27, 0.60], [0.73, 0.95, 0.60]] },
   plant_big:  { name: 'Монстера',  art: 'items/plant_big',  h: 380, anchor: 'bottom', place: 'floor', group: 'decor' },
   bookshelf:  { name: 'Стеллаж',   art: 'items/bookshelf',  h: 440, anchor: 'bottom', place: 'floor', group: 'furniture', surfaces: [[0.12, 0.88, 0.335], [0.12, 0.88, 0.605], [0.12, 0.88, 0.875]] },
   blender:         { name: 'Блендер',           art: 'items/blender',         h: 190, anchor: 'bottom', place: 'floor', group: 'appliances' },
