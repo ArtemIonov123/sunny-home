@@ -1,7 +1,7 @@
 // Мокрые герои и животные: постоял под душем (или под краном) — ещё немного с него капает,
 // под ногами лужица, которая подсыхает. Животное, выйдя из-под воды, отряхивается брызгами.
 // Ничего не сохраняется: «мокрость» живёт только пока открыта игра.
-const DRY = 22;            // сколько секунд сохнет после воды
+const DRY = 2;             // сколько секунд капает и сохнет после воды
 const now = () => performance.now() / 1000;
 const st = new Map();      // ключ ('char:girl', 'item:12') → { until, under (когда последний раз под водой), shook }
 
@@ -37,7 +37,7 @@ export function drawDrips(ctx, b, level, seed = 0, from = [0.12, 0.65], ground =
   const t = now(), N = 12;
   ctx.save();
   for (let k = 0; k < N; k++) {
-    const P = 0.75 + hash(seed + k) * 0.7, off = hash(seed + k * 7) * P, cyc = Math.floor((t + off) / P), q = ((t + off) % P) / P;
+    const P = 0.35 + hash(seed + k) * 0.35, off = hash(seed + k * 7) * P, cyc = Math.floor((t + off) / P), q = ((t + off) % P) / P;
     if (hash(seed + k * 13 + cyc * 3.1) > level * 0.95) continue; // сохнет — капель меньше
     const x = b.x + b.w * (0.22 + 0.56 * hash(seed + k * 3 + cyc)), y0 = b.y + b.h * (from[0] + (from[1] - from[0]) * hash(seed + k * 5 + cyc));
     if (q < 0.85) {
