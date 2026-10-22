@@ -79,7 +79,7 @@ export const ITEMS = {
 };
 
 // ── Свои предметы из админки (каталог хранится отдельно от сохранения дома) ──
-export const GROUPS = { furniture: 'Мебель', appliances: 'Техника', decor: 'Декор', build: 'Окна и двери', garden: 'Сад', clothes: 'Одежда', food: 'Еда', toys: 'Игрушки' };
+export const GROUPS = { furniture: 'Мебель', appliances: 'Техника', decor: 'Декор', build: 'Окна и двери', garden: 'Сад', clothes: 'Одежда', food: 'Еда', toys: 'Игрушки', animals: 'Животные' };
 export const PLACES = { floor: 'На пол', wall: 'На стену', doorway: 'Проём (стоит на линии пола)' };
 export const CUSTOM_PREFIX = 'custom_';
 
@@ -112,6 +112,8 @@ export function toDef(rec) {
     ...(rec.tap ? { tap: rec.tap } : {}),
     ...(rec.drink ? { drink: true } : {}),
     ...(rec.wear ? { wear: rec.wear } : {}),
+    // Животное: части на скелете (render/animal.js), картинки — custom/<id>_a_<часть>.
+    ...(rec.animal ? { small: true, animal: { parts: Object.fromEntries(Object.keys(rec.animal.parts).map((k) => [k, 'custom/' + rec.id + '_a_' + k])), joints: rec.animal.joints || {}, voice: rec.animal.voice || '' } } : {}),
   };
 }
 

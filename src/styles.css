@@ -350,3 +350,13 @@ button.link { border: 0; background: none; color: #a8794c; text-decoration: unde
 .admin-sheet header nav::-webkit-scrollbar { display: none; }
 #app.rotated .admin-sheet header nav { touch-action: pan-y; }
 .admin-sheet .tab { flex-shrink: 0; }
+/* Студия → Животные */
+.an-slots { display: grid; grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); gap: 6px; margin-top: 8px; }
+.an-slot { position: relative; display: flex; flex-direction: column; align-items: center; gap: 2px; border: 2px dashed #c8b9e0; border-radius: 12px; padding: 6px; background: #fbf9ff; cursor: pointer; }
+.an-slot.has { border-style: solid; border-color: #b9a6dc; }
+.an-slot img { width: 64px; height: 64px; object-fit: contain; background: repeating-conic-gradient(#eee 0 25%, #fff 0 50%) 0 0/12px 12px; border-radius: 8px; }
+.an-slot span { width: 64px; height: 64px; display: grid; place-items: center; font-size: 28px; color: #b9a6dc; }
+.an-slot small { font-size: 11px; text-align: center; color: #6f6a80; }
+.an-slot input { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
+.an-preview { flex: 1 1 300px; }
+.an-preview canvas { width: 100%; max-width: 560px; touch-action: none; }

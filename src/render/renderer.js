@@ -9,6 +9,7 @@ import { backgroundFor, clearBackgrounds, prewarm } from './background.js';
 import { anims } from './anims.js';
 import { drawWater, waterParams } from './water.js';
 import { getRig, drawRig, heroPose } from './rig.js';
+import { getAnimal, drawAnimal, animalPose } from './animal.js';
 import { sizeOf } from '../assets.js';
 import { mode } from '../ui/mode.js';
 import { surfacesOf, seatsOf, isHidden, isSmall } from '../core/physics.js';
@@ -104,6 +105,20 @@ export function createRenderer(canvas, store, camera) {
     ctx.drawImage(im, -b.w / 2, -b.h, b.w, b.h);
     if (after) after(-b.w / 2, -b.h, b.w, b.h); // рисунок поверх (экран телевизора) — качается вместе с вещью
     ctx.restore();
+  }
+
+  // Животное на скелете: общая поза (прыжок, сплющивание) + движения частей (дыхание, хвост, шаги).
+  function drawAnimalItem(obj, b, pose, opts = {}) {
+    const rig = getAnimal(obj.def); if (!rig) return false;
+    const rot = (pose?.rot || 0) + (opts.tilt || 0);
+    ctx.save();
+    ctx.translate(b.x + b.w / 2 + (pose?.dx || 0), b.y + b.h + (pose?.dy || 0));
+    if (rot) ctx.rotate(rot);
+    if (pose && (pose.sx !== 1 || pose.sy !== 1)) ctx.scale(pose.sx || 1, pose.sy || 1);
+    if (opts.lift) ctx.scale(1.06, 1.06);
+    drawAnimal(ctx, rig, { x: -b.w / 2, y: -b.h, w: b.w, h: b.h }, animalPose(obj.id, { ...opts, rig }), opts.flip ?? !!obj.flip);
+    ctx.restore();
+    return true;
   }
 
   // Герой по частям: общая поза (прыжок, сплющивание) + движения костей (дыхание, взмах, болтание ногами).
@@ -319,6 +334,7 @@ export function createRenderer(canvas, store, camera) {
         };
       }
       if (e.kind === 'item' && e.obj.held) continue; // в руке — рисуется вместе с героем
+      if (e.kind === 'item' && itemDef(e.obj.def)?.animal && drawAnimalItem(e.obj, e.b, pose, { sleep: nightLevel > 0.5 && !e.obj.on })) { idleHeroes = true; if (chain.length) ctx.restore(); continue; }
       if (e.kind === 'char' && getRig(e.obj.id)) {
         const seat = e.obj.seat ? (e.obj.seat.lie ? 'lie' : 'sit') : null;
         drawHeroRig(e.obj.id, e.b, pose, { reach: drag?.hero === e.obj.id, seat, covered: seat === 'lie' && !!itemDef(byId.get(e.obj.seat.id)?.obj.def)?.cover });
@@ -341,7 +357,10 @@ export function createRenderer(canvas, store, camera) {
       ctx.fillStyle = 'rgba(70,45,20,.18)'; // тень под вещью в руке
       if (drag.walk) shadowUnder(drag.b); // идёт — тень прямо под ногами
       else { ctx.beginPath(); ctx.ellipse(drag.b.x + drag.b.w / 2, drag.b.y + drag.b.h + 18, drag.b.w * 0.32, 10, 0, 0, Math.PI * 2); ctx.fill(); }
-      if (drag.kind === 'char' && getRig(drag.id) && drag.walk) drawHeroRig(drag.id, drag.b, null, { walk: drag.walk }); // идёт сам по полу
+      if (drag.kind === 'item' && itemDef(drag.obj.def)?.animal && getAnimal(drag.obj.def)) {
+        if (drag.walk) drawAnimalItem(drag.obj, drag.b, null, { walk: drag.walk, flip: drag.walk.dir < 0 }); // идёт само по полу
+        else drawAnimalItem(drag.obj, drag.b, null, { carried: true, tilt: drag.tilt || 0, lift: true });
+      } else if (drag.kind === 'char' && getRig(drag.id) && drag.walk) drawHeroRig(drag.id, drag.b, null, { walk: drag.walk }); // идёт сам по полу
       else if (drag.kind === 'char' && getRig(drag.id)) drawHeroRig(drag.id, drag.b, { dx: 0, dy: 0, rot: drag.tilt || 0, sx: 1.06, sy: 1.06 }, { carried: true, tilt: drag.tilt || 0 });
       else drawSprite(drag.art, drag.b, { glow: true, tilt: drag.tilt || 0 });
       // Вещи с полок и столешницы едут вместе с мебелью.

@@ -292,6 +292,22 @@ def build_hero():
     open(os.path.join(ROOT, 'src', 'render', 'heroLayout.js'), 'w').write('\n'.join(js) + '\n')
 
 
+def build_animals():
+    """Животные: art-src/animals/animal_<имя>_<часть>.png → assets/animals/<имя>_<часть>.webp.
+    Холст НЕ обрезается (место части на холсте — это и есть сборка), только уменьшается до 512."""
+    d = os.path.join(SRC, 'animals')
+    if not os.path.isdir(d):
+        return
+    for f in sorted(os.listdir(d)):
+        if not (f.startswith('animal_') and f.endswith('.png')) or f.endswith('_full.png'):
+            continue
+        im = keyed_full('animals/' + f)
+        s = 512 / max(im.size)
+        if s < 1:
+            im = im.resize((round(im.width * s), round(im.height * s)), Image.LANCZOS)
+        save(im, 'animals/' + f[len('animal_'):-4] + '.webp', quality=90)
+
+
 def copy_webp(name, rel):
     im = Image.open(os.path.join(SRC, name))
     save(im.convert('RGBA'), rel, quality=90)
@@ -338,6 +354,8 @@ if __name__ == '__main__':
         sprite(f'bedroom/{n}.png', f'items/{n}.webp', max_w=mw, max_h=mh)
     # Герой-конструктор (тело, голова, лица, причёски, одежда — слоями).
     build_hero()
+    # Животные — части на скелет (render/animal.js).
+    build_animals()
     # Из прототипа 0.4.1
     copy_webp('legacy/room_table.webp', 'items/table.webp')
     copy_webp('legacy/room_picture.webp', 'items/picture.webp')

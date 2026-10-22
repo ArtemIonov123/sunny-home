@@ -68,6 +68,21 @@ export function createInteraction({ canvas, viewport, camera, renderer, store, i
     events.emit('frame');
   }
 
+  // Идёт ли сам (герой, животное): у пола и медленно — да; быстро или поднял — болтается в руке.
+  function walkStep(ground, step) {
+    const sp = Math.abs(g.speed);
+    if (g.walk) { if (!ground || sp > 1100) g.walk = null; }
+    else if (ground && sp < 650) g.walk = { phase: 0, dir: g.obj?.flip ? -1 : 1 };
+    if (!g.walk) return false;
+    const ph0 = g.walk.phase;
+    g.walk.phase += Math.abs(step) * 0.05;  // шаги — по пройденному пути: медленнее ведёшь — медленнее шагает
+    if (Math.floor(g.walk.phase / Math.PI) !== Math.floor(ph0 / Math.PI) && g.walk.amp > 0.3) play('step'); // топ-топ
+    if (sp > 20) g.walk.dir = Math.sign(g.speed);
+    g.walk.amp = g.walk.amp === undefined ? 0 : g.walk.amp * 0.85 + Math.min(1, sp / 70) * 0.15; // плавно начинает и заканчивает
+    g.tilt = 0;
+    return true;
+  }
+
   // Где окажется вещь, если отпустить её сейчас.
   function update() {
     const w = world(g.last), ax = w.x + g.dx, ay = w.y + g.dy;
@@ -86,6 +101,12 @@ export function createInteraction({ canvas, viewport, camera, renderer, store, i
       const pos = landing(store.state, g.obj.def, r.room, lx, ay, g.id);
       g.target = { r, pos };
       g.valid = !!pos;
+      // Животное: медленно ведёшь у пола — идёт само (как герой).
+      if (itemDef(g.obj.def)?.animal && pos && walkStep(!pos.on && Math.abs(ay - pos.y) < 90, step)) {
+        g.hero = null;
+        g.b = itemBounds({ def: g.obj.def, x: ax, y: pos.y });
+        return;
+      }
       // Мелочь поднесли к герою — он её возьмёт (одежду — наденет).
       g.hero = isSmall(itemDef(g.obj.def)) ? heroAt(ax, ay - sizeOf(itemDef(g.obj.def)).h / 2) : null;
       if (g.hero) g.valid = true;
@@ -97,17 +118,7 @@ export function createInteraction({ canvas, viewport, camera, renderer, store, i
       const pos = seatLanding(store.state, g.obj.id, r.room, lx, ay) || snapChar(r.room, lx, ay);
       g.target = { r, pos }; g.valid = true;
       // Медленно ведёшь у пола — герой идёт сам (ноги шагают по полу); быстро или поднял выше — болтается в руке.
-      const ground = !pos.seat && Math.abs(ay - pos.y) < 110 && !!g.obj.look;
-      const sp = Math.abs(g.speed);
-      if (g.walk) { if (!ground || sp > 1100) g.walk = null; }
-      else if (ground && sp < 650) g.walk = { phase: 0, dir: 1 };
-      if (g.walk) {
-        const ph0 = g.walk.phase;
-        g.walk.phase += Math.abs(step) * 0.05;  // шаги — по пройденному пути: медленнее ведёшь — медленнее шагает
-        if (Math.floor(g.walk.phase / Math.PI) !== Math.floor(ph0 / Math.PI) && g.walk.amp > 0.3) play('step'); // топ-топ
-        if (sp > 20) g.walk.dir = Math.sign(g.speed);
-        g.walk.amp = g.walk.amp === undefined ? 0 : g.walk.amp * 0.85 + Math.min(1, sp / 70) * 0.15; // плавно начинает и заканчивает шагать   // стоит на месте — не шагает
-        g.tilt = 0;
+      if (walkStep(!pos.seat && Math.abs(ay - pos.y) < 110 && !!g.obj.look, step)) {
         g.b = charBounds({ id: g.obj.id, x: ax, y: pos.y });
         return;
       }
@@ -205,6 +216,7 @@ export function createInteraction({ canvas, viewport, camera, renderer, store, i
       if (!o) return;
       delete o.inv; o.room = r.room.id; o.x = pos.x; o.y = pos.y;
       if (isItem) { delete o.held; delete o.bites; if (pos.on) o.on = { ...pos.on }; else delete o.on; }
+      if (isItem && d.walk) { if (d.walk.dir < 0) o.flip = true; else delete o.flip; } // животное смотрит туда, куда шло
       else if (pos.seat) o.seat = { ...pos.seat }; else delete o.seat;
       syncChildren(s); // и вещи в руках героя переезжают вместе с ним
     }, { undo: false });

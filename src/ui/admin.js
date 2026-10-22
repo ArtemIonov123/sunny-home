@@ -7,6 +7,7 @@ import { escapeHtml as esc } from '../util.js';
 import { validate } from '../save/migrate.js';
 import { normalize } from '../core/actions.js';
 import { createItemEditor } from './itemEditor.js';
+import { createAnimalEditor } from './animalEditor.js';
 import { listRecords, listPacks, makePack, listOverrides } from '../core/library.js';
 import { resetShop, loadCatalog } from '../core/shop.js';
 import { getSettings, saveSettings, hasToken, testToken, readCatalog, publishPack, removePack, fetchStorePack, makeCover, COVER_COLORS } from '../core/publish.js';
@@ -28,6 +29,8 @@ export function createAdmin({ root, store, camera, actions, toast, onChange }) {
   let tab = 'rooms', isOpen = false, storageNote = '';
   const items = createItemEditor({ store, actions, toast, onChange });
   items.bind(el);
+  const animals = createAnimalEditor({ store, actions, toast, onChange });
+  animals.bind(el);
 
   const open = () => { isOpen = true; el.hidden = false; render(); onChange(); };
   const close = () => { isOpen = false; el.hidden = true; onChange(); };
@@ -220,17 +223,18 @@ export function createAdmin({ root, store, camera, actions, toast, onChange }) {
 
   function render() {
     if (!isOpen) return;
-    const tabs = { rooms: 'Комнаты', markup: 'Разметка', items: 'Предметы', recipes: 'Рецепты', packs: 'Паки', data: 'Данные' };
+    const tabs = { rooms: 'Комнаты', markup: 'Разметка', items: 'Предметы', animals: 'Животные', recipes: 'Рецепты', packs: 'Паки', data: 'Данные' };
     el.innerHTML = `<header><b>Админка</b>
         <nav>${Object.entries(tabs).map(([k, n]) => `<button class="tab${tab === k ? ' on' : ''}" data-tab="${k}">${n}</button>`).join('')}</nav>
         <button class="close" data-x aria-label="Закрыть">×</button></header>
-      <div class="adm-body">${tab === 'rooms' ? roomsTab() : tab === 'markup' ? markupTab() : tab === 'items' ? '<div class="items-tab"></div>' : tab === 'packs' ? packsTab() : tab === 'recipes' ? recipesTab() : dataTab()}</div>`;
+      <div class="adm-body">${tab === 'rooms' ? roomsTab() : tab === 'markup' ? markupTab() : tab === 'items' ? '<div class="items-tab"></div>' : tab === 'animals' ? '<div class="animals-tab"></div>' : tab === 'packs' ? packsTab() : tab === 'recipes' ? recipesTab() : dataTab()}</div>`;
     if (tab === 'items') items.mount(el.querySelector('.items-tab'));
+    if (tab === 'animals') animals.mount(el.querySelector('.animals-tab'));
     if (tab === 'packs') drawCoverPreview();
   }
 
   el.addEventListener('click', async (e) => {
-    const b = e.target.closest('button'); if (!b || b.closest('.items-tab')) return; // «Предметы» обрабатывает свой модуль
+    const b = e.target.closest('button'); if (!b || b.closest('.items-tab') || b.closest('.animals-tab')) return; // «Предметы» обрабатывает свой модуль
     const id = b.closest('.adm-row')?.dataset.id;
     if (b.dataset.x !== undefined) { if (items.dirty && tab === 'items') toast('Черновик предмета сохранится до следующего открытия админки'); return close(); }
     if (b.dataset.tab) { tab = b.dataset.tab; render(); onChange(); return; }

@@ -5,6 +5,7 @@ import { GROUPS, PLACES, CUSTOM_PREFIX, toDef, putCustomDef, removeCustomDef, cu
 import { loadImage, registerImage, forgetImage } from '../assets.js';
 import { loadCatalogRecords, saveCatalogRecords, loadOldStudio, loadOverrides, saveOverrides, loadRecipes, saveRecipes } from '../save/storage.js';
 import { validateRecipe, setOwnRecipes, listOwnRecipes, addPackRecipes } from './recipes.js';
+import { ANIMAL_PARTS, JOINT_PARTS, VOICES, setupAnimal, forgetAnimal } from '../render/animal.js';
 
 export const LIBRARY_LIMIT = 60;
 export const MIN_W = 40, MAX_W = 900;
@@ -46,6 +47,17 @@ export function cleanLiving(raw) {
   else if (p && fracs(p.screen, 4)) out.power = { screen: p.screen.slice(0, 4) };
   else if (p && fracs(p.water, 4)) out.power = { water: cleanWater(p.water) };
   if (TAPS[raw.tap]) out.tap = raw.tap;
+  // Животное: картинки частей (data:URL), суставы (доли), голос.
+  const an = raw.animal;
+  if (an && typeof an === 'object' && an.parts && typeof an.parts === 'object') {
+    const parts = {};
+    for (const k of Object.keys(ANIMAL_PARTS)) { const v = an.parts[k]; if (typeof v === 'string' && IMG_RE.test(v) && v.length < 1_500_000) parts[k] = v; }
+    if (Object.entries(ANIMAL_PARTS).every(([k, p]) => !p.need || parts[k])) {
+      const joints = {};
+      for (const k of JOINT_PARTS) if (parts[k] && fracs(an.joints?.[k], 2)) joints[k] = an.joints[k].slice(0, 2).map((v) => Math.round(v * 10000) / 10000);
+      out.animal = { parts, joints, voice: VOICES[an.voice] !== undefined ? an.voice : '' };
+    }
+  }
   if (raw.drink === true) out.drink = true;
   if (WEARS[raw.wear]) out.wear = raw.wear;
   return out;
@@ -68,6 +80,10 @@ async function install(rec, { builtin = false } = {}) {
   const def = toDef(rec);
   registerImage(def.art, im);
   if (rec.open) registerImage(def.openArt, await loadImage(rec.open.image));
+  if (rec.animal) { // части животного — на скелет; картинка целиком собирается из них
+    for (const [k, src] of Object.entries(rec.animal.parts)) registerImage(def.animal.parts[k], await loadImage(src));
+    setupAnimal(def);
+  }
   putCustomDef(def);
   if (!builtin) records.set(rec.id, rec);
 }
@@ -269,6 +285,8 @@ export async function deleteRecord(id) {
   records.delete(id);
   removeCustomDef(id);
   forgetImage('custom/' + id); forgetImage('custom/' + id + '_open');
+  for (const k of Object.keys(ANIMAL_PARTS)) forgetImage('custom/' + id + '_a_' + k);
+  forgetAnimal(id);
 }
 
 // Импорт пака: новый формат «sunny-home-items» v2 или пак старой Studio 0.3 (v1).

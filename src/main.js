@@ -17,9 +17,10 @@ import { anims } from './render/anims.js';
 import { play } from './audio.js';
 import { surfacesOf, syncChildren } from './core/physics.js';
 import { mode } from './ui/mode.js';
-import { itemDef } from './core/catalog.js';
+import { itemDef, allItemDefs } from './core/catalog.js';
 import { refreshHero } from './render/hero.js';
 import { rigAnims, getRig, drawRig, LIE } from './render/rig.js';
+import { animalAnims, setupAnimal } from './render/animal.js';
 
 const $ = (id) => document.getElementById(id);
 
@@ -30,6 +31,7 @@ async function boot() {
   // Свои предметы — до чтения сохранения, чтобы их экземпляры узнались.
   let libraryNote = '';
   try { libraryNote = await loadLibrary(); } catch (e) { libraryNote = 'Свои предметы не загрузились: ' + e.message; }
+  for (const d of allItemDefs()) if (d.builtin && d.animal) setupAnimal(d); // встроенные животные — на скелет
   await loadBuiltinPacks(); // паки, встроенные в игру (папка packs/)
   await initShop().catch(() => {}); // паки, скачанные в магазине
 
@@ -100,7 +102,7 @@ async function boot() {
     busy = interaction.frame(dt) || busy;
     busy = anims.active() || busy;
     busy = swayStep(dt, fresh) || busy;
-    busy = renderer.animating || rigAnims.active() || !!interaction.drag || busy; // включённый телевизор на экране — мультик идёт
+    busy = renderer.animating || rigAnims.active() || animalAnims.active() || !!interaction.drag || busy; // включённый телевизор на экране — мультик идёт
     const goal = store.state.night ? 1 : 0;
     if (Math.abs(goal - night) > 0.005) { night += (goal - night) * Math.min(1, dt * 3); busy = true; } else night = goal;
     renderer.draw(interaction.drag, night, hud.guides);
@@ -235,6 +237,8 @@ async function boot() {
     else {
       const it = store.state.items.find((i) => i.id === id);
       if (it?.held && itemDef(it.def)?.group === 'food') { eat(it.held.by); return; } // нажал на еду в руке — откусывает
+      const an = itemDef(it?.def)?.animal;
+      if (an && !it.held) { anims.hop('item:' + id); animalAnims.happy(id); play(an.voice || 'pop'); invalidate(); return; } // животное радуется: прыжок, хвост, голос
       if (tryCook(id)) return; // прибор с продуктами — готовит
       const tapKind = itemDef(store.state.items.find((i) => i.id === id)?.def)?.tap;
       if (tapKind === 'ring') { anims.ring('item:' + id); play('ring'); invalidate(); return; }
