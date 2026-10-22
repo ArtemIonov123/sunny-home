@@ -36,7 +36,7 @@ function alphaOf(im) {
   let x0 = W, y0 = H, x1 = -1, y1 = -1;
   for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
     const v = d[(y * W + x) * 4 + 3]; a[y * W + x] = v;
-    if (v > 24) { if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y; }
+    if (v > 60) { if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y; }
   }
   const out = { W, H, a, box: x1 < 0 ? null : [x0, y0, x1 + 1, y1 + 1] };
   alphaCache.set(im, out);

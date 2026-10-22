@@ -18,6 +18,7 @@ export const ASSET_KEYS = [
   'rooms/bath/wall_tile', 'items/bathtub', 'items/bath_sink', 'items/bath_mirror', 'items/toilet', 'items/toilet_open',
   'items/towel_rack', 'items/soap', 'items/rubber_duck', 'items/wall_clock',
   'items/wardrobe', 'items/wardrobe_open', 'items/bed', 'items/nightstand', 'items/bedside_lamp', 'items/dresser',
+  ...['body', 'head', 'head_sleep', 'tail', 'leg_front_near', 'leg_front_far', 'leg_back_near', 'leg_back_far'].map((p) => 'animals/dog_' + p), // щенок по частям
   'items/teddy_bear', 'items/alarm_clock', 'items/book', 'items/wall_shelf_small',
   'chars/cat',
 ];

@@ -25,6 +25,7 @@ async function prepareFull(file) {
   let any = false;
   for (let k = 0; k < px.length; k += 4) {
     if (px[k] > 200 && px[k + 2] > 200 && px[k + 1] < 90) px[k + 3] = 0;
+    if (px[k + 3] < 60) px[k + 3] = 0; // еле видная «пыль» вокруг части
     if (px[k + 3] > 40) any = true;
   }
   if (!any) throw new Error('Картинка пустая');

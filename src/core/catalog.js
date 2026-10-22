@@ -21,6 +21,10 @@
 // sounds   — свои звуки: { open, close } (унитаз: крышка и смыв).
 // tap      — особый отклик на нажатие: 'ring' (будильник звенит и трясётся), 'squeak' (игрушка пищит).
 
+// Ключи картинок частей встроенного животного: animals/<имя>_<часть> (как файлы animal_<имя>_<часть>.png от GPT).
+const PART_FILES = { body: 'body', head: 'head', headSleep: 'head_sleep', tail: 'tail', legFN: 'leg_front_near', legFF: 'leg_front_far', legBN: 'leg_back_near', legBF: 'leg_back_far' };
+const animalParts = (name) => Object.fromEntries(Object.entries(PART_FILES).map(([k, f]) => [k, `animals/${name}_${f}`]));
+
 export const ITEMS = {
   table:   { name: 'Столик',        art: 'items/table',      w: 370, anchor: 'bottom', place: 'floor',   group: 'furniture', surfaces: [[0.08, 0.92, 0.21]] },
   picture: { name: 'Картина',       art: 'items/picture',    w: 160, anchor: 'center', place: 'wall',    group: 'decor' },
@@ -60,6 +64,9 @@ export const ITEMS = {
   dresser:      { name: 'Комод',       art: 'items/dresser',      w: 330, anchor: 'bottom', place: 'floor', group: 'furniture', surfaces: [[0.05, 0.95, 0.04]] },
   bedside_lamp: { name: 'Лампа',       art: 'items/bedside_lamp', h: 140, anchor: 'bottom', place: 'floor', group: 'decor', power: { glow: [0.5, 0.33, 1.6] } },
   wall_shelf_small: { name: 'Полочка', art: 'items/wall_shelf_small', w: 240, anchor: 'center', place: 'wall', group: 'furniture', indoorOnly: true, surfaces: [[0.04, 0.96, 0.06]] },
+  // Животные — на общем скелете (render/animal.js): части лежат в assets/animals/, картинка целиком собирается из них.
+  dog: { name: 'Щенок', art: 'animals/dog', w: 200, anchor: 'bottom', place: 'floor', group: 'animals', small: true,
+         animal: { parts: animalParts('dog'), joints: {}, voice: 'woof' } },
   teddy_bear:   { name: 'Мишка',     art: 'items/teddy_bear',  w: 100, anchor: 'bottom', place: 'floor', group: 'toys', tap: 'squeak' },
   alarm_clock:  { name: 'Будильник', art: 'items/alarm_clock', w: 62,  anchor: 'bottom', place: 'floor', group: 'decor', tap: 'ring' },
   book:         { name: 'Книжка',    art: 'items/book',        h: 70,  anchor: 'bottom', place: 'floor', group: 'toys' },

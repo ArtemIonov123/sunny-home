@@ -55,6 +55,7 @@ export function defaultState() {
     it('window', 'living', 1450, 260), it('picture', 'living', 520, 230), it('tv_stand', 'living', 520, 640), it('plant_big', 'living', 900, 620),
     it('rug', 'living', 1450, 840), it('sofa', 'living', 1450, 640), it('table', 'living', 1450, 800), it('armchair', 'living', 1950, 700), it('floor_lamp', 'living', 2200, 630),
     it('bookshelf', 'kids', 1300, 600),
+    it('dog', 'living', 760, 790), // щенок
     it('window', 'kitchen', 900, 250), it('table', 'kitchen', 1700, 800),
     it('fridge', 'kitchen', 230, 640), it('stove', 'kitchen', 560, 640), it('sink_counter', 'kitchen', 900, 640),
     it('kitchen_counter', 'kitchen', 1290, 640), it('kitchen_shelf', 'kitchen', 1290, 300),
@@ -82,7 +83,7 @@ export function defaultState() {
   const rest = [...NEW_IN_INVENTORY];
   for (const d of [...KITCHEN_START, 'tshirt', 'dress']) { const k = rest.indexOf(d); if (k >= 0) rest.splice(k, 1); }
   return {
-    schema: 14, // = SCHEMA в save/migrate.js
+    schema: 15, // = SCHEMA в save/migrate.js
     rooms, items: [...items, ...['picture', 'picture', 'table', 'window', 'door', ...rest].map((def) => ({ id: id++, def, inv: true }))], next: id,
     chars: [
       { id: 'girl', room: 'living', x: 900, y: 770 },

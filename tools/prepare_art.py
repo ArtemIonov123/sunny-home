@@ -302,6 +302,7 @@ def build_animals():
         if not (f.startswith('animal_') and f.endswith('.png')) or f.endswith('_full.png'):
             continue
         im = keyed_full('animals/' + f)
+        im.putalpha(im.split()[-1].point(lambda v: 0 if v < 60 else v))  # убрать еле видную «пыль» от GPT
         s = 512 / max(im.size)
         if s < 1:
             im = im.resize((round(im.width * s), round(im.height * s)), Image.LANCZOS)

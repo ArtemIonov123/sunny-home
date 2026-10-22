@@ -6,7 +6,7 @@ import { defaultState, newRoom, MAX_ROOMS, NEW_IN_INVENTORY, BATH_START, BEDROOM
 import { clamp, isHex } from '../util.js';
 import { cleanLook } from '../core/looks.js';
 
-export const SCHEMA = 14;
+export const SCHEMA = 15;
 
 const MIGRATIONS = {
   // 1 → 2: появился шкафчик. Все вещи из версии 1 стоят в доме, формат вещи в доме не меняется.
@@ -109,6 +109,17 @@ const MIGRATIONS = {
   12: (s) => ({ ...s, schema: 13 }),
   // 13 → 14: животное может смотреть влево (flip). Старые данные подходят.
   13: (s) => ({ ...s, schema: 14 }),
+  // 14 → 15: в доме появился щенок (в гостиной на полу; гостиной нет — в шкафчике).
+  14: (s) => {
+    const items = Array.isArray(s.items) ? s.items.map((i) => ({ ...i })) : [];
+    let next = Number.isInteger(s.next) ? s.next : 1;
+    for (const i of items) if (Number.isInteger(i.id) && i.id >= next) next = i.id + 1;
+    if (!items.some((i) => i.def === 'dog')) {
+      const living = (Array.isArray(s.rooms) ? s.rooms : []).find((r) => r.id === 'living');
+      items.push(living ? { id: next++, def: 'dog', room: 'living', x: Math.min(760, (living.width || 1600) - 120), y: 790 } : { id: next++, def: 'dog', inv: true });
+    }
+    return { ...s, items, next, schema: 15 };
+  },
 };
 
 const num = (v, a, b, d) => (Number.isFinite(v) ? clamp(v, a, b) : d);
