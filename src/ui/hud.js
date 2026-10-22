@@ -12,6 +12,8 @@ import { installFastTap } from './tap.js';
 import { anims } from '../render/anims.js';
 import { play, soundOn, setSound } from '../audio.js';
 import { mode } from './mode.js';
+import { createSettings, avatarSrc } from './settings.js';
+import { getProfile } from '../core/profile.js';
 import { getAnimal } from '../render/animal.js';
 import { isLocked } from '../core/access.js';
 import { isSmall } from '../core/physics.js';
@@ -23,11 +25,11 @@ const DESIGN_TABS = [['furniture', '🛋️', 'Мебель'], ['appliances', '�
 
 export function createHud({ root, store, camera, actions, onChange }) {
   root.innerHTML = `
-    <div class="hud-top-left"><div class="brand"><span class="sun">✺</span>Солнечный дом${STUDIO ? ' · студия' : ''}<small>${VERSION}</small></div></div>
+    <div class="hud-top-left"><button class="avatar-btn" data-act="settings" aria-label="Настройки и профиль"><img alt=""></button><div class="brand"><span class="sun">✺</span>Солнечный дом${STUDIO ? ' · студия' : ''}<small>${VERSION}</small></div></div>
     <div class="hud-top-right">
       <button class="btn icon" data-act="undo" aria-label="Отменить" title="Отменить">↶</button>
       <button class="btn icon" data-act="night" aria-label="День или вечер" title="День / вечер">☾</button>
-      <button class="btn icon" data-act="sound" aria-label="Звук" title="Звук">🔊</button>
+      <button class="btn icon" data-act="settings" aria-label="Настройки" title="Настройки">⚙️</button>
       <button class="btn icon" data-act="full" aria-label="На весь экран" title="На весь экран">⛶</button>
       ${STUDIO ? '<button class="btn admin" data-act="admin">✎ Админка</button>' : ''}
     </div>
@@ -56,10 +58,12 @@ export function createHud({ root, store, camera, actions, onChange }) {
   // В игре админки нет вовсе (код студии не попадает в сборку игры).
   const admin = __STUDIO__ ? createAdmin({ root, store, camera, actions, toast, onChange }) : { open() {}, sync() {}, guides: null, setStorageNote() {} };
   const heroEditor = createHeroEditor({ root, store, actions, onChange });
+  const settings = createSettings({ root, onChange });
   const shop = createShop({ root, onInstalled: () => { actions.restoreMissing(); onChange(); }, openThings: () => showPanel('things', true) });
 
   const last = {};
-  function syncSound() { const t = soundOn() ? '🔊' : '🔇'; if (last.sound !== t) { last.sound = t; q('[data-act=sound]').textContent = t; } }
+  // Аватарка вверху слева: лицо своего героя (меняется вместе с его внешностью).
+  function syncSound() { const p = getProfile(), src = avatarSrc(p.face, p.bg, 96); if (last.avatar !== src) { last.avatar = src; q('.avatar-btn img').src = src; } }
 
   function toast(text, error = false) {
     toastEl.textContent = text;
@@ -155,7 +159,7 @@ export function createHud({ root, store, camera, actions, onChange }) {
     const act = t.dataset.act;
     if (performance.now() < suppressUntil && t.closest('.panel')) return; // клик-хвост от перетаскивания
     if (act === 'undo') { play(store.undo() ? 'whoosh' : 'nope'); }
-    else if (act === 'sound') { setSound(!soundOn()); syncSound(); }
+    else if (act === 'settings') { showPanel(null); settings.open(); }
     else if (act === 'night') actions.toggleNight();
     else if (act === 'full') fullscreen();
     else if (act === 'admin') { showPanel(null); admin.open(); }

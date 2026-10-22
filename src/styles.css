@@ -165,7 +165,7 @@ button:disabled { opacity: .4; cursor: default; }
 .dtab.on { background: #22b7c6; box-shadow: 0 0 0 3px #fff inset; }
 .dtab.arrange { background: #ffe39a; }
 .dtab.done { background: #47b86a; color: #fff; font-size: 30px; font-weight: 900; }
-#app.design .hud-bottom-right, #app.design .brand, #app.design [data-act=admin], #app.design [data-act=night], #app.design [data-act=sound] { display: none; }
+#app.design .hud-bottom-right, #app.design .brand, #app.design [data-act=admin], #app.design [data-act=night], #app.design [data-act=sound], #app.design [data-act=settings], #app.design .avatar-btn { display: none; }
 #app.design .panel { top: 86px; }
 #app.compact .dtab { width: 46px; height: 46px; font-size: 21px; }
 #app.compact .design-bar { top: 6px; gap: 4px; padding: 4px 8px; }
@@ -373,3 +373,27 @@ button.link { border: 0; background: none; color: #a8794c; text-decoration: unde
 .an-give { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 8px 0; padding: 10px 12px; border-radius: 12px; background: #eef6e6; font-size: 15px; }
 .an-give input { width: 24px; height: 24px; }
 .an-give small { flex-basis: 100%; color: #6f7a66; font-size: 12px; }
+/* ── Профиль и настройки ── */
+.avatar-btn { pointer-events: auto; width: 52px; height: 52px; border-radius: 50%; border: 3px solid #c9a477; background: #fff9ec; padding: 0; overflow: hidden; flex: none; }
+.avatar-btn img { width: 100%; height: 100%; display: block; pointer-events: none; }
+#app.compact .avatar-btn { width: 42px; height: 42px; }
+.settings-sheet { position: absolute; inset: 0; background: #5a3b1f55; display: grid; place-items: center; z-index: 8; }
+.settings-sheet[hidden] { display: none; }
+.st-card { width: min(440px, calc(100% - 32px)); max-height: calc(100% - 24px); overflow-y: auto; background: #fffaf0; border: 2px solid #c9a477; border-radius: 26px; padding: 12px 16px 16px; box-shadow: 0 10px 40px #6e4a2644; }
+.st-card header { display: flex; justify-content: space-between; align-items: center; font-size: 22px; }
+.st-card .close { width: 44px; height: 44px; border-radius: 50%; border: 2px solid #ead6b4; background: #fff; font-size: 24px; }
+.st-me { display: flex; flex-direction: column; align-items: center; gap: 6px; }
+.st-avatar { width: 110px; height: 110px; border-radius: 50%; border: 4px solid #fff; box-shadow: 0 0 0 3px #c9a477; }
+.st-name { display: flex; align-items: center; gap: 8px; font-size: 18px; }
+.st-name button { width: 44px; height: 44px; border-radius: 50%; border: 2px solid #ead6b4; background: #fff; font-size: 22px; }
+.st-row { display: flex; justify-content: center; flex-wrap: wrap; gap: 10px; margin-top: 12px; }
+.st-face { width: 68px; height: 68px; border-radius: 50%; border: 3px solid #f2e2c8; background: #fff; padding: 2px; }
+.st-face img { width: 100%; height: 100%; border-radius: 50%; pointer-events: none; }
+.st-face.on { border-color: #a8794c; box-shadow: 0 0 0 3px #ffd98c; }
+.st-colors .swatch { width: 40px; height: 40px; }
+.st-toggle { width: 96px; height: 76px; border-radius: 20px; border: 2px solid #ead6b4; background: #fff; font-size: 30px; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+.st-toggle small { font-size: 12px; color: #8a7a66; }
+.st-toggle.on { background: #f1fbe9; border-color: #8fc07a; }
+.st-friends { display: flex; gap: 10px; align-items: center; margin-top: 14px; padding: 10px 12px; border-radius: 16px; background: #f4ecdf; color: #7a6a56; }
+.st-friends span { font-size: 28px; }
+.st-friends small { display: block; font-size: 12px; }

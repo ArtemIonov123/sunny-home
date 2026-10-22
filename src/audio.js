@@ -63,7 +63,15 @@ const SOUNDS = {
   whoosh: () => tone({ f0: 200, f1: 500, dur: 0.2, type: 'sawtooth', vol: 0.02 }),
 };
 
-export function play(name) { try { SOUNDS[name]?.(); } catch (e) { /* звук не обязателен */ } }
+// Вибрация (телефон): короткий «тык» на касания и приземления. В APK заменится на вибрацию Capacitor.
+let vib = true;
+try { vib = localStorage.getItem('sunny-home-vibro') !== '0'; } catch (e) { /* включена */ }
+const VIB = { pick: 12, drop: 18, land: 28, pop: 10, boing: 22, nope: [18, 50, 18], stash: 20, step: 6, woof: 15, chomp: 12, ding: [15, 60, 15] };
+function buzz(name) { const v = VIB[name]; if (vib && v && navigator.vibrate) try { navigator.vibrate(v); } catch (e) { /* нет вибрации */ } }
+export const vibroOn = () => vib;
+export function setVibro(v) { vib = !!v; try { localStorage.setItem('sunny-home-vibro', vib ? '1' : '0'); } catch (e) { /* ничего */ } if (vib) buzz('pop'); }
+
+export function play(name) { try { SOUNDS[name]?.(); } catch (e) { /* звук не обязателен */ } buzz(name); }
 export const soundOn = () => on;
 export function setSound(v) {
   on = !!v;
