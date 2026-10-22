@@ -87,13 +87,13 @@ export const PACK_FORMAT = 'sunny-home-pack';
 const packs = new Map(); // id → { id, name, count }
 export const listPacks = () => [...packs.values()];
 
-export function makePack(name, ids, withOverrides = true) {
+export function makePack(name, ids, withOverrides = true, price = 0) {
   const clean = String(name || '').trim().slice(0, 40) || 'Новый пак';
   const slug = clean.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '') || 'pack';
   const items = ids.map((id) => records.get(id)).filter(Boolean);
   const ovs = withOverrides ? listOverrides() : [];
   if (!items.length && !ovs.length) throw new Error('Выбери хотя бы один предмет');
-  return { format: PACK_FORMAT, version: 1, id: slug + '_' + Date.now().toString(36), name: clean, created: new Date().toISOString().slice(0, 10), items, overrides: ovs };
+  return { format: PACK_FORMAT, version: 1, id: slug + '_' + Date.now().toString(36), name: clean, created: new Date().toISOString().slice(0, 10), price: Math.max(0, Math.round(Number(price) * 100) / 100) || 0, items, overrides: ovs };
 }
 
 export function validatePack(raw) {
@@ -110,17 +110,22 @@ export function validatePack(raw) {
 export async function loadBuiltinPacks() {
   let n = 0;
   for (const raw of window.EMBEDDED_PACKS || []) {
-    try {
-      const pack = validatePack(raw);
-      for (const rec of pack.items) {
-        if (records.has(rec.id)) continue; // свой предмет с тем же ID важнее
-        await install(rec, { builtin: true }); n++;
-      }
-      for (const o of pack.overrides) if (!overrides.has(o.id)) await applyOv(o); // своя правка в студии важнее
-      packs.set(pack.id, { id: pack.id, name: pack.name, count: pack.items.length, fixes: pack.overrides.length });
-    } catch (e) { /* испорченный пак пропускаем — игра работает без него */ }
+    try { n += (await installPack(raw)).length; } catch (e) { /* испорченный пак пропускаем — игра работает без него */ }
   }
   return n;
+}
+
+// Поставить пак в игру (встроенный или из магазина): его предметы появляются в «Вещах».
+// В библиотеку своих предметов не пишется. Возвращает ID новых предметов.
+export async function installPack(raw) {
+  const pack = validatePack(raw), ids = [];
+  for (const rec of pack.items) {
+    if (records.has(rec.id)) continue; // свой предмет с тем же ID важнее
+    await install(rec, { builtin: true }); ids.push(rec.id);
+  }
+  for (const o of pack.overrides) if (!overrides.has(o.id)) await applyOv(o); // своя правка в студии важнее
+  packs.set(pack.id, { id: pack.id, name: pack.name, count: pack.items.length, fixes: pack.overrides.length });
+  return ids;
 }
 export const getRecord = (id) => records.get(id) || null;
 

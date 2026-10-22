@@ -117,6 +117,18 @@ export async function saveOverrides(list) {
   throw new Error('Браузер не смог сохранить правку. Освободи место и попробуй снова.');
 }
 
+// Магазин: что куплено и какие паки скачаны (паки целиком — чтобы работали без интернета).
+const SHOP_KEY = 'sunny-home-shop-v1';
+export async function loadShopState() {
+  const remote = await idb(await db(), 'catalog', 'readonly', 'shop');
+  if (remote && typeof remote === 'object') return remote;
+  return readLocal(SHOP_KEY);
+}
+export async function saveShopState(v) {
+  if (await idb(await db(), 'catalog', 'readwrite', 'shop', v)) return;
+  try { localStorage.setItem(SHOP_KEY, JSON.stringify(v)); } catch (e) { throw new Error('Не хватило места, чтобы сохранить пак'); }
+}
+
 // Предметы из Sunny Home Studio 0.3 (старая админка), если они остались в браузере.
 export async function loadOldStudio() {
   const old = await openDb('sunny-home-studio-v1', ['data'], 1);

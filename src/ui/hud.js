@@ -6,6 +6,8 @@ import { img } from '../assets.js';
 import { escapeHtml as esc } from '../util.js';
 import { createAdmin } from './admin.js';
 import { createHeroEditor } from './heroEditor.js';
+import { createShop } from './shop.js';
+import { isNew, seen } from '../core/shop.js';
 import { installFastTap } from './tap.js';
 import { anims } from '../render/anims.js';
 import { play, soundOn, setSound } from '../audio.js';
@@ -29,6 +31,7 @@ export function createHud({ root, store, camera, actions, onChange }) {
     </div>
     <nav class="rooms" aria-label="Комнаты"></nav>
     <div class="hud-bottom-right">
+      <button class="btn big round" data-act="shop" aria-label="Магазин" title="Магазин">🛍️</button>
       <button class="btn big round" data-act="heroes" aria-label="Герои" title="Герои">😊</button>
       <button class="btn big round" data-act="design" aria-label="Редактор комнаты" title="Редактор комнаты">🛠️</button>
       <button class="btn big round primary" data-act="things" aria-label="Вещи" title="Вещи">🧺</button>
@@ -50,6 +53,7 @@ export function createHud({ root, store, camera, actions, onChange }) {
   // В игре админки нет вовсе (код студии не попадает в сборку игры).
   const admin = __STUDIO__ ? createAdmin({ root, store, camera, actions, toast, onChange }) : { open() {}, sync() {}, guides: null, setStorageNote() {} };
   const heroEditor = createHeroEditor({ root, store, actions, onChange });
+  const shop = createShop({ root, onInstalled: () => { actions.restoreMissing(); onChange(); }, openThings: () => showPanel('things', true) });
 
   const last = {};
   function syncSound() { const t = soundOn() ? '🔊' : '🔇'; if (last.sound !== t) { last.sound = t; q('[data-act=sound]').textContent = t; } }
@@ -92,10 +96,10 @@ export function createHud({ root, store, camera, actions, onChange }) {
   // (Убранные вещи хранятся незаметно и используются снова, когда берёшь такую же.)
   function renderThings() {
     const el = q('[data-panel=things]');
-    const defs = scopeDefs();
+    const defs = scopeDefs().sort((a, b) => isNew(b.id) - isNew(a.id)); // новое из магазина — первым
     const title = mode.design ? DESIGN_TABS.find(([k]) => k === designTab)?.[2] || 'Мебель' : 'Вещи';
     el.innerHTML = `<header><b>${esc(title)}</b><button class="close" data-close>×</button></header>
-      <div class="grid">${defs.map((d) => `<div class="stack" data-stack="${esc(d.id)}" role="button" tabindex="0" aria-label="${esc(d.name)}"><img src="${img(d.art).src}" alt="" draggable="false"><span>${esc(d.name)}</span></div>`).join('')}</div>`;
+      <div class="grid">${defs.map((d) => `<div class="stack" data-stack="${esc(d.id)}" role="button" tabindex="0" aria-label="${esc(d.name)}"><img src="${img(d.art).src}" alt="" draggable="false"><span>${esc(d.name)}</span>${isNew(d.id) ? '<i class="new">⭐</i>' : ''}</div>`).join('')}</div>`;
   }
 
   // Перетаскивание из шкафчика: горизонтальное движение — тянем вещь, вертикальное — листаем список.
@@ -115,6 +119,7 @@ export function createHud({ root, store, camera, actions, onChange }) {
     const inside = e.clientX >= r.left && e.clientX <= r.right && e.clientY >= r.top && e.clientY <= r.bottom;
     if (inside && Math.abs(dy) > Math.abs(dx) * 2) { press = null; return; }
     const id = actions.take(press.def);
+    seen(press.def);
     press = null;
     if (id && startDrag(e, id)) { suppressUntil = performance.now() + 500; showPanel(null); }
     else if (!id) { play('nope'); }
@@ -152,6 +157,7 @@ export function createHud({ root, store, camera, actions, onChange }) {
     else if (act === 'full') fullscreen();
     else if (act === 'admin') { showPanel(null); admin.open(); }
     else if (act === 'things') showPanel('things');
+    else if (act === 'shop') { showPanel(null); if (heroEditor.isOpen) heroEditor.close(); shop.toggle(); }
     else if (act === 'heroes') { showPanel(null); heroEditor.toggle(nearestHero()); }
     else if (act === 'design') setDesign(true);
     else if (act === 'done') setDesign(false);
@@ -170,6 +176,7 @@ export function createHud({ root, store, camera, actions, onChange }) {
       const item = store.state.items.find((i) => i.inv && i.def === t.dataset.discard);
       if (item) { actions.discard(item.id); play('stash'); renderThings(); }
     } else if (t.dataset.stack) {
+      seen(t.dataset.stack);
       const id = actions.take(t.dataset.stack);
       const res = id ? actions.placeFromInventory(id) : { ok: false };
       if (res.ok) { anims.fall('item:' + id, res.fall); setTimeout(() => play('land'), 150); onChange(); }

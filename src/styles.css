@@ -217,3 +217,52 @@ button:disabled { opacity: .4; cursor: default; }
 .pk-item:has(input:checked) { border-color: #8fc07a; background: #f1fbe9; }
 .pk-list { margin: 6px 0 0 18px; padding: 0; font-size: 14px; }
 .ie-card.changed { border-color: #e0a75a; background: #fff5e3; }
+
+/* ── Магазин паков ── */
+.shop { position: absolute; inset: 0; z-index: 8; background: #fff6e4; display: flex; flex-direction: column; padding: 12px 16px; opacity: 0; transition: opacity .2s; }
+.shop.open { opacity: 1; }
+.shop-head { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+.shop-title { font-size: 34px; flex: 1; }
+.shop-off { font-size: 20px; opacity: .7; }
+.shop-grid { flex: 1; overflow-y: auto; display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 14px; align-content: start; touch-action: pan-y; padding: 2px; }
+.sh-card { position: relative; border: 0; padding: 0; border-radius: 26px; background: #fff; box-shadow: 0 6px 18px #6e4a2626; overflow: hidden; text-align: left; }
+.sh-card img { width: 100%; aspect-ratio: 480 / 300; display: block; object-fit: cover; }
+.sh-name { display: block; padding: 8px 14px 10px; font-weight: 700; font-size: 16px; color: #6b4a2c; }
+.sh-badge { position: absolute; top: 10px; right: 10px; font-style: normal; font-weight: 800; border-radius: 999px; padding: 6px 12px; font-size: 18px; background: #fff; box-shadow: 0 2px 8px #0002; }
+.sh-badge.ok { background: #bfe8a8; } .sh-badge.get { background: #cfe8ff; } .sh-badge.buy { background: #ffd98c; font-size: 16px; }
+.sh-empty { font-size: 40px; text-align: center; }
+.shop-detail { position: absolute; inset: 0; background: #fff6e4; display: flex; flex-direction: column; align-items: center; gap: 10px; padding: 14px; overflow-y: auto; }
+.shop-detail.tada .sh-cover { animation: sh-tada .6s ease-out; }
+@keyframes sh-tada { 0% { transform: scale(1); } 30% { transform: scale(1.06) rotate(-2deg); } 60% { transform: scale(.98) rotate(1deg); } 100% { transform: scale(1); } }
+.sh-back { position: absolute; left: 14px; top: 12px; width: 52px; height: 52px; border-radius: 50%; border: 0; background: #f2e2c8; font-size: 26px; }
+.sh-cover { width: auto; height: auto; max-width: min(520px, 80%); max-height: 45%; object-fit: contain; border-radius: 26px; box-shadow: 0 8px 24px #6e4a2630; }
+.sh-items { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; }
+.sh-items img { width: 72px; height: 72px; object-fit: contain; background: #fff; border-radius: 18px; padding: 4px; animation: sh-wob 2.4s ease-in-out infinite; }
+@keyframes sh-wob { 0%, 100% { transform: rotate(0); } 50% { transform: rotate(-5deg) translateY(-3px); } }
+.sh-row { display: flex; align-items: center; gap: 16px; font-size: 20px; color: #6b4a2c; }
+.sh-act { min-width: 120px; height: 62px; border-radius: 22px; border: 0; font-size: 26px; font-weight: 800; padding: 0 20px; box-shadow: 0 4px 0 #0002; }
+.sh-act.get { background: #8fd0ff; } .sh-act.buy { background: #ffcf5a; font-size: 22px; } .sh-act.ok { background: #a8e08a; }
+.shop-gate, .shop-pay { position: absolute; inset: 0; background: #3a2a1ccc; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px; color: #fff; text-align: center; }
+.shop-gate p { font-size: 18px; margin: 0; }
+.gate-btn { position: relative; width: 130px; height: 130px; border-radius: 50%; border: 0; background: #fff6e4; touch-action: none; }
+.gate-btn span { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-size: 52px; pointer-events: none; }
+.gate-btn svg { position: absolute; inset: 0; transform: rotate(-90deg); pointer-events: none; }
+.gate-track { fill: none; stroke: #ead6b4; stroke-width: 8; }
+.gate-ring { fill: none; stroke: #8fc07a; stroke-width: 8; stroke-dasharray: 277; stroke-dashoffset: 277; }
+.gate-btn.holding .gate-ring { transition: stroke-dashoffset 3s linear; stroke-dashoffset: 0; }
+.gate-cancel { border: 0; background: transparent; color: #fff; font-size: 16px; text-decoration: underline; }
+.pay-box { background: #fff; color: #4a3422; border-radius: 24px; padding: 18px 22px; display: flex; flex-direction: column; align-items: center; gap: 6px; max-width: 340px; }
+.pay-box img { width: 220px; border-radius: 18px; }
+.pay-note { margin: 0; font-size: 13px; color: #a5815a; }
+.pay-price { margin: 0; font-size: 26px; font-weight: 800; }
+.pay-btns { display: flex; gap: 10px; margin-top: 6px; }
+.pay-btns button { min-height: 48px; padding: 0 22px; border-radius: 16px; border: 2px solid #ead6b4; background: #fff; font-size: 17px; }
+.pay-btns .primary { background: #8fc07a; border-color: #8fc07a; color: #fff; font-weight: 700; }
+#app.shopping .hud-bottom-right, #app.shopping .rooms, #app.shopping .hud-top-right, #app.shopping .hud-top-left { visibility: hidden; }
+.stack .new { position: absolute; top: 4px; right: 6px; font-size: 16px; font-style: normal; animation: sh-wob 1.6s ease-in-out infinite; }
+#app.compact .shop-grid { grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 10px; }
+#app.compact .shop-title { font-size: 26px; }
+#app.compact .sh-items img { width: 52px; height: 52px; }
+#app.compact .sh-act { height: 50px; font-size: 22px; min-width: 96px; }
+#app.compact .gate-btn { width: 104px; height: 104px; }
+#app.rotated .shop-grid, #app.rotated .shop-detail { touch-action: pan-x; }

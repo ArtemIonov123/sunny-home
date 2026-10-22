@@ -34,6 +34,10 @@ try {
   }
 } catch (e) { /* папки packs нет — паков нет */ }
 
+// Копия каталога магазина — на случай, если нет сети (сами паки скачиваются с GitHub).
+let storeCat = null;
+try { storeCat = JSON.parse(await readFile(join(root, 'store/catalog.json'), 'utf8')); } catch (e) { storeCat = null; }
+
 const template = await readFile(join(root, 'index.html'), 'utf8');
 await mkdir(join(root, 'dist'), { recursive: true });
 
@@ -49,7 +53,7 @@ for (const [file, studio, title] of [['sunny-home.html', false, 'Солнечн�
   html = html.replace('<link rel="stylesheet" href="src/styles.css">', () => `<style>${css}</style>`);
   html = html.replace(/<script>window.__STUDIO__[^<]*<\/script>\n/, '');
   html = html.replace('<script type="module" src="src/main.js"></script>', () =>
-    `<script>window.EMBEDDED_ASSETS=${JSON.stringify(assets)};window.EMBEDDED_PACKS=${JSON.stringify(packs)};</script>\n<script>${js}</script>`);
+    `<script>window.EMBEDDED_ASSETS=${JSON.stringify(assets)};window.EMBEDDED_PACKS=${JSON.stringify(packs)};window.EMBEDDED_STORE=${JSON.stringify(storeCat)};</script>\n<script>${js}</script>`);
   await writeFile(join(root, 'dist', file), html);
   console.log(`dist/${file}  ${(html.length / 1024 / 1024).toFixed(2)} MB, картинок: ${Object.keys(assets).length}, паков: ${packs.length}, код ${(js.length / 1024).toFixed(0)} КБ`);
 }

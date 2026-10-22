@@ -11,6 +11,7 @@ import { createHud } from './ui/hud.js';
 import { loadSave, loadLegacyRoom, writeSave } from './save/storage.js';
 import { validate, fromLegacyRoom } from './save/migrate.js';
 import { loadLibrary, loadBuiltinPacks } from './core/library.js';
+import { initShop } from './core/shop.js';
 import { anims } from './render/anims.js';
 import { play } from './audio.js';
 import { surfacesOf } from './core/physics.js';
@@ -29,6 +30,7 @@ async function boot() {
   let libraryNote = '';
   try { libraryNote = await loadLibrary(); } catch (e) { libraryNote = 'Свои предметы не загрузились: ' + e.message; }
   await loadBuiltinPacks(); // паки, встроенные в игру (папка packs/)
+  await initShop().catch(() => {}); // паки, скачанные в магазине
 
   // Сохранение → прошлая версия 0.4.1 → новый дом.
   let state = null, startNote = '';

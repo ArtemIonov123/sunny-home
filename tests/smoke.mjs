@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 // Автопроверка: открывает собранную игру на нескольких экранах с касаниями.
 // Запуск: npm run build && npm test   (нужен Playwright с Chromium)
 import { createRequire } from 'node:module';
@@ -367,6 +368,21 @@ async function device(name, width, height, touch) {
   console.log('\nигра (sunny-home.html)');
   check(!r.admin && !r.sheet, 'в игре нет админки');
   check(r.things && r.heroes, 'в игре есть «Вещи» и «Герои»');
+  // Магазин (каталог и паки — из папки store/, как на GitHub): бесплатный пак скачивается, вещи появляются
+  await ctx.route('https://raw.githubusercontent.com/ArtemIonov123/sunny-home/main/store/**', (route) => {
+    const path = route.request().url().split('/store/')[1].split('?')[0];
+    route.fulfill({ status: 200, contentType: 'application/json', headers: { 'access-control-allow-origin': '*' }, body: readFileSync(join(root, 'store', path)) });
+  });
+  await p.click('[data-act=shop]'); await p.waitForTimeout(600);
+  const cards = await p.locator('.sh-card').count();
+  check(cards >= 2, `в магазине паки (${cards})`);
+  await p.click('[data-sh-pack=test_toys]'); await p.click('[data-sh-get]'); await p.waitForTimeout(800);
+  check(await p.locator('[data-sh-open]').count() === 1, 'бесплатный пак скачан');
+  await p.click('[data-sh-back]'); await p.click('[data-sh-pack=test_fairy]'); await p.click('[data-sh-buy]');
+  check(await p.locator('.shop-gate:not([hidden])').count() === 1, 'платный — сначала родительский замок');
+  await p.click('[data-gate-cancel]'); await p.click('[data-sh-back]'); await p.click('[data-sh-close]'); await p.waitForTimeout(300);
+  await p.click('[data-act=things]'); await p.waitForTimeout(300);
+  check(await p.locator('[data-stack=custom_ttoy_duckpink]').count() === 1, 'вещи пака — в «Вещах»');
   check(errs.length === 0, 'игра запускается без ошибок ' + errs.join(' | '));
   await ctx.close();
 }
