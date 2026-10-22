@@ -2,7 +2,10 @@
 // каждая на своём месте). Суставы ставятся сами (по нахлёсту частей), их можно двигать пальцем.
 // Сразу видно, как животное стоит, идёт, болтается в руке, радуется и спит. Сохраняется как свой предмет
 // (группа «Животные») — значит, попадает в шкафчик, паки и магазин.
-import { listRecords, getRecord, saveRecord, deleteRecord, newId } from '../core/library.js';
+import { listRecords, getRecord, saveRecord, deleteRecord, newId, getOverride, saveOverride, resetOverride, listOverrides, PACK_FORMAT } from '../core/library.js';
+import { allItemDefs, itemDef, originalDef } from '../core/catalog.js';
+import { isGiven, studioSetGiven, lockedList } from '../core/access.js';
+import { hasToken, publishForPlayers, GIFT_ID } from '../core/publish.js';
 import { normalize } from '../core/actions.js';
 import { ANIMAL_PARTS, JOINT_PARTS, VOICES, buildAnimal, composeAnimal, drawAnimal, animalPose, autoJoint } from '../render/animal.js';
 import { img, loadImage, registerImage, forgetImage } from '../assets.js';
@@ -46,32 +49,62 @@ const MODES = { idle: '🙂 Стоит', walk: '🚶 Идёт', carried: '✋ В
 export function createAnimalEditor({ store, actions, toast, onChange }) {
   let host = null, draft = null, dirty = false, busy = false, rig = null, mode = 'idle', showJoints = true, raf = 0, dragJ = null;
 
-  const fresh = () => ({ id: newId(), name: '', group: 'animals', place: 'floor', w: 200, image: '', animal: { parts: {}, joints: {}, voice: 'woof' } });
+  const fresh = () => ({ id: newId(), name: '', group: 'animals', place: 'floor', w: 200, image: '', give: false, animal: { parts: {}, joints: {}, voice: 'woof' } });
   const animals = () => listRecords().filter((r) => r.animal);
+  const builtins = () => allItemDefs().filter((d) => d.builtin && d.animal);
+  let sending = '';
+
+  // Встроенное животное (щенок): правка — имя, размер, голос, суставы; картинки — встроенные.
+  function builtinDraft(id) {
+    const d = itemDef(id), base = originalDef(id);
+    return { builtin: true, id, name: d.name, w: d.w, baseW: base.w, baseName: base.name, image: img(d.art)?.src || '', give: isGiven(id),
+      animal: { parts: Object.fromEntries(Object.entries(d.animal.parts).map(([k, key]) => [k, img(key)?.src]).filter(([, v]) => v)), joints: JSON.parse(JSON.stringify(d.animal.joints || {})), voice: d.animal.voice || '' } };
+  }
+
+  // «Отправить игрокам»: кого из встроенных не выдавать + подарок со своими животными (галочка «выдать»).
+  async function sendToPlayers() {
+    const gifts = animals().filter((r) => r.give);
+    const ovs = listOverrides().filter((o) => itemDef(o.id)?.animal);
+    const gift = gifts.length || ovs.length ? { format: PACK_FORMAT, version: 1, id: GIFT_ID, name: 'Животные в подарок', price: 0, gift: true, items: gifts, overrides: ovs } : null;
+    sending = 'Отправляю…'; render();
+    try {
+      await publishForPlayers({ locked: lockedList().filter((id) => itemDef(id)), gift }, (t) => { sending = t; render(); });
+      toast('Готово: у игроков обновится через 1–5 минут');
+    } catch (e) { toast(e.message, true); }
+    sending = ''; render();
+  }
 
   function mount(el) { host = el; render(); }
 
   function listHtml() {
     const mine = animals();
+    const badge = (given) => (given ? '✓ у игрока' : '🔒 только в паках');
     return `<div class="ie-bar"><button class="primary" data-an-new>＋ Новое животное</button>
-        <span class="ie-title">Своих животных: ${mine.length}</span></div>
+        <button data-an-send${hasToken() && !sending ? '' : ' disabled'}>📤 Отправить игрокам</button>
+        <span class="ie-title">${sending ? '⏳ ' + esc(sending) : `Своих животных: ${mine.length}`}</span></div>
+      <p class="adm-help"><b>Выдать игроку</b> — животное есть у всех игроков бесплатно. Без галочки — его получают только из пака (отметь его в «Паки»). Галочки и правки встроенных доходят до игроков после «📤 Отправить игрокам» (нужен ключ GitHub, как для паков); свои животные с галочкой приходят игрокам подарком сами.</p>
+      <h4>Встроенные</h4>
+      <div class="ie-grid">${builtins().map((d) => `<button class="ie-card${getOverride(d.id) ? ' changed' : ''}" data-an-builtin="${esc(d.id)}"><img src="${img(d.art)?.src || ''}" alt=""><b>${esc(d.name)}</b><small>${badge(isGiven(d.id))}</small></button>`).join('')}</div>
+      <h4>Свои</h4>
       <p class="adm-help">Животное собирается из частей на одном «скелете»: туловище, голова (и голова «спит»), хвост и 4 лапы. Картинки от GPT — одного размера, каждая часть на своём месте. Можно выбрать все файлы сразу — части разложатся по именам.</p>
-      <div class="ie-grid">${mine.map((r) => `<button class="ie-card" data-an-edit="${esc(r.id)}"><img src="${r.image}" alt=""><b>${esc(r.name)}</b><small>${VOICES[r.animal.voice] || ''}</small></button>`).join('')}</div>`;
+      <div class="ie-grid">${mine.map((r) => `<button class="ie-card" data-an-edit="${esc(r.id)}"><img src="${r.image}" alt=""><b>${esc(r.name)}</b><small>${r.give ? '✓ подарок игрокам' : '🔒 только в паках'}</small></button>`).join('')}</div>`;
   }
 
   function formHtml() {
     const d = draft, a = d.animal;
+    const B = !!d.builtin;
     const slots = Object.entries(ANIMAL_PARTS).map(([k, p]) => `<label class="an-slot${a.parts[k] ? ' has' : ''}">
         ${a.parts[k] ? `<img src="${a.parts[k]}" alt="">` : '<span>＋</span>'}
         <small>${p.name}${p.need ? '' : ' (можно без)'}</small>
-        <input type="file" accept="image/png,image/webp,image/jpeg" data-an-part="${k}"></label>`).join('');
-    return `<div class="ie-bar"><button data-an-back>← К списку</button><span class="ie-title">${getRecord(d.id) ? 'Животное' : 'Новое животное'}</span></div>
+        ${B ? '' : `<input type="file" accept="image/png,image/webp,image/jpeg" data-an-part="${k}">`}</label>`).join('');
+    return `<div class="ie-bar"><button data-an-back>← К списку</button><span class="ie-title">${B ? 'Встроенное животное' : getRecord(d.id) ? 'Животное' : 'Новое животное'}</span></div>
       <div class="ie-form">
         <div class="ie-fields">
           <label class="adm-field">Название<input data-an-name maxlength="40" value="${esc(d.name)}" placeholder="Щенок"></label>
           <label class="adm-field">Размер · <b data-an-wv>${d.w}</b><input type="range" data-an-w min="80" max="520" value="${d.w}"></label>
           <label class="adm-field">Голос<select data-an-voice>${Object.entries(VOICES).map(([k, n]) => `<option value="${k}"${k === a.voice ? ' selected' : ''}>${n}</option>`).join('')}</select></label>
-          <label class="ie-upload small"><em>📂 Выбрать все части сразу</em><input type="file" multiple accept="image/png,image/webp,image/jpeg" data-an-all></label>
+          <label class="an-give"><input type="checkbox" data-an-give${d.give ? ' checked' : ''}> <b>Выдать игроку</b><small>${d.give ? 'есть у всех игроков бесплатно' : 'только в паках'}</small></label>
+          ${B ? '<p class="adm-help">Картинки встроенного животного менять нельзя — можно имя, размер, голос и суставы.</p>' : '<label class="ie-upload small"><em>📂 Выбрать все части сразу</em><input type="file" multiple accept="image/png,image/webp,image/jpeg" data-an-all></label>'}
           <div class="an-slots">${slots}</div>
         </div>
         <div class="ie-preview an-preview">
@@ -84,7 +117,7 @@ export function createAnimalEditor({ store, actions, toast, onChange }) {
       <div class="ie-actions">
         <button class="primary" data-an-save>Сохранить</button>
         <button data-an-put>Сохранить и поставить в дом</button>
-        ${getRecord(d.id) ? '<button data-an-del>Удалить</button>' : ''}
+        ${B ? (getOverride(d.id) ? '<button data-an-reset>Вернуть как было</button>' : '') : getRecord(d.id) ? '<button data-an-del>Удалить</button>' : ''}
       </div>`;
   }
 
@@ -179,11 +212,28 @@ export function createAnimalEditor({ store, actions, toast, onChange }) {
     dirty = true;
   }
 
+  async function saveBuiltin(put) {
+    const d = draft;
+    busy = true;
+    try {
+      await saveOverride({ ...(getOverride(d.id) || {}), id: d.id, name: d.name !== d.baseName ? d.name : undefined, size: d.w !== d.baseW ? d.w : undefined, animal: { joints: d.animal.joints, voice: d.animal.voice } });
+      studioSetGiven(d.id, d.give);
+      dirty = false;
+      store.change((s) => normalize(s), { undo: false });
+      if (put) { const id = actions.take(d.id); if (id) actions.placeFromInventory(id); }
+      toast(`«${d.name}» сохранён${d.give ? '' : ' — у игроков только в паках'}. Игрокам — «📤 Отправить игрокам»`);
+      draft = builtinDraft(d.id);
+    } catch (e) { toast(e.message, true); }
+    busy = false;
+    render(); onChange();
+  }
+
   async function save(put) {
     if (busy) return;
     const d = draft;
     d.name = host.querySelector('[data-an-name]').value.trim();
     if (!d.name) { toast('Дай животному имя', true); return; }
+    if (d.builtin) return saveBuiltin(put);
     if (!rig) { toast('Нужны туловище, голова и 4 лапы', true); return; }
     const sizes = new Set(Object.values(d.animal.parts).map((src) => { const im = img('animaldraft/' + Object.keys(d.animal.parts).find((k) => d.animal.parts[k] === src)); return im ? im.width + 'x' + im.height : ''; }));
     if (sizes.size > 1) toast('Картинки частей разного размера — части могут встать не на место', true);
@@ -206,6 +256,12 @@ export function createAnimalEditor({ store, actions, toast, onChange }) {
     const b = e.target.closest('button, .ie-card'); if (!b || !host?.contains(b)) return;
     if (b.dataset.anNew !== undefined) { draft = fresh(); dirty = false; mode = 'idle'; }
     else if (b.dataset.anEdit) { draft = JSON.parse(JSON.stringify(getRecord(b.dataset.anEdit))); dirty = false; mode = 'idle'; }
+    else if (b.dataset.anBuiltin) { draft = builtinDraft(b.dataset.anBuiltin); dirty = false; mode = 'idle'; }
+    else if (b.dataset.anSend !== undefined) { if (!sending) sendToPlayers(); return; }
+    else if (b.dataset.anReset !== undefined) {
+      if (!confirm('Вернуть встроенное животное как было (имя, размер, голос, суставы)?')) return;
+      await resetOverride(draft.id); store.change((s) => normalize(s), { undo: false }); draft = builtinDraft(draft.id); dirty = false; toast('Как было'); onChange();
+    }
     else if (b.dataset.anBack !== undefined) { if (dirty && !confirm('Есть несохранённые изменения. Выйти без сохранения?')) return; draft = null; rig = null; }
     else if (b.dataset.anMode) {
       mode = b.dataset.anMode;
@@ -234,7 +290,8 @@ export function createAnimalEditor({ store, actions, toast, onChange }) {
         for (const f of e.target.files) { const k = partByName(f.name); if (k) { await setPart(k, f); n++; } else if (!/_full\./i.test(f.name)) skipped.push(f.name); }
         toast(`Частей загружено: ${n}` + (skipped.length ? ` · не узнал: ${skipped.join(', ')}` : ''), !n);
         render();
-      } else if (e.target.matches('[data-an-voice]')) { draft.animal.voice = e.target.value; dirty = true; if (draft.animal.voice) play(draft.animal.voice); }
+      } else if (e.target.matches('[data-an-give]')) { draft.give = e.target.checked; dirty = true; e.target.parentElement.querySelector('small').textContent = draft.give ? 'есть у всех игроков бесплатно' : 'только в паках'; }
+      else if (e.target.matches('[data-an-voice]')) { draft.animal.voice = e.target.value; dirty = true; if (draft.animal.voice) play(draft.animal.voice); }
     } catch (err) { toast(err.message, true); }
   };
   const onInput = (e) => {

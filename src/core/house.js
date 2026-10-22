@@ -3,6 +3,7 @@
 // комнаты можно переставлять: вещи хранят координаты ВНУТРИ своей комнаты и едут вместе с ней.
 import { VIEW_H } from '../config.js';
 import { ROOM_TYPES } from './catalog.js';
+import { isLocked } from './access.js';
 
 export const MAX_ROOMS = 10;
 export const ROOM_WIDTHS = { 1600: 'Узкая', 2000: 'Средняя', 2400: 'Широкая' };
@@ -55,7 +56,6 @@ export function defaultState() {
     it('window', 'living', 1450, 260), it('picture', 'living', 520, 230), it('tv_stand', 'living', 520, 640), it('plant_big', 'living', 900, 620),
     it('rug', 'living', 1450, 840), it('sofa', 'living', 1450, 640), it('table', 'living', 1450, 800), it('armchair', 'living', 1950, 700), it('floor_lamp', 'living', 2200, 630),
     it('bookshelf', 'kids', 1300, 600),
-    it('dog', 'living', 760, 790), // щенок
     it('window', 'kitchen', 900, 250), it('table', 'kitchen', 1700, 800),
     it('fridge', 'kitchen', 230, 640), it('stove', 'kitchen', 560, 640), it('sink_counter', 'kitchen', 900, 640),
     it('kitchen_counter', 'kitchen', 1290, 640), it('kitchen_shelf', 'kitchen', 1290, 300),
@@ -80,6 +80,7 @@ export function defaultState() {
     { id: id++, def: 'tshirt', room: 'bedroom', x: 0, y: 0, on: { id: wardrobe, s: 2, dx: 0 } },
     { id: id++, def: 'dress', room: 'bedroom', x: 0, y: 0, on: { id: wardrobe, s: 1, dx: 0 } },
     ...BEDROOM_SMALL.map(([def, par, s, dx]) => ({ id: id++, def, room: 'bedroom', x: 0, y: 0, on: { id: byDef(par, 'bedroom'), s, dx } })));
+  if (!isLocked('dog')) items.push(it('dog', 'living', 760, 790)); // щенок — если его выдают всем (иначе он в паке)
   const rest = [...NEW_IN_INVENTORY];
   for (const d of [...KITCHEN_START, 'tshirt', 'dress']) { const k = rest.indexOf(d); if (k >= 0) rest.splice(k, 1); }
   return {

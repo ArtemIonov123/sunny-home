@@ -2,7 +2,8 @@
 // Нужен «ключ доступа» GitHub (fine-grained token: только этот репозиторий, право Contents: Read and write).
 // Ключ хранится только в браузере, где открыта студия. В игру этот модуль не попадает.
 import { validatePack } from './library.js';
-import { loadImage } from '../assets.js';
+import { loadImage, img } from '../assets.js';
+import { itemDef } from './catalog.js';
 
 const KEY = 'sunny-studio-github';
 const API = 'https://api.github.com';
@@ -121,6 +122,8 @@ export async function publishPack(raw, onStep = () => {}) {
   if (raw.coverStyle) pack.coverStyle = raw.coverStyle; // фон обложки — хранится в паке, чтобы при обновлении остался
   if (raw.pageStyle) pack.pageStyle = raw.pageStyle;   // фон страницы пака в магазине
   if (raw.slides) pack.slides = raw.slides;             // слайды «что внутри»
+  // Открытые паком встроенные предметы (щенок) — тоже на обложку и в список «что внутри».
+  const pics = [...pack.items, ...(pack.unlock || []).map((id) => ({ image: img(itemDef(id)?.art)?.src || img(itemDef(id)?.art)?.toDataURL?.() })).filter((x) => x.image)];
   onStep('Читаю магазин…');
   const { cat, sha } = await readCatalog();
   const old = cat.packs.find((p) => p.id === pack.id), k = old ? cat.packs.indexOf(old) : cat.packs.length;
@@ -128,10 +131,11 @@ export async function publishPack(raw, onStep = () => {}) {
   const entry = {
     id: pack.id, name: pack.name, version: (old?.version || 0) + 1,
     price: pack.price, currency: 'PLN', priceLabel: pack.price ? pack.price.toFixed(2).replace('.', ',') + ' zł' : '',
-    product: 'pack_' + pack.id, file: 'packs/' + pack.id + '.json', items: pack.items.length,
-    cover: pack.items.length || pack.coverStyle?.full ? await makeCover(pack.items, k, pack.coverStyle || {}) : old?.cover || '',
+    product: 'pack_' + pack.id, file: 'packs/' + pack.id + '.json', items: pics.length,
+    ...(pack.gift ? { gift: true } : {}), // подарок: игра ставит его всем сама
+    cover: pics.length || pack.coverStyle?.full ? await makeCover(pics, k, pack.coverStyle || {}) : old?.cover || '',
     // Все вещи пака (до 24) — для прокрутки на странице пака в магазине.
-    preview: await Promise.all(pack.items.slice(0, 24).map(async (it) => (await fit(it.image, 112)).toDataURL('image/webp', 0.78))),
+    preview: await Promise.all(pics.slice(0, 24).map(async (it) => (await fit(it.image, 112)).toDataURL('image/webp', 0.78))),
     page: { color: pack.pageStyle?.color || '' },
   };
   if (pack.pageStyle?.image) { // фон страницы пака — отдельной картинкой, чтобы список магазина оставался лёгким
@@ -183,4 +187,19 @@ export async function fetchStorePack(id) {
   const f = await getFile(`store/packs/${id}.json`);
   if (!f) throw new Error('Файл пака не найден');
   return JSON.parse(f.text);
+}
+
+// «Отправить игрокам» (студия → Животные): какие встроенные не выдавать всем (catalog.locked)
+// и пак-подарок со своими животными, у которых стоит «выдать игроку» (ставится всем игрокам сам).
+export const GIFT_ID = 'gift_animals';
+export async function publishForPlayers({ locked, gift }, onStep = () => {}) {
+  if (gift) await publishPack(gift, onStep);
+  else {
+    const { cat } = await readCatalog();
+    if (cat.packs.some((p) => p.id === GIFT_ID)) { onStep('Убираю подарок…'); await removePack(GIFT_ID); }
+  }
+  onStep('Сохраняю, кого выдавать…');
+  const { cat, sha } = await readCatalog();
+  cat.locked = [...new Set(locked)];
+  await putFile('store/catalog.json', JSON.stringify(cat, null, 1), `Магазин: выдавать игрокам (закрыто: ${cat.locked.join(', ') || 'ничего'})`, sha);
 }

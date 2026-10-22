@@ -13,6 +13,7 @@ import { anims } from '../render/anims.js';
 import { play, soundOn, setSound } from '../audio.js';
 import { mode } from './mode.js';
 import { getAnimal } from '../render/animal.js';
+import { isLocked } from '../core/access.js';
 import { isSmall } from '../core/physics.js';
 
 // Иконки комнат: ребёнку не нужно читать, чтобы найти кухню.
@@ -91,7 +92,7 @@ export function createHud({ root, store, camera, actions, onChange }) {
   // «Вещи». В игре — мелочь (еда, игрушки, одежда, тостер…), в редакторе — мебель выбранного раздела.
   // Сверху то, что уже есть в шкафчике (тянуть в комнату), ниже — «взять ещё» из каталога.
   function scopeDefs() {
-    const all = allItemDefs();
+    const all = allItemDefs().filter((d) => !isLocked(d.id)); // закрытые встроенные (щенок «только в паках») не показываем
     return mode.design ? all.filter((d) => d.group === designTab && !isSmall(d)) : all.filter((d) => isSmall(d));
   }
   // Один список: тянешь карточку — вещь сразу в комнате, нажал — встала на свободное место.

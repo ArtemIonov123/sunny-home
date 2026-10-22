@@ -2,6 +2,7 @@
 // «Разметка» (граница стены и пола, область движения), «Предметы» (свои предметы),
 // «Данные» (резервная копия, счётчик экземпляров). Позже — «Рецепты».
 import { ROOM_TYPES } from '../core/catalog.js';
+import { isGiven } from '../core/access.js';
 import { ROOM_WIDTHS, MAX_ROOMS, defaultState } from '../core/house.js';
 import { escapeHtml as esc } from '../util.js';
 import { validate } from '../save/migrate.js';
@@ -89,7 +90,7 @@ export function createAdmin({ root, store, camera, actions, toast, onChange }) {
     clearTimeout(coverTimer);
     coverTimer = setTimeout(async () => {
       const imgs = el.querySelectorAll('[data-cover-preview]'); if (!imgs.length) return;
-      const items = listRecords().filter((r) => packPick.has(r.id));
+      const items = [...allItemDefs().filter((d) => d.builtin && d.animal && packPick.has(d.id)).map((d) => ({ image: img(d.art)?.src })), ...listRecords().filter((r) => packPick.has(r.id))];
       try { const src = await makeCover(items, 0, coverStyle); for (const im of imgs) im.src = src; } catch (e) { /* пропуск */ }
     }, 60);
   }
@@ -102,7 +103,9 @@ export function createAdmin({ root, store, camera, actions, toast, onChange }) {
   function packsTab() {
     if (storeCat === null && !storeNote) refreshStore();
     const recs = listRecords(), built = listPacks(), gs = getSettings(), ovs = listOverrides().length;
-    const items = recs.length ? recs.map((r) => `<label class="pk-item"><input type="checkbox" data-pk="${esc(r.id)}"${packPick.has(r.id) ? ' checked' : ''}><img src="${r.image}" alt=""><span>${esc(r.name)}</span></label>`).join('')
+    // Встроенные животные тоже можно положить в пак (если их не выдают всем — пак их «откроет»).
+    const pets = allItemDefs().filter((d) => d.builtin && d.animal).map((d) => `<label class="pk-item"><input type="checkbox" data-pk="${esc(d.id)}"${packPick.has(d.id) ? ' checked' : ''}><img src="${img(d.art)?.src || ''}" alt=""><span>${esc(d.name)}${isGiven(d.id) ? '' : ' 🔒'}</span></label>`).join('');
+    const items = recs.length || pets ? pets + recs.map((r) => `<label class="pk-item"><input type="checkbox" data-pk="${esc(r.id)}"${packPick.has(r.id) ? ' checked' : ''}><img src="${r.image}" alt=""><span>${esc(r.name)}</span></label>`).join('')
       : '<p class="adm-help">Своих предметов пока нет — создай их во вкладке «Предметы».</p>';
     const keyBox = showKey ? `<div class="pk-key">
         <p class="adm-help"><b>Ключ GitHub для публикации.</b> Создаётся один раз: GitHub → Settings → Developer settings → Personal access tokens → <b>Fine-grained tokens</b> → Generate new token. Repository access: <b>Only select repositories</b> → ${esc(gs.repo.split('/')[1] || 'sunny-home')}. Permissions → Repository permissions → <b>Contents: Read and write</b>. Скопируй ключ (начинается с github_pat_) и вставь сюда. Ключ хранится только в этом браузере — не выкладывай studio.html в интернет.</p>
@@ -295,7 +298,7 @@ export function createAdmin({ root, store, camera, actions, toast, onChange }) {
         actions.restoreMissing();
         const entry = storeCat?.packs.find((p) => p.id === id);
         target = id; packName = entry?.name || ''; packPrice = entry?.price || 0;
-        packPick = new Set((raw.items || []).map((i) => i.id));
+        packPick = new Set([...(raw.items || []).map((i) => i.id), ...(raw.unlock || [])]);
         coverStyle = raw.coverStyle || {}; pageStyle = raw.pageStyle || {}; slides = raw.slides || [];
         toast(`Вещи пака загружены в студию: ${n}. Поправь и нажми «Обновить в магазине».`);
       } catch (err) { toast('Не удалось: ' + err.message, true); }

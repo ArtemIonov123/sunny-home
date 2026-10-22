@@ -3,6 +3,8 @@
 // Покупки пока ТЕСТОВЫЕ (без денег). В APK здесь будет оплата Google Play: product — ID товара в Play Console.
 import { installPack, validatePack } from './library.js';
 import { loadShopState, saveShopState } from '../save/storage.js';
+import { setLocked } from './access.js';
+import { STUDIO } from '../config.js';
 
 export const STORE_BASE = 'https://raw.githubusercontent.com/ArtemIonov123/sunny-home/main/store/';
 export const TEST_PURCHASES = true;
@@ -34,6 +36,7 @@ export async function loadCatalog() {
     const c = await fetchJson(STORE_BASE + 'catalog.json?t=' + Date.now());
     if (c?.format !== 'sunny-home-store' || !Array.isArray(c.packs)) throw new Error('Каталог повреждён');
     catalog = c; offline = false;
+    if (!STUDIO && Array.isArray(c.locked)) setLocked(c.locked); // кого не выдавать всем (в студии — своя галочка)
   } catch (e) {
     catalog = window.EMBEDDED_STORE || { packs: [] }; offline = true; // нет сети — то, что знали при сборке
   }
@@ -67,6 +70,19 @@ export async function download(entry) {
   await save();
   markNew(pack.items.map((i) => i.id));
   return ids;
+}
+
+// Подарки (паки с gift: true — например, свои животные, которых «выдали игроку»): ставятся всем сами.
+// Вызывается после запуска, без ожидания. onNew(ids) — новые вещи появились.
+export async function autoGifts(onNew) {
+  const c = await loadCatalog();
+  if (offline) return;
+  for (const entry of c.packs || []) {
+    if (!entry.gift || entry.price) continue;
+    const st = status(entry);
+    if (st === 'installed') continue;
+    try { const ids = await download(entry); if (ids.length) onNew?.(ids); } catch (e) { /* в другой раз */ }
+  }
 }
 
 // ── Звёздочки «новое» на карточках в «Вещах» (только для удобства, хранится в браузере) ──

@@ -370,3 +370,6 @@ button.link { border: 0; background: none; color: #a8794c; text-decoration: unde
 #app.compact .pets .pet { width: 52px; height: 52px; }
 #app.compact .pets .pet img { width: 44px; height: 44px; }
 #app.design .pets, #app.heroes .pets, #app.shopping .pets { visibility: hidden; }
+.an-give { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 8px 0; padding: 10px 12px; border-radius: 12px; background: #eef6e6; font-size: 15px; }
+.an-give input { width: 24px; height: 24px; }
+.an-give small { flex-basis: 100%; color: #6f7a66; font-size: 12px; }

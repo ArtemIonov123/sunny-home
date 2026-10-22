@@ -6,6 +6,8 @@ import { loadImage, registerImage, forgetImage } from '../assets.js';
 import { loadCatalogRecords, saveCatalogRecords, loadOldStudio, loadOverrides, saveOverrides, loadRecipes, saveRecipes } from '../save/storage.js';
 import { validateRecipe, setOwnRecipes, listOwnRecipes, addPackRecipes } from './recipes.js';
 import { ANIMAL_PARTS, JOINT_PARTS, VOICES, setupAnimal, forgetAnimal } from '../render/animal.js';
+import { unlock } from './access.js';
+import { itemDef } from './catalog.js';
 
 export const LIBRARY_LIMIT = 60;
 export const MIN_W = 40, MAX_W = 900;
@@ -71,7 +73,7 @@ export function validateRecord(raw) {
   if (typeof raw.image !== 'string' || !/^data:image\/(webp|png|jpeg);base64,[A-Za-z0-9+/]+=*$/.test(raw.image)) throw new Error('Нужна картинка PNG, WebP или JPG');
   if (raw.image.length > 2_000_000) throw new Error('Картинка слишком тяжёлая');
   const rec = { id: raw.id, name, group: GROUPS[raw.group] ? raw.group : 'decor', place: PLACES[raw.place] ? raw.place : 'floor', w: Math.round(raw.w), image: raw.image };
-  return Object.assign(rec, cleanLiving(raw));
+  return Object.assign(rec, cleanLiving(raw), raw.give === true ? { give: true } : {}); // give — выдать игрокам (подарком)
 }
 
 async function install(rec, { builtin = false } = {}) {
@@ -108,6 +110,13 @@ export function validateOverride(raw) {
   if (raw.seats !== undefined) { o.seats = lv.seats || []; if (lv.cover) o.cover = lv.cover; }
   if (lv.power) o.power = lv.power;
   if (lv.tap) o.tap = lv.tap;
+  // Встроенное животное: суставы и голос (картинки — встроенные).
+  if (raw.animal && typeof raw.animal === 'object' && itemDef(raw.id)?.animal) {
+    const a = {};
+    if (raw.animal.joints && typeof raw.animal.joints === 'object') { a.joints = {}; for (const k of JOINT_PARTS) if (fracs(raw.animal.joints[k], 2)) a.joints[k] = raw.animal.joints[k].slice(0, 2).map((v) => Math.round(v * 10000) / 10000); }
+    if (VOICES[raw.animal.voice] !== undefined) a.voice = raw.animal.voice;
+    o.animal = a;
+  }
   if (typeof raw.image === 'string' && raw.image) {
     if (!/^data:image\/(webp|png|jpeg);base64,[A-Za-z0-9+/]+=*$/.test(raw.image) || raw.image.length > 2_000_000) throw new Error('Картинка не подходит');
     o.image = raw.image;
@@ -118,7 +127,9 @@ export function validateOverride(raw) {
 async function applyOv(o) {
   let art = null;
   if (o.image) { const im = await loadImage(o.image); art = 'override/' + o.id; registerImage(art, im); }
-  applyOverride({ id: o.id, name: o.name, group: o.group, size: o.size, art, surfaces: o.surfaces, seats: o.seats, cover: o.cover, power: o.power, tap: o.tap });
+  applyOverride({ id: o.id, name: o.name, group: o.group, size: o.size, art, surfaces: o.surfaces, seats: o.seats, cover: o.cover, power: o.power, tap: o.tap, animal: o.animal });
+  const d = itemDef(o.id);
+  if (d?.animal) setupAnimal({ id: o.id, ...d }); // новые суставы — скелет заново
 }
 
 // Сохранить правку встроенного предмета (null-поля — вернуть исходное).
@@ -136,6 +147,7 @@ export async function resetOverride(id) {
   await saveOverrides([...next.values()]);
   overrides.delete(id);
   clearOverride(id); forgetImage('override/' + id);
+  const d = itemDef(id); if (d?.animal) setupAnimal({ id, ...d });
 }
 async function loadOwnOverrides() {
   let list = [];
@@ -155,14 +167,15 @@ export const listPacks = () => [...packs.values()];
 const TR = { а: 'a', б: 'b', в: 'v', г: 'g', д: 'd', е: 'e', ё: 'e', ж: 'zh', з: 'z', и: 'i', й: 'y', к: 'k', л: 'l', м: 'm', н: 'n', о: 'o', п: 'p', р: 'r', с: 's', т: 't', у: 'u', ф: 'f', х: 'h', ц: 'c', ч: 'ch', ш: 'sh', щ: 'sch', ъ: '', ы: 'y', ь: '', э: 'e', ю: 'yu', я: 'ya', ą: 'a', ć: 'c', ę: 'e', ł: 'l', ń: 'n', ó: 'o', ś: 's', ź: 'z', ż: 'z' };
 const translit = (s) => [...s].map((ch) => TR[ch] ?? ch).join('');
 
-export function makePack(name, ids, withOverrides = true, price = 0, keepId = '', coverStyle = null, pageStyle = null, slides = []) {
+export function makePack(name, ids, withOverrides = true, price = 0, keepId = '', coverStyle = null, pageStyle = null, slides = [], unlockIds = []) {
   const clean = String(name || '').trim().slice(0, 40) || 'Новый пак';
   const slug = translit(clean.toLowerCase()).replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '') || 'pack';
   const items = ids.map((id) => records.get(id)).filter(Boolean);
+  const unl = [...new Set([...(unlockIds || []), ...ids])].filter(isBuiltin); // отмеченные встроенные (щенок) — пак их «открывает»
   const ovs = withOverrides ? listOverrides() : [];
   const recipes = withOverrides ? listOwnRecipes() : [];
-  if (!items.length && !ovs.length && !recipes.length) throw new Error('Выбери хотя бы один предмет');
-  return { format: PACK_FORMAT, version: 1, id: /^[a-z0-9_]{1,80}$/.test(keepId) ? keepId : slug + '_' + Date.now().toString(36), name: clean, created: new Date().toISOString().slice(0, 10), price: Math.max(0, Math.round(Number(price) * 100) / 100) || 0, items, overrides: ovs, ...(recipes.length ? { recipes } : {}), ...(coverStyle && Object.keys(coverStyle).length ? { coverStyle } : {}), ...(pageStyle && Object.keys(pageStyle).length ? { pageStyle } : {}), ...(slides?.length ? { slides } : {}) };
+  if (!items.length && !ovs.length && !recipes.length && !unl.length) throw new Error('Выбери хотя бы один предмет');
+  return { format: PACK_FORMAT, version: 1, id: /^[a-z0-9_]{1,80}$/.test(keepId) ? keepId : slug + '_' + Date.now().toString(36), name: clean, created: new Date().toISOString().slice(0, 10), price: Math.max(0, Math.round(Number(price) * 100) / 100) || 0, items, overrides: ovs, ...(unl.length ? { unlock: unl } : {}), ...(recipes.length ? { recipes } : {}), ...(coverStyle && Object.keys(coverStyle).length ? { coverStyle } : {}), ...(pageStyle && Object.keys(pageStyle).length ? { pageStyle } : {}), ...(slides?.length ? { slides } : {}) };
 }
 
 export function validatePack(raw) {
@@ -173,8 +186,12 @@ export function validatePack(raw) {
   for (const o of Array.isArray(raw.overrides) ? raw.overrides : []) { try { ovs.push(validateOverride(o)); } catch (e) { /* неизвестный предмет — пропуск */ } }
   const recipes = [];
   for (const r of Array.isArray(raw.recipes) ? raw.recipes : []) { try { recipes.push(validateRecipe(r)); } catch (e) { /* пропуск */ } }
-  if (!items.length && !ovs.length && !recipes.length) throw new Error('В паке нет предметов');
+  // unlock — встроенные предметы, которые пак «открывает» (щенок, если его не выдают всем).
+  const unl = (Array.isArray(raw.unlock) ? raw.unlock : []).filter((id) => typeof id === 'string' && isBuiltin(id)).slice(0, 50);
+  if (!items.length && !ovs.length && !recipes.length && !unl.length) throw new Error('В паке нет предметов');
   const out = { format: PACK_FORMAT, version: 1, id: raw.id, name: String(raw.name || raw.id).slice(0, 40), items, overrides: ovs, ...(recipes.length ? { recipes } : {}) };
+  if (unl.length) out.unlock = unl;
+  if (raw.gift === true) out.gift = true;
   // Оформление обложки (для студии и магазина): цвет, своя картинка-фон или обложка целиком.
   const cs = raw.coverStyle;
   if (cs && typeof cs === 'object') {
@@ -218,6 +235,7 @@ export async function installPack(raw) {
   }
   for (const o of pack.overrides) if (!overrides.has(o.id)) await applyOv(o); // своя правка в студии важнее
   addPackRecipes(pack.recipes);
+  if (pack.unlock) { unlock(pack.unlock); ids.push(...pack.unlock); }
   packs.set(pack.id, { id: pack.id, name: pack.name, count: pack.items.length, fixes: pack.overrides.length });
   return ids;
 }

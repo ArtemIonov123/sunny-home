@@ -143,6 +143,7 @@ export function applyOverride(o) {
   if (o.seats) { d.seats = o.seats.length ? o.seats : undefined; d.cover = o.cover || undefined; d.coverPoly = undefined; }
   if (o.power) d.power = o.power;
   if (o.tap) d.tap = o.tap;
+  if (o.animal && base.animal) d.animal = { ...base.animal, joints: { ...(base.animal.joints || {}), ...(o.animal.joints || {}) }, ...(o.animal.voice !== undefined ? { voice: o.animal.voice } : {}) };
   return true;
 }
 export function clearOverride(id) { const base = original.get(id); if (base && ITEMS[id]) { for (const k of Object.keys(ITEMS[id])) delete ITEMS[id][k]; Object.assign(ITEMS[id], base); } }

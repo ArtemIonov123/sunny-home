@@ -11,7 +11,8 @@ import { createHud } from './ui/hud.js';
 import { loadSave, loadLegacyRoom, writeSave } from './save/storage.js';
 import { validate, fromLegacyRoom } from './save/migrate.js';
 import { loadLibrary, loadBuiltinPacks } from './core/library.js';
-import { initShop } from './core/shop.js';
+import { initShop, autoGifts } from './core/shop.js';
+import { studioLoad } from './core/access.js';
 import { findRecipe, isMachine } from './core/recipes.js';
 import { anims } from './render/anims.js';
 import { play } from './audio.js';
@@ -35,6 +36,8 @@ async function boot() {
   for (const d of allItemDefs()) if (d.builtin && d.animal) setupAnimal(d); // встроенные животные — на скелет
   await loadBuiltinPacks(); // паки, встроенные в игру (папка packs/)
   await initShop().catch(() => {}); // паки, скачанные в магазине
+
+  if (__STUDIO__) studioLoad(); // студия: своя галочка «выдать игроку» (до нового дома — щенок)
 
   // Сохранение → прошлая версия 0.4.1 → новый дом.
   let state = null, startNote = '';
@@ -70,6 +73,13 @@ async function boot() {
   renderer.setPets(pets);
   hud.setPets(pets, (id) => { if (pets.call(id)) { play('whoosh'); invalidate(); } });
   setInterval(() => { if (!running && !document.hidden && pets.wantsFrame()) invalidate(); }, 600); // кадров нет, а кому-то пора гулять
+  // Подарки игрокам из магазина (свои животные с «выдать игроку») — ставятся сами, без кнопок.
+  setTimeout(() => autoGifts((ids) => {
+    actions.restoreMissing();
+    // Подаренное животное сразу прибегает в дом (если такого ещё нет).
+    for (const id of ids) if (itemDef(id)?.animal && !store.state.items.some((i) => i.def === id)) { const it = actions.take(id); if (it) actions.placeFromInventory(it); }
+    hud.refreshThings(); invalidate();
+  }).catch(() => {}), 2500);
 
   // ── кадры: рисуем только когда что-то меняется или движется ──
   let tapCount = 0;

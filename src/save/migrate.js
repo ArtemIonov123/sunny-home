@@ -5,6 +5,7 @@ import { ITEMS, itemDef, CHARS, ROOM_TYPES, WALL_PATTERNS, FLOOR_MATERIALS } fro
 import { defaultState, newRoom, MAX_ROOMS, NEW_IN_INVENTORY, BATH_START, BEDROOM_START, BEDROOM_SMALL } from '../core/house.js';
 import { clamp, isHex } from '../util.js';
 import { cleanLook } from '../core/looks.js';
+import { isLocked } from '../core/access.js';
 
 export const SCHEMA = 15;
 
@@ -114,7 +115,7 @@ const MIGRATIONS = {
     const items = Array.isArray(s.items) ? s.items.map((i) => ({ ...i })) : [];
     let next = Number.isInteger(s.next) ? s.next : 1;
     for (const i of items) if (Number.isInteger(i.id) && i.id >= next) next = i.id + 1;
-    if (!items.some((i) => i.def === 'dog')) {
+    if (!items.some((i) => i.def === 'dog') && !isLocked('dog')) {
       const living = (Array.isArray(s.rooms) ? s.rooms : []).find((r) => r.id === 'living');
       items.push(living ? { id: next++, def: 'dog', room: 'living', x: Math.min(760, (living.width || 1600) - 120), y: 790 } : { id: next++, def: 'dog', inv: true });
     }
