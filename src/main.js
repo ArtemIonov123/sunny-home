@@ -19,7 +19,7 @@ import { surfacesOf, syncChildren } from './core/physics.js';
 import { mode } from './ui/mode.js';
 import { itemDef } from './core/catalog.js';
 import { refreshHero } from './render/hero.js';
-import { rigAnims, getRig, drawRig } from './render/rig.js';
+import { rigAnims, getRig, drawRig, LIE } from './render/rig.js';
 
 const $ = (id) => document.getElementById(id);
 
@@ -288,7 +288,7 @@ async function boot() {
   });
 
   // Для автотестов и отладки.
-  window.__sunny = { rig: { rigAnims, getRig, drawRig }, store, camera, renderer, actions, viewport, saveNow, physics: { surfacesOf, syncChildren }, mode, hud };
+  window.__sunny = { rig: { rigAnims, getRig, drawRig, LIE }, store, camera, renderer, actions, viewport, saveNow, physics: { surfacesOf, syncChildren }, mode, hud };
 }
 
 boot().catch((e) => {

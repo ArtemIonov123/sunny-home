@@ -34,7 +34,7 @@ export function charHitBox(c) {
   const b = charBounds(c);
   if (!c.seat) return b;
   const k = CHARS[c.id].h / HERO_CANVAS_H;
-  if (c.seat.lie) return { x: c.x - 560 * k, y: c.y - 130 * k, w: 380 * k, h: 260 * k }; // видна только голова на подушке
+  if (c.seat.lie) return { x: c.x - 330 * k, y: c.y - 250 * k, w: 360 * k, h: 300 * k }; // видна только голова на подушке
   return { x: b.x, y: b.y, w: b.w, h: (HIP_Y + 210) * k };
 }
 

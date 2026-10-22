@@ -207,7 +207,7 @@ export function createRenderer(canvas, store, camera) {
   }
   // Спит: над головой всплывают «z» (картинка, читать не нужно).
   function drawZzz(e) {
-    const t = tnow(), k = e.b.h / 873, hx = e.b.x + e.b.w / 2 - 420 * k, hy = e.b.y + e.b.h - 293 * k - 120 * k;
+    const t = tnow(), k = e.b.h / 873, hx = e.b.x + e.b.w / 2 - 60 * k, hy = e.b.y + e.b.h - 293 * k - 230 * k;
     ctx.save();
     ctx.fillStyle = '#7f8fd9'; ctx.textAlign = 'center';
     for (let j = 0; j < 3; j++) {

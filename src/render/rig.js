@@ -181,6 +181,9 @@ export function buildRig(look, face = null, grip = {}) {
 // Где режется нога: бедро — выше колена, голень — ниже.
 const KNEE_CUT = { torso: [0, LAP_Y + 2], lap: [LAP_Y - 2, 2000], legL: [0, KNEE_Y + KNEE_LAP], legR: [0, KNEE_Y + KNEE_LAP], shinL: [KNEE_Y - KNEE_LAP, 2000], shinR: [KNEE_Y - KNEE_LAP, 2000] };
 
+// Голова спящего на подушке: наклон (рад, минус — макушкой к изголовью) и размер.
+export const LIE = { tilt: -0.85, scale: 0.78 };
+
 // Нарисовать героя по позе. b — рамка героя в мире (как у картинки), pose — углы костей.
 const HAND = [412, 578], MOUTH = [256, 236]; // правая ладошка и рот на холсте героя
 
@@ -209,7 +212,10 @@ export function drawRig(ctx, rig, b, pose = {}, held = []) {
   ctx.scale(k, k);
   ctx.translate(-W / 2, -rig.h);
   // Лёжа — весь герой повёрнут вокруг таза (головой влево, на подушку).
-  if (pose.lie) { ctx.translate(W / 2, HIP_Y); ctx.rotate(-Math.PI / 2); ctx.translate(-W / 2, -HIP_Y); }
+  if (pose.lieHead) {
+    // Под одеялом: только голова на подушке — шея у края одеяла, голова чуть наклонена и чуть меньше.
+    ctx.translate(W / 2, HIP_Y); ctx.rotate(LIE.tilt); ctx.scale(LIE.scale, LIE.scale); ctx.translate(-W / 2, -JOINTS.neck[1]);
+  } else if (pose.lie) { ctx.translate(W / 2, HIP_Y); ctx.rotate(-Math.PI / 2); ctx.translate(-W / 2, -JOINTS.neck[1]); } // шея — в точке сиденья, тело — вправо
   // squash — кость «сплющена» вдоль себя (бедро, направленное на нас, когда герой сидит).
   // Сама кость рисуется сплющенной, а дочерняя (голень) просто переезжает к новому колену.
   const sq = pose.squash || {};
@@ -305,7 +311,7 @@ export function heroPose(id, { carried = false, tilt = 0, holding = false, reach
     // Лежит и спит: дышит медленно, руки вдоль тела.
     const slow = Math.sin(t * 1.3 + ph);
     pose.lie = true; pose.bob = slow * 1.2; pose.head = 0.05;
-    if (covered) pose.only = ['hairBack', 'head']; // под одеялом — видна только голова на подушке
+    if (covered) { pose.only = ['hairBack', 'head']; pose.lieHead = true; pose.head = Math.sin(t * 0.7 + ph) * 0.03; } // под одеялом — видна только голова на подушке
     pose.armUpL = 0.04; pose.armUpR = -0.04; pose.armLoL = 0; pose.armLoR = 0;
   }
   if (holding && seat !== 'lie') { pose.armUpR = -0.1; pose.armLoR = -0.45; } // держит вещь чуть перед собой

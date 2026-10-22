@@ -35,10 +35,8 @@ export function seatsOf(parent) {
   const b = itemBounds(parent);
   return def.seats.map(([x0, x1, y, kind], s) => ({ s, x0: b.x + x0 * b.w, x1: b.x + x1 * b.w, y: b.y + y * b.h, bottom: b.y + b.h, lie: !!kind }));
 }
-// Лёжа таз героя — на таком расстоянии от макушки (голова — на краю x0, на подушке).
-const headToHip = (charId) => (CHARS[charId].h * (HIP_Y - 40)) / HERO_CANVAS_H;
 function seatX(charId, sf, x) {
-  if (sf.lie) return sf.x0 + headToHip(charId);
+  if (sf.lie) return sf.x0; // кровать: x0 — где шея (край подушки), голова — левее, на подушке
   const pad = Math.min(CHARS[charId].h * 0.12, (sf.x1 - sf.x0) / 2);
   return clamp(x, sf.x0 + pad, sf.x1 - pad);
 }
