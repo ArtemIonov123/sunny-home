@@ -1,0 +1,32 @@
+# Игра на сайте: https://artemionov123.github.io/sunny-home/
+# Публикуется ТОЛЬКО игра (dist/sunny-home.html → index.html). Студия (studio.html) на сайт не попадает.
+# Включить один раз: GitHub → репозиторий → Settings → Pages → Source: «GitHub Actions».
+name: Игра на сайт
+on:
+  push:
+    branches: [main]
+    paths: [dist/sunny-home.html]
+  workflow_dispatch:
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+concurrency:
+  group: pages
+  cancel-in-progress: true
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Только игра
+        run: mkdir site && cp dist/sunny-home.html site/index.html && touch site/.nojekyll
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+      - id: deployment
+        uses: actions/deploy-pages@v4
