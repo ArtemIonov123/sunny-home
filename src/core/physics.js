@@ -38,8 +38,11 @@ export function landing(state, defId, room, lx, ly, selfId = null) {
   let best = null;
   if (isSmall(def)) {
     const { w } = sizeOf(def);
+    const byId = new Map(state.items.map((i) => [i.id, i]));
     for (const p of state.items) {
-      if (p.inv || p.on || p.id === selfId || p.room !== room.id) continue;
+      if (p.inv || p.id === selfId || p.room !== room.id) continue;
+      // Можно класть и на вещь, которая сама стоит на мебели (блендер на тумбе), — но не глубже и не на свою же «дочку».
+      if (p.on && (p.on.id === selfId || byId.get(p.on.id)?.on)) continue;
       for (const sf of surfacesOf(p)) {
         if (!sf.open) continue;
         if (lx < sf.x0 - 20 || lx > sf.x1 + 20) continue;      // мимо поверхности
@@ -71,10 +74,13 @@ export function syncChildren(state) {
     const p = heldSpot(c, i.def);
     i.room = c.room; i.x = p.x; i.y = p.y; delete i.on;
   }
-  for (const c of state.items) {
+  // Два прохода: сначала то, что стоит на мебели, потом то, что стоит на них (продукты в блендере на тумбе).
+  for (const pass of [0, 1]) for (const c of state.items) {
     if (!c.on) continue;
     const p = byId.get(c.on.id);
-    const sf = p && !p.inv && !p.on ? surfacesOf(p)[c.on.s] : null;
+    if (!!p?.on !== !!pass) continue;
+    const grand = p?.on ? byId.get(p.on.id) : null;
+    const sf = p && !p.inv && (!p.on || (grand && !grand.on)) ? surfacesOf(p)[c.on.s] : null;
     if (!sf) { dropToFloor(c, rooms.get(c.room)); continue; }
     const half = Math.min(sizeOf(itemDef(c.def)).w / 2, (sf.x1 - sf.x0) / 2);
     c.room = p.room;

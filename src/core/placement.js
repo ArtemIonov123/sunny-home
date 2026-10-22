@@ -63,7 +63,7 @@ export function depthOf(kind, obj, parentOf) {
   if (kind === 'item') {
     if (obj.held) return obj.y + 140; // в руке — перед героем (и пальцем берётся раньше героя)
     const parent = obj.on && parentOf?.(obj.on.id);
-    if (parent) return parent.y + 0.5 + obj.on.s * 0.01; // вещь на мебели — сразу перед мебелью
+    if (parent) return (parent.on ? depthOf('item', parent, parentOf) : parent.y) + 0.5 + obj.on.s * 0.01; // вещь на мебели — сразу перед мебелью (на вещи на мебели — ещё ближе)
     const place = itemDef(obj.def)?.place;
     if (place === 'wall') return -2000 + obj.y;
     if (place === 'doorway') return -1000;

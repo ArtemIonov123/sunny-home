@@ -117,6 +117,19 @@ export async function saveOverrides(list) {
   throw new Error('Браузер не смог сохранить правку. Освободи место и попробуй снова.');
 }
 
+// Свои рецепты из студии.
+const RECIPES_KEY = 'sunny-home-recipes-v1';
+export async function loadRecipes() {
+  const remote = await idb(await db(), 'catalog', 'readonly', 'recipes');
+  if (Array.isArray(remote)) return remote;
+  const local = readLocal(RECIPES_KEY);
+  return Array.isArray(local) ? local : [];
+}
+export async function saveRecipes(list) {
+  if (await idb(await db(), 'catalog', 'readwrite', 'recipes', list)) return;
+  try { localStorage.setItem(RECIPES_KEY, JSON.stringify(list)); } catch (e) { throw new Error('Не хватило места, чтобы сохранить рецепт'); }
+}
+
 // Магазин: что куплено и какие паки скачаны (паки целиком — чтобы работали без интернета).
 const SHOP_KEY = 'sunny-home-shop-v1';
 export async function loadShopState() {

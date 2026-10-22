@@ -12,9 +12,10 @@ import { loadSave, loadLegacyRoom, writeSave } from './save/storage.js';
 import { validate, fromLegacyRoom } from './save/migrate.js';
 import { loadLibrary, loadBuiltinPacks } from './core/library.js';
 import { initShop } from './core/shop.js';
+import { findRecipe, isMachine } from './core/recipes.js';
 import { anims } from './render/anims.js';
 import { play } from './audio.js';
-import { surfacesOf } from './core/physics.js';
+import { surfacesOf, syncChildren } from './core/physics.js';
 import { mode } from './ui/mode.js';
 import { itemDef } from './core/catalog.js';
 import { refreshHero } from './render/hero.js';
@@ -183,6 +184,34 @@ async function boot() {
     clothColors.set(def.id, hex);
     return hex;
   }
+  // ── Готовка ──
+  // Нажали на прибор, на котором лежат продукты: есть рецепт — прибор работает и выдаёт результат;
+  // рецепта нет — продукты подпрыгивают (ничего «нельзя», просто не получилось).
+  const cooking = new Set();
+  function tryCook(id) {
+    const m = store.state.items.find((i) => i.id === id);
+    if (!m || !isMachine(m.def) || cooking.has(id)) return cooking.has(id);
+    const kids = store.state.items.filter((i) => i.on?.id === id);
+    if (!kids.length) return false;
+    const recipe = findRecipe(m.def, kids.map((k) => k.def));
+    if (!recipe) {
+      anims.wobble('item:' + id); kids.forEach((k, n) => anims.wobble('item:' + k.id, n * 0.05)); play('boing'); invalidate();
+      return true;
+    }
+    cooking.add(id);
+    anims.shake('item:' + id, recipe.time);
+    const snd = setInterval(() => play(recipe.sound), recipe.sound === 'tick' ? 300 : 140);
+    setTimeout(() => {
+      clearInterval(snd); cooking.delete(id);
+      const made = actions.cook(id, recipe);
+      for (const n of made) anims.fall('item:' + n, -70);
+      anims.squash('item:' + id); play('ding'); setTimeout(() => play('pop'), 180);
+      hud.refreshThings(); invalidate();
+    }, recipe.time * 1000);
+    invalidate();
+    return true;
+  }
+
   // Вещь поднесли к герою: одежду — надевает, остальное — берёт в руку.
   interaction.on('give', ({ itemId, charId }) => {
     const res = actions.give(itemId, charId, colorOfItem(itemId));
@@ -203,6 +232,7 @@ async function boot() {
     else {
       const it = store.state.items.find((i) => i.id === id);
       if (it?.held && itemDef(it.def)?.group === 'food') { eat(it.held.by); return; } // нажал на еду в руке — откусывает
+      if (tryCook(id)) return; // прибор с продуктами — готовит
       const tapKind = itemDef(store.state.items.find((i) => i.id === id)?.def)?.tap;
       if (tapKind === 'ring') { anims.ring('item:' + id); play('ring'); invalidate(); return; }
       if (tapKind === 'squeak') { anims.squash('item:' + id); play('squeak'); invalidate(); return; }
@@ -255,7 +285,7 @@ async function boot() {
   });
 
   // Для автотестов и отладки.
-  window.__sunny = { rig: { rigAnims, getRig, drawRig }, store, camera, renderer, actions, viewport, saveNow, physics: { surfacesOf }, mode, hud };
+  window.__sunny = { rig: { rigAnims, getRig, drawRig }, store, camera, renderer, actions, viewport, saveNow, physics: { surfacesOf, syncChildren }, mode, hud };
 }
 
 boot().catch((e) => {

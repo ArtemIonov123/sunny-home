@@ -10,7 +10,11 @@ import { createItemEditor } from './itemEditor.js';
 import { listRecords, listPacks, makePack, listOverrides } from '../core/library.js';
 import { resetShop, loadCatalog } from '../core/shop.js';
 import { getSettings, saveSettings, hasToken, testToken, readCatalog, publishPack, removePack, fetchStorePack, makeCover, COVER_COLORS } from '../core/publish.js';
-import { importPack } from '../core/library.js';
+import { importPack, saveOwnRecipe, deleteOwnRecipe } from '../core/library.js';
+import { allRecipes, listOwnRecipes, BUILTIN_RECIPES, SOUNDS } from '../core/recipes.js';
+import { allItemDefs, itemDef } from '../core/catalog.js';
+import { isSmall } from '../core/physics.js';
+import { img } from '../assets.js';
 
 const STORE_RAW = 'https://raw.githubusercontent.com/ArtemIonov123/sunny-home/main/store/';
 
@@ -156,6 +160,52 @@ export function createAdmin({ root, store, camera, actions, toast, onChange }) {
       ${built.length ? `<ul class="pk-list">${built.map((p) => `<li><b>${esc(p.name)}</b> · предметов: ${p.count}${p.fixes ? ` · правок: ${p.fixes}` : ''}</li>`).join('')}</ul>` : '<p class="adm-help">Пока нет.</p>'}`;
   }
 
+  // ── «Рецепты»: прибор + продукты → что получится ──
+  let rc = null; // черновик рецепта { id, machine, inputs, outputs, time, sound } или null (список)
+  const pic = (id) => { const d = itemDef(id); return d ? `<img src="${img(d.art)?.src || ''}" alt="" title="${esc(d.name)}">` : '❓'; };
+  function recipeRow(r, mine) {
+    return `<div class="rc-row">
+      <span class="rc-in">${r.inputs.map(pic).join('<i>+</i>')}</span><i>→</i><span class="rc-m">${pic(r.machine)}</span><i>→</i><span class="rc-out">${r.outputs.map(pic).join('')}</span>
+      <small>${r.time} с · ${esc(SOUNDS[r.sound] || '')}</small>
+      ${mine ? `<button data-rc-edit="${esc(r.id)}">✎</button><button data-rc-del="${esc(r.id)}" class="danger">×</button>` : '<small class="rc-b">встроенный</small>'}
+    </div>`;
+  }
+  function recipesTab() {
+    if (rc) return recipeForm();
+    const mine = listOwnRecipes(), mineIds = new Set(mine.map((r) => r.id));
+    const active = allRecipes();
+    return `<p class="adm-help">Рецепт: положи продукты на прибор (в блендер, на плиту, в тостер — туда, где у прибора «полка»), нажми на прибор — он поработает и выдаст результат. Свои рецепты входят в пак (вкладка «Паки»).</p>
+      <div class="adm-buttons"><button data-rc-new class="primary">＋ Новый рецепт</button></div>
+      <h4>Свои рецепты (${mine.length})</h4>
+      ${mine.length ? mine.map((r) => recipeRow(r, true)).join('') : '<p class="adm-help">Пока нет.</p>'}
+      <h4>Встроенные</h4>
+      ${BUILTIN_RECIPES.map((r) => recipeRow(r, false)).join('')}
+      <p class="adm-help">Работает сейчас рецептов: ${active.length}. Свой рецепт с тем же прибором и продуктами заменяет встроенный.</p>`;
+  }
+  function recipeForm() {
+    const defs = allItemDefs();
+    const machines = defs.filter((d) => d.surfaces?.length || d.group === 'appliances').sort((a, b) => (b.group === 'appliances') - (a.group === 'appliances'));
+    const smalls = defs.filter((d) => isSmall(d)).sort((a, b) => (b.group === 'food') - (a.group === 'food')); // мелочь, еда — первой
+    const m = itemDef(rc.machine);
+    const chips = (list, kind) => list.map((id, k) => `<span class="rc-chip">${pic(id)}<button data-rc-x="${kind}:${k}" aria-label="Убрать">×</button></span>`).join('');
+    const picker = (kind) => `<div class="rc-pick">${smalls.map((d) => `<button data-rc-add="${kind}:${esc(d.id)}" title="${esc(d.name)}"><img src="${img(d.art)?.src || ''}" alt=""></button>`).join('')}</div>`;
+    return `<div class="adm-buttons"><button data-rc-back>← Все рецепты</button></div>
+      <label class="adm-field">Прибор<select data-rc-machine>${machines.map((d) => `<option value="${esc(d.id)}"${d.id === rc.machine ? ' selected' : ''}>${esc(d.name)}</option>`).join('')}</select></label>
+      ${m && !m.surfaces?.length ? '<p class="adm-help warn">У этого прибора нет «полки» для продуктов — результат появится рядом на полу. Полку можно нарисовать: «Предметы» → прибор → «Оживить» → «✏️ Полка».</p>' : ''}
+      <h4>Продукты (${rc.inputs.length} из 4)</h4>
+      <div class="rc-chips">${chips(rc.inputs, 'in') || '<small>нажми на продукты ниже</small>'}</div>
+      ${rc.inputs.length < 4 ? picker('in') : ''}
+      <h4>Что получится (${rc.outputs.length} из 3)</h4>
+      <div class="rc-chips">${chips(rc.outputs, 'out') || '<small>нажми на вещи ниже</small>'}</div>
+      ${rc.outputs.length < 3 ? picker('out') : ''}
+      <div class="lv-row">
+        <label class="adm-field">Сколько работает · <b>${rc.time} с</b><input type="range" data-rc-time min="1" max="8" step="0.5" value="${rc.time}"></label>
+        <label class="adm-field">Звук<select data-rc-sound>${Object.entries(SOUNDS).map(([k, n]) => `<option value="${k}"${k === rc.sound ? ' selected' : ''}>${n}</option>`).join('')}</select></label>
+      </div>
+      <div class="rc-row big"><span class="rc-in">${rc.inputs.map(pic).join('<i>+</i>') || '…'}</span><i>→</i><span class="rc-m">${pic(rc.machine)}</span><i>→</i><span class="rc-out">${rc.outputs.map(pic).join('') || '…'}</span></div>
+      <div class="adm-buttons"><button data-rc-save class="primary">Сохранить рецепт</button></div>`;
+  }
+
   function dataTab() {
     const c = actions.counts();
     return `<p class="adm-help">${esc(storageNote || 'Дом сохраняется на этом устройстве автоматически.')}</p>
@@ -170,11 +220,11 @@ export function createAdmin({ root, store, camera, actions, toast, onChange }) {
 
   function render() {
     if (!isOpen) return;
-    const tabs = { rooms: 'Комнаты', markup: 'Разметка', items: 'Предметы', packs: 'Паки', data: 'Данные' };
+    const tabs = { rooms: 'Комнаты', markup: 'Разметка', items: 'Предметы', recipes: 'Рецепты', packs: 'Паки', data: 'Данные' };
     el.innerHTML = `<header><b>Админка</b>
         <nav>${Object.entries(tabs).map(([k, n]) => `<button class="tab${tab === k ? ' on' : ''}" data-tab="${k}">${n}</button>`).join('')}</nav>
         <button class="close" data-x aria-label="Закрыть">×</button></header>
-      <div class="adm-body">${tab === 'rooms' ? roomsTab() : tab === 'markup' ? markupTab() : tab === 'items' ? '<div class="items-tab"></div>' : tab === 'packs' ? packsTab() : dataTab()}</div>`;
+      <div class="adm-body">${tab === 'rooms' ? roomsTab() : tab === 'markup' ? markupTab() : tab === 'items' ? '<div class="items-tab"></div>' : tab === 'packs' ? packsTab() : tab === 'recipes' ? recipesTab() : dataTab()}</div>`;
     if (tab === 'items') items.mount(el.querySelector('.items-tab'));
     if (tab === 'packs') drawCoverPreview();
   }
@@ -210,6 +260,16 @@ export function createAdmin({ root, store, camera, actions, toast, onChange }) {
     else if (b.dataset.slideLeft !== undefined || b.dataset.slideRight !== undefined) {
       const k = Number(b.dataset.slideLeft ?? b.dataset.slideRight), j = b.dataset.slideLeft !== undefined ? k - 1 : k + 1;
       if (j >= 0 && j < slides.length) [slides[k], slides[j]] = [slides[j], slides[k]];
+    }
+    else if (b.dataset.rcNew !== undefined) rc = { id: 'r' + Date.now().toString(36), machine: 'blender', inputs: [], outputs: [], time: 2, sound: 'buzz' };
+    else if (b.dataset.rcBack !== undefined) rc = null;
+    else if (b.dataset.rcEdit) rc = JSON.parse(JSON.stringify(listOwnRecipes().find((x) => x.id === b.dataset.rcEdit)));
+    else if (b.dataset.rcDel) { if (!confirm('Удалить рецепт?')) return; await deleteOwnRecipe(b.dataset.rcDel); toast('Рецепт удалён'); }
+    else if (b.dataset.rcAdd) { const [k, id] = b.dataset.rcAdd.split(':'); (k === 'in' ? rc.inputs : rc.outputs).push(id); }
+    else if (b.dataset.rcX) { const [k, n] = b.dataset.rcX.split(':'); (k === 'in' ? rc.inputs : rc.outputs).splice(Number(n), 1); }
+    else if (b.dataset.rcSave !== undefined) {
+      try { await saveOwnRecipe(rc); toast('Рецепт сохранён — положи продукты на прибор и нажми на него'); rc = null; }
+      catch (err) { toast(err.message, true); }
     }
     else if (b.dataset.ghCancel !== undefined) showKey = false;
     else if (b.dataset.ghChange !== undefined) showKey = true;
@@ -266,7 +326,10 @@ export function createAdmin({ root, store, camera, actions, toast, onChange }) {
     else if (e.target.matches('[data-pk]')) { if (e.target.checked) packPick.add(e.target.dataset.pk); else packPick.delete(e.target.dataset.pk); }
     else if (e.target.matches('[data-pkname]')) { packName = e.target.value; return; }
     else if (e.target.matches('[data-pkprice]')) { packPrice = Number(e.target.value) || 0; return; }
-    else if (e.target.matches('[data-gh-token],[data-gh-repo]')) return; // не перерисовывать — иначе набранный ключ пропадёт до нажатия «Проверить»
+    else if (e.target.matches('[data-gh-token],[data-gh-repo]')) return;
+    else if (e.target.matches('[data-rc-machine]')) rc.machine = e.target.value;
+    else if (e.target.matches('[data-rc-sound]')) { rc.sound = e.target.value; return; }
+    else if (e.target.matches('[data-rc-time]')) rc.time = Number(e.target.value); // не перерисовывать — иначе набранный ключ пропадёт до нажатия «Проверить»
     else if (e.target.matches('[data-slide-add]')) {
       const files = [...(e.target.files || [])].slice(0, 10 - slides.length); e.target.value = '';
       Promise.all(files.map((f) => bgImage(f, [960, 600]))).then((list) => { slides.push(...list); render(); }).catch((err) => toast(err.message, true));

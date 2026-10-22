@@ -3,7 +3,8 @@
 // Запись: { id:'custom_…', name, group, place, w, image:'data:image/webp;base64,…' }
 import { GROUPS, PLACES, CUSTOM_PREFIX, toDef, putCustomDef, removeCustomDef, customDefs, applyOverride, clearOverride, isBuiltin } from './catalog.js';
 import { loadImage, registerImage, forgetImage } from '../assets.js';
-import { loadCatalogRecords, saveCatalogRecords, loadOldStudio, loadOverrides, saveOverrides } from '../save/storage.js';
+import { loadCatalogRecords, saveCatalogRecords, loadOldStudio, loadOverrides, saveOverrides, loadRecipes, saveRecipes } from '../save/storage.js';
+import { validateRecipe, setOwnRecipes, listOwnRecipes, addPackRecipes } from './recipes.js';
 
 export const LIBRARY_LIMIT = 60;
 export const MIN_W = 40, MAX_W = 900;
@@ -136,8 +137,9 @@ export function makePack(name, ids, withOverrides = true, price = 0, keepId = ''
   const slug = translit(clean.toLowerCase()).replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '') || 'pack';
   const items = ids.map((id) => records.get(id)).filter(Boolean);
   const ovs = withOverrides ? listOverrides() : [];
-  if (!items.length && !ovs.length) throw new Error('Выбери хотя бы один предмет');
-  return { format: PACK_FORMAT, version: 1, id: /^[a-z0-9_]{1,80}$/.test(keepId) ? keepId : slug + '_' + Date.now().toString(36), name: clean, created: new Date().toISOString().slice(0, 10), price: Math.max(0, Math.round(Number(price) * 100) / 100) || 0, items, overrides: ovs, ...(coverStyle && Object.keys(coverStyle).length ? { coverStyle } : {}), ...(pageStyle && Object.keys(pageStyle).length ? { pageStyle } : {}), ...(slides?.length ? { slides } : {}) };
+  const recipes = withOverrides ? listOwnRecipes() : [];
+  if (!items.length && !ovs.length && !recipes.length) throw new Error('Выбери хотя бы один предмет');
+  return { format: PACK_FORMAT, version: 1, id: /^[a-z0-9_]{1,80}$/.test(keepId) ? keepId : slug + '_' + Date.now().toString(36), name: clean, created: new Date().toISOString().slice(0, 10), price: Math.max(0, Math.round(Number(price) * 100) / 100) || 0, items, overrides: ovs, ...(recipes.length ? { recipes } : {}), ...(coverStyle && Object.keys(coverStyle).length ? { coverStyle } : {}), ...(pageStyle && Object.keys(pageStyle).length ? { pageStyle } : {}), ...(slides?.length ? { slides } : {}) };
 }
 
 export function validatePack(raw) {
@@ -146,8 +148,10 @@ export function validatePack(raw) {
   const items = (Array.isArray(raw.items) ? raw.items : []).map(validateRecord);
   const ovs = [];
   for (const o of Array.isArray(raw.overrides) ? raw.overrides : []) { try { ovs.push(validateOverride(o)); } catch (e) { /* неизвестный предмет — пропуск */ } }
-  if (!items.length && !ovs.length) throw new Error('В паке нет предметов');
-  const out = { format: PACK_FORMAT, version: 1, id: raw.id, name: String(raw.name || raw.id).slice(0, 40), items, overrides: ovs };
+  const recipes = [];
+  for (const r of Array.isArray(raw.recipes) ? raw.recipes : []) { try { recipes.push(validateRecipe(r)); } catch (e) { /* пропуск */ } }
+  if (!items.length && !ovs.length && !recipes.length) throw new Error('В паке нет предметов');
+  const out = { format: PACK_FORMAT, version: 1, id: raw.id, name: String(raw.name || raw.id).slice(0, 40), items, overrides: ovs, ...(recipes.length ? { recipes } : {}) };
   // Оформление обложки (для студии и магазина): цвет, своя картинка-фон или обложка целиком.
   const cs = raw.coverStyle;
   if (cs && typeof cs === 'object') {
@@ -190,14 +194,33 @@ export async function installPack(raw) {
     await install(rec, { builtin: true }); ids.push(rec.id);
   }
   for (const o of pack.overrides) if (!overrides.has(o.id)) await applyOv(o); // своя правка в студии важнее
+  addPackRecipes(pack.recipes);
   packs.set(pack.id, { id: pack.id, name: pack.name, count: pack.items.length, fixes: pack.overrides.length });
   return ids;
 }
 export const getRecord = (id) => records.get(id) || null;
 
 // При запуске. Возвращает текст предупреждения или ''.
+// ── Свои рецепты ──
+export async function saveOwnRecipe(raw) {
+  const r = validateRecipe(raw);
+  const next = listOwnRecipes().filter((x) => x.id !== r.id).concat(r);
+  await saveRecipes(next); setOwnRecipes(next);
+  return r;
+}
+export async function deleteOwnRecipe(id) {
+  const next = listOwnRecipes().filter((x) => x.id !== id);
+  await saveRecipes(next); setOwnRecipes(next);
+}
+async function loadOwnRecipes() {
+  const out = [];
+  try { for (const raw of await loadRecipes()) { try { out.push(validateRecipe(raw)); } catch (e) { /* пропуск */ } } } catch (e) { /* нет */ }
+  setOwnRecipes(out);
+}
+
 export async function loadLibrary() {
   await loadOwnOverrides();
+  await loadOwnRecipes();
   let list = null, note = '';
   try { list = await loadCatalogRecords(); } catch (e) { list = null; }
   if (!list) {
@@ -246,7 +269,8 @@ export async function importPack(pack) {
   if (pack?.format === PACK_FORMAT) {
     const full = validatePack(pack);
     for (const o of full.overrides) await saveOverride(o); // правки встроенных предметов из пака
-    if (!full.items.length) return full.overrides.length;
+    for (const r of full.recipes || []) await saveOwnRecipe(r); // рецепты пака — в студию
+    if (!full.items.length) return full.overrides.length + (full.recipes?.length || 0);
     pack = { format: 'sunny-home-items', version: 2, items: full.items };
   }
   if (!pack || pack.format !== 'sunny-home-items') throw new Error('Это не пак предметов «Солнечного дома»');

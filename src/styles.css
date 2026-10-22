@@ -326,3 +326,26 @@ button.link { border: 0; background: none; color: #a8794c; text-decoration: unde
 .lv-sep { width: 1px; background: #ead6b4; margin: 0 4px; }
 .lv-tools button.lv-view.on { background: #d9ecff; border-color: #8fb8e0; }
 .lv-water .adm-field b { color: #3d7fc4; }
+/* Студия → Рецепты */
+.rc-row { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; padding: 6px 8px; border: 2px solid #ead6b4; border-radius: 14px; background: #fff; margin-bottom: 6px; }
+.rc-row img { width: 40px; height: 40px; object-fit: contain; }
+.rc-row.big img { width: 64px; height: 64px; }
+.rc-row i { font-style: normal; color: #a8794c; font-weight: 800; }
+.rc-row span { display: inline-flex; align-items: center; gap: 2px; }
+.rc-row .rc-m { background: #fff3d6; border-radius: 12px; padding: 2px 6px; }
+.rc-row small { color: #9a7a58; margin-left: auto; }
+.rc-row button { width: 32px; height: 32px; border-radius: 50%; border: 1px solid #ead6b4; background: #fff; }
+.rc-b { font-style: italic; }
+.rc-chips { display: flex; flex-wrap: wrap; gap: 6px; min-height: 48px; align-items: center; }
+.rc-chip { display: inline-flex; align-items: center; gap: 2px; padding: 4px; border-radius: 12px; background: #eef6e6; }
+.rc-chip img { width: 44px; height: 44px; object-fit: contain; }
+.rc-chip button { width: 24px; height: 24px; border-radius: 50%; border: 0; background: #fff; }
+.rc-pick { display: grid; grid-template-columns: repeat(auto-fill, minmax(54px, 1fr)); gap: 6px; max-height: 190px; overflow-y: auto; padding: 4px; border: 1px dashed #ead6b4; border-radius: 12px; margin: 6px 0 10px; touch-action: pan-y; }
+.rc-pick button { aspect-ratio: 1; border: 2px solid #f2e2c8; border-radius: 12px; background: #fff; padding: 3px; }
+.rc-pick img { width: 100%; height: 100%; object-fit: contain; pointer-events: none; }
+.adm-help.warn { color: #b0563d; }
+#app.rotated .rc-pick { touch-action: pan-x; }
+.admin-sheet header nav { overflow-x: auto; flex-wrap: nowrap; scrollbar-width: none; touch-action: pan-x; }
+.admin-sheet header nav::-webkit-scrollbar { display: none; }
+#app.rotated .admin-sheet header nav { touch-action: pan-y; }
+.admin-sheet .tab { flex-shrink: 0; }

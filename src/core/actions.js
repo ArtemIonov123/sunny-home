@@ -247,6 +247,26 @@ export function createActions(store, camera) {
       }, { undo: false });
       return 'hold';
     },
+    // Приготовить: продукты с прибора уходят «в шкаф», на прибор встаёт результат. Возвращает ID новых вещей.
+    cook(machineId, recipe) {
+      const made = [];
+      store.change((s) => {
+        const m = s.items.find((i) => i.id === machineId); if (!m) return;
+        for (const k of s.items) if (k.on?.id === machineId) { delete k.on; delete k.room; delete k.x; delete k.y; delete k.bites; delete k.held; k.inv = true; }
+        const hasShelf = !!itemDef(m.def)?.surfaces?.length, n = recipe.outputs.length;
+        recipe.outputs.forEach((def, j) => {
+          let it = s.items.find((i) => i.inv && i.def === def && !made.includes(i.id));
+          if (!it) { it = { id: s.next++, def }; s.items.push(it); }
+          delete it.inv; it.room = m.room; it.x = m.x + (j - (n - 1) / 2) * 50; it.y = m.y;
+          if (hasShelf) it.on = { id: m.id, s: 0, dx: (j - (n - 1) / 2) * 40 };
+          else { const room = s.rooms.find((r) => r.id === m.room); const pos = room && landing(s, def, room, m.x + 80 + j * 50, m.y, it.id); if (pos) { it.x = pos.x; it.y = pos.y; if (pos.on) it.on = { ...pos.on }; } }
+          made.push(it.id);
+        });
+        syncChildren(s);
+      });
+      return made;
+    },
+
     // Откусить (выпить глоток). После третьего раза вещь съедена — уходит «в шкаф», её можно взять снова.
     bite(itemId) {
       let eaten = false;

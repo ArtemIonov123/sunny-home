@@ -333,6 +333,29 @@ async function device(name, width, height, touch) {
     check(!!worn, 'футболку отдали герою — надета');
   }
 
+  // 20. Рецепт: два банана в блендере → нажать на блендер → банановый фреш
+  {
+    const m = await p.evaluate(() => {
+      const S = window.__sunny, b = S.store.state.items.find((i) => i.def === 'blender' && !i.inv);
+      if (!b) return null;
+      S.store.change((s) => {
+        for (const d of ['banana', 'banana']) { const it = { id: s.next++, def: d, room: b.room, x: b.x, y: b.y, on: { id: b.id, s: 0, dx: 0 } }; s.items.push(it); }
+        S.physics.syncChildren(s);
+      });
+      const L = S.store.layout.byId.get(b.room);
+      S.camera.holdAt(L.x0 + b.x - S.camera.viewW / 2); S.camera.mode = 'idle'; S.store.touch();
+      return { id: b.id, wx: L.x0 + b.x, wy: b.y - 40 };
+    });
+    if (m) {
+      await p.waitForTimeout(300);
+      const pt = await toClient(m.wx, m.wy);
+      if (touch) await p.touchscreen.tap(pt.x, pt.y); else await p.mouse.click(pt.x, pt.y);
+      await p.waitForTimeout(3000);
+      const out = await p.evaluate((id) => window.__sunny.store.state.items.filter((i) => i.on?.id === id).map((i) => i.def), m.id);
+      check(out.length === 1 && out[0] === 'smoothie_banana', 'блендер: 2 банана → банановый фреш (' + out.join(',') + ')');
+    }
+  }
+
   // 17. Телевизор: нажатие включает (идёт мультик), повторное — выключает
   {
     const tv = await p.evaluate(() => {

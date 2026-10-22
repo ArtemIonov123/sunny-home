@@ -18,6 +18,8 @@ export const anims = {
   hop(key) { list.set(key, { type: 'hop', t0: now(), dur: 0.5 }); },
   // Будильник: звенит — часто дрожит и подпрыгивает, затихая.
   ring(key) { list.set(key, { type: 'ring', t0: now(), dur: 1.3 }); },
+  // Прибор работает: мелко трясётся всё время готовки.
+  shake(key, dur) { list.set(key, { type: 'shake', t0: now(), dur }); },
   // Вернуться туда, откуда взяли (если положить некуда).
   back(key, dx, dy) { list.set(key, { type: 'back', t0: now(), dur: 0.35, dx, dy }); },
 
@@ -45,6 +47,7 @@ export const anims = {
         return { dx: 0, dy: -60 * up, rot: Math.sin(p * Math.PI * 2) * 0.06, sx: 1 - 0.05 * up, sy: 1 + 0.07 * up };
       }
       case 'ring': { const f = (1 - p) ** 0.6; return { dx: Math.sin(p * 90) * 2.5 * f, dy: -Math.abs(Math.sin(p * 45)) * 6 * f, rot: Math.sin(p * 110) * 0.16 * f, sx: 1, sy: 1 }; }
+      case 'shake': { const f = Math.min(1, (1 - p) * 6, p * 10); return { dx: Math.sin(p * a.dur * 80) * 3 * f, dy: -Math.abs(Math.sin(p * a.dur * 47)) * 2 * f, rot: Math.sin(p * a.dur * 63) * 0.03 * f, sx: 1, sy: 1 }; }
       case 'back': { const q = easeOutBack(p); return { dx: a.dx * (1 - q), dy: a.dy * (1 - q), rot: 0, sx: 1, sy: 1 }; }
       default: return null;
     }
