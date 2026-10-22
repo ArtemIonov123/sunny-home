@@ -103,6 +103,25 @@ export function toDef(rec) {
 }
 
 export function putCustomDef(def) { custom.set(def.id, def); }
+
+// ── Правки встроенных предметов (из студии или из пака) ──
+// Правка: { id, name?, group?, size?, art? } — size заменяет h или w (то, чем задан размер предмета).
+const original = new Map(); // id → копия исходного определения
+export function sizeKey(id) { return ITEMS[id]?.h !== undefined || original.get(id)?.h !== undefined ? 'h' : 'w'; }
+export function applyOverride(o) {
+  const d = ITEMS[o.id]; if (!d) return false;
+  if (!original.has(o.id)) original.set(o.id, { ...d });
+  const base = original.get(o.id);
+  Object.assign(d, base); // сначала вернуть исходное, потом наложить правку
+  if (o.name) d.name = o.name;
+  if (o.group && GROUPS[o.group]) d.group = o.group;
+  if (o.size) d[sizeKey(o.id)] = o.size;
+  if (o.art) d.art = o.art;
+  return true;
+}
+export function clearOverride(id) { const base = original.get(id); if (base && ITEMS[id]) { for (const k of Object.keys(ITEMS[id])) delete ITEMS[id][k]; Object.assign(ITEMS[id], base); } }
+export const originalDef = (id) => original.get(id) || ITEMS[id] || null;
+export const isBuiltin = (id) => !!ITEMS[id];
 export function removeCustomDef(id) { custom.delete(id); }
 
 export const CHARS = {

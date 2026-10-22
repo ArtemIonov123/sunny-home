@@ -1,7 +1,7 @@
 // Админка → «Предметы»: свои предметы из картинок GPT.
 // Картинка → название → группа → куда ставится → размер (сравнение с Милой) → сохранить.
-import { GROUPS, PLACES, allItemDefs, itemDef } from '../core/catalog.js';
-import { listRecords, getRecord, saveRecord, deleteRecord, importPack, exportPack, newId, MIN_W, MAX_W, LIBRARY_LIMIT } from '../core/library.js';
+import { GROUPS, PLACES, allItemDefs, itemDef, originalDef, sizeKey } from '../core/catalog.js';
+import { listRecords, getRecord, saveRecord, deleteRecord, importPack, exportPack, newId, MIN_W, MAX_W, LIBRARY_LIMIT, getOverride, saveOverride, resetOverride } from '../core/library.js';
 import { normalize } from '../core/actions.js';
 import { img, loadImage } from '../assets.js';
 import { escapeHtml as esc } from '../util.js';
@@ -55,10 +55,44 @@ export function createItemEditor({ store, actions, toast, onChange }) {
       </div>
       <p class="adm-help">Свои предметы: ${mine.length} из ${LIBRARY_LIMIT}. Пак — это файл со всеми своими предметами и картинками: так их можно перенести на другое устройство. Подходят и паки старой админки 0.3.</p>
       <div class="ie-grid">${mine.map((r) => `<button class="ie-card" data-ie-edit="${esc(r.id)}"><img src="${img('custom/' + r.id)?.src || r.image}" alt=""><b>${esc(r.name)}</b><small>${GROUPS[r.group]} · ${PLACES[r.place].split(' ')[0]} ${PLACES[r.place].split(' ')[1] || ''}</small></button>`).join('') || '<p class="adm-help">Пока нет своих предметов. Нажми «Новый предмет» и загрузи картинку от GPT.</p>'}</div>
-      <details class="ie-builtins"><summary>Встроенные предметы (${builtins.length})</summary><p class="adm-help">${builtins.map((d) => esc(d.name)).join(' · ')}</p></details>`;
+      <h4>Встроенные предметы (${builtins.length})</h4>
+      <p class="adm-help">Можно поменять название, группу, размер и картинку. «Вернуть как было» — исходный вид. Правки попадают в пак (вкладка «Паки»).</p>
+      <div class="ie-grid">${builtins.map((d) => `<button class="ie-card${getOverride(d.id) ? ' changed' : ''}" data-ie-builtin="${esc(d.id)}"><img src="${img(d.art)?.src || ''}" alt=""><b>${esc(d.name)}</b><small>${GROUPS[d.group] || ''}${getOverride(d.id) ? ' · изменён' : ''}</small></button>`).join('')}</div>`;
+  }
+
+  // Встроенный предмет: черновик правки. size — в той мере, которой задан предмет (высота или ширина).
+  function builtinDraft(id) {
+    const def = itemDef(id), base = originalDef(id), o = getOverride(id), key = sizeKey(id);
+    return { builtin: true, id, name: def.name, group: def.group, place: def.place, sizeKey: key, size: def[key], baseSize: base[key], image: o?.image || '', origArt: base.art };
+  }
+  const imgSrc = (d) => d.image || (d.builtin ? img(d.origArt)?.src : '') || '';
+
+  function builtinForm() {
+    const d = draft, changed = !!getOverride(d.id);
+    const opt = (obj, cur) => Object.entries(obj).map(([k, n]) => `<option value="${k}"${k === cur ? ' selected' : ''}>${n}</option>`).join('');
+    const lim = d.sizeKey === 'h' ? [30, 900] : [MIN_W, MAX_W];
+    return `<div class="ie-bar"><button data-ie-back>← Все предметы</button><b class="ie-title">Встроенный: ${esc(originalDef(d.id).name)}${dirty ? ' · есть изменения' : ''}</b></div>
+      <div class="ie-form">
+        <div class="ie-fields">
+          <label class="ie-upload"><img src="${imgSrc(d)}" alt=""><em>Заменить картинку</em><input type="file" accept="image/png,image/webp,image/jpeg" data-ie-file></label>
+          ${d.image ? '<div class="ie-actions"><button data-ie-origimg>Вернуть исходную картинку</button></div>' : ''}
+          <p class="adm-help">Картинка от GPT: прозрачный фон или розовый #FF00FF. ${itemDef(d.id).openArt ? 'У этой вещи есть «открытая» картинка — она останется прежней.' : ''}</p>
+          <label class="adm-field">Название<input data-ie-name maxlength="40" value="${esc(d.name)}"></label>
+          <label class="adm-field">Группа в каталоге<select data-ie-group>${opt(GROUPS, d.group)}</select></label>
+          <p class="adm-help">Куда ставится: ${esc(PLACES[d.place] || d.place)} (у встроенных не меняется — от этого зависят полки и открывание).</p>
+          <label class="adm-field">${d.sizeKey === 'h' ? 'Высота' : 'Ширина'} в доме · <b data-ie-wv>${d.size}</b> <small>(было ${d.baseSize})</small><input type="range" data-ie-size min="${lim[0]}" max="${lim[1]}" value="${d.size}"></label>
+        </div>
+        <div class="ie-preview"><canvas width="520" height="420" data-ie-canvas aria-label="Сравнение размера с Милой"></canvas><small>Размер рядом с Милой</small></div>
+      </div>
+      <div class="ie-actions">
+        <button data-ie-save class="primary">Сохранить</button>
+        <button data-ie-save-put>Сохранить и поставить в дом</button>
+        ${changed ? '<button data-ie-reset class="danger">Вернуть как было</button>' : ''}
+      </div>`;
   }
 
   function form() {
+    if (draft.builtin) return builtinForm();
     const d = draft, exists = !!getRecord(d.id);
     const opt = (obj, cur) => Object.entries(obj).map(([k, n]) => `<option value="${k}"${k === cur ? ' selected' : ''}>${n}</option>`).join('');
     return `<div class="ie-bar"><button data-ie-back>← Все предметы</button><b class="ie-title">${exists ? 'Редактировать' : 'Новый предмет'}${dirty ? ' · есть изменения' : ''}</b></div>
@@ -97,9 +131,11 @@ export function createItemEditor({ store, actions, toast, onChange }) {
     const mila = img('hero/girl'); // собранная Мила — для сравнения размера
     const standY = H * 0.86;
     if (mila) { const h = 330 * k, w = h * mila.width / mila.height; c.drawImage(mila, 70 - w / 2 + 40, standY - h, w, h); }
-    if (!draft.image) { c.fillStyle = '#b9a07c'; c.font = '16px system-ui'; c.textAlign = 'center'; c.fillText('Загрузи картинку', W * 0.66, H * 0.4); return; }
-    if (!previewIm || previewIm.src !== draft.image) { try { previewIm = await loadImage(draft.image); } catch (e) { return; } }
-    const w = draft.w * k, h = w * previewIm.height / previewIm.width, x = W * 0.66 - w / 2;
+    const src = imgSrc(draft);
+    if (!src) { c.fillStyle = '#b9a07c'; c.font = '16px system-ui'; c.textAlign = 'center'; c.fillText('Загрузи картинку', W * 0.66, H * 0.4); return; }
+    if (!previewIm || previewIm.src !== src) { try { previewIm = await loadImage(src); } catch (e) { return; } }
+    const ratio = previewIm.height / previewIm.width;
+    const w = (draft.builtin ? (draft.sizeKey === 'h' ? draft.size / ratio : draft.size) : draft.w) * k, h = w * ratio, x = W * 0.66 - w / 2;
     const y = draft.place === 'wall' ? Math.max(6, floorY * 0.45 - h / 2) : draft.place === 'doorway' ? floorY - h : standY - h;
     c.drawImage(previewIm, x, y, w, h);
     if (draft.place === 'wall' && y + h > floorY - 8) { c.fillStyle = '#b0563d'; c.font = '600 14px system-ui'; c.textAlign = 'center'; c.fillText('Слишком большой для стены', W * 0.66, H - 14); }
@@ -110,7 +146,8 @@ export function createItemEditor({ store, actions, toast, onChange }) {
     draft.name = v('[data-ie-name]') ?? draft.name;
     draft.group = v('[data-ie-group]') ?? draft.group;
     draft.place = v('[data-ie-place]') ?? draft.place;
-    draft.w = Number(v('[data-ie-w]') ?? draft.w);
+    if (draft.builtin) draft.size = Number(v('[data-ie-size]') ?? draft.size);
+    else draft.w = Number(v('[data-ie-w]') ?? draft.w);
   }
 
   async function canLeave() { return !dirty || confirm('Есть несохранённые изменения. Выйти без сохранения?'); }
@@ -118,6 +155,7 @@ export function createItemEditor({ store, actions, toast, onChange }) {
   async function save(putToInventory) {
     if (busy) return;
     read();
+    if (draft.builtin) return saveBuiltin(putToInventory);
     if (!draft.image) { toast('Сначала загрузи картинку', true); return; }
     busy = true;
     try {
@@ -133,11 +171,33 @@ export function createItemEditor({ store, actions, toast, onChange }) {
     render(); onChange();
   }
 
+  async function saveBuiltin(put) {
+    busy = true;
+    try {
+      const d = draft, base = originalDef(d.id);
+      await saveOverride({ id: d.id, name: d.name !== base.name ? d.name : undefined, group: d.group !== base.group ? d.group : undefined, size: d.size !== d.baseSize ? d.size : undefined, image: d.image || undefined });
+      dirty = false;
+      store.change((s) => normalize(s), { undo: false }); // новый размер — вещи в доме перестраиваются
+      if (put) { const id = actions.take(d.id); if (id) actions.placeFromInventory(id); }
+      toast(`«${d.name}» сохранён` + (put ? ' и стоит в доме' : ''));
+      draft = builtinDraft(d.id);
+    } catch (e) { toast(e.message, true); }
+    busy = false;
+    render(); onChange();
+  }
+
   host = null;
   const onClick = async (e) => {
     const b = e.target.closest('button, .ie-card'); if (!b || !host?.contains(b)) return;
     if (b.dataset.ieNew !== undefined) { draft = fresh(); dirty = false; }
     else if (b.dataset.ieEdit) { draft = { ...getRecord(b.dataset.ieEdit) }; dirty = false; }
+    else if (b.dataset.ieBuiltin) { draft = builtinDraft(b.dataset.ieBuiltin); dirty = false; }
+    else if (b.dataset.ieOrigimg !== undefined) { read(); draft.image = ''; dirty = true; }
+    else if (b.dataset.ieReset !== undefined) {
+      if (!confirm(`Вернуть «${originalDef(draft.id).name}» как было?`)) return;
+      try { await resetOverride(draft.id); store.change((s) => normalize(s), { undo: false }); toast('Вернули как было'); draft = builtinDraft(draft.id); dirty = false; }
+      catch (err) { toast(err.message, true); }
+    }
     else if (b.dataset.ieBack !== undefined) { if (!(await canLeave())) return; draft = null; dirty = false; }
     else if (b.dataset.ieSave !== undefined) return save(false);
     else if (b.dataset.ieSavePut !== undefined) return save(true);
@@ -187,6 +247,7 @@ export function createItemEditor({ store, actions, toast, onChange }) {
   const onInput = (e) => {
     if (!host?.contains(e.target) || !draft) return;
     if (e.target.matches('[data-ie-w]')) { read(); dirty = true; host.querySelector('[data-ie-wv]').textContent = draft.w; drawPreview(); }
+    if (e.target.matches('[data-ie-size]')) { read(); dirty = true; host.querySelector('[data-ie-wv]').textContent = draft.size; drawPreview(); }
     if (e.target.matches('[data-ie-name]')) { dirty = true; }
   };
 

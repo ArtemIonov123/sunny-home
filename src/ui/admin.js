@@ -7,7 +7,7 @@ import { escapeHtml as esc } from '../util.js';
 import { validate } from '../save/migrate.js';
 import { normalize } from '../core/actions.js';
 import { createItemEditor } from './itemEditor.js';
-import { listRecords, listPacks, makePack } from '../core/library.js';
+import { listRecords, listPacks, makePack, listOverrides } from '../core/library.js';
 
 export function createAdmin({ root, store, camera, actions, toast, onChange }) {
   const el = document.createElement('section');
@@ -63,9 +63,10 @@ export function createAdmin({ root, store, camera, actions, toast, onChange }) {
     return `<p class="adm-help">Пак — набор предметов одним файлом. Отметь предметы, дай паку название и скачай файл. Чтобы пак появился в игре у игроков, файл кладётся в папку <b>packs/</b> игры (пришли его — встрою).</p>
       <label class="adm-field">Название пака<input type="text" data-pkname maxlength="40" value="${esc(packName)}" placeholder="Например: Пляж"></label>
       <div class="pk-grid">${items}</div>
-      <div class="adm-buttons"><button data-pkall>Отметить все</button><button data-pkexport class="primary"${packPick.size ? '' : ' disabled'}>↓ Скачать пак (${packPick.size})</button></div>
+      ${listOverrides().length ? `<p class="adm-help">Правки встроенных предметов (${listOverrides().length}) тоже войдут в пак.</p>` : ''}
+      <div class="adm-buttons"><button data-pkall>Отметить все</button><button data-pkexport class="primary"${packPick.size || listOverrides().length ? '' : ' disabled'}>↓ Скачать пак (${packPick.size}${listOverrides().length ? ' + правки' : ''})</button></div>
       <h4>Паки внутри игры</h4>
-      ${built.length ? `<ul class="pk-list">${built.map((p) => `<li><b>${esc(p.name)}</b> · предметов: ${p.count}</li>`).join('')}</ul>` : '<p class="adm-help">Пока нет. Встроенные паки появятся здесь.</p>'}`;
+      ${built.length ? `<ul class="pk-list">${built.map((p) => `<li><b>${esc(p.name)}</b> · предметов: ${p.count}${p.fixes ? ` · правок: ${p.fixes}` : ''}</li>`).join('')}</ul>` : '<p class="adm-help">Пока нет. Встроенные паки появятся здесь.</p>'}`;
   }
 
   function dataTab() {
@@ -112,7 +113,7 @@ export function createAdmin({ root, store, camera, actions, toast, onChange }) {
       try {
         const pack = makePack(packName, [...packPick]);
         download(JSON.stringify(pack), `pack_${pack.id}.json`);
-        toast(`Пак «${pack.name}» скачан: ${pack.items.length} предм.`);
+        toast(`Пак «${pack.name}» скачан: ${pack.items.length} предм.` + (pack.overrides.length ? `, правок: ${pack.overrides.length}` : ''));
       } catch (err) { toast(err.message, true); }
     } else if (b.dataset.export !== undefined) exportJson();
     else if (b.dataset.import !== undefined) el.querySelector('[data-file]').click();

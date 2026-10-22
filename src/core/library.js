@@ -1,9 +1,9 @@
 // Библиотека своих предметов: создаются в админке, хранятся отдельно от дома,
 // переносятся паком (JSON с картинками внутри).
 // Запись: { id:'custom_…', name, group, place, w, image:'data:image/webp;base64,…' }
-import { GROUPS, PLACES, CUSTOM_PREFIX, toDef, putCustomDef, removeCustomDef, customDefs } from './catalog.js';
+import { GROUPS, PLACES, CUSTOM_PREFIX, toDef, putCustomDef, removeCustomDef, customDefs, applyOverride, clearOverride, isBuiltin } from './catalog.js';
 import { loadImage, registerImage, forgetImage } from '../assets.js';
-import { loadCatalogRecords, saveCatalogRecords, loadOldStudio } from '../save/storage.js';
+import { loadCatalogRecords, saveCatalogRecords, loadOldStudio, loadOverrides, saveOverrides } from '../save/storage.js';
 
 export const LIBRARY_LIMIT = 60;
 export const MIN_W = 40, MAX_W = 900;
@@ -32,6 +32,53 @@ async function install(rec, { builtin = false } = {}) {
 
 export const listRecords = () => [...records.values()];
 
+// ── Правки встроенных предметов ──
+// { id: встроенный предмет, name?, group?, size?, image? (data:URL) }
+const overrides = new Map();
+export const listOverrides = () => [...overrides.values()];
+export const getOverride = (id) => overrides.get(id) || null;
+
+export function validateOverride(raw) {
+  if (!raw || !isBuiltin(raw.id)) throw new Error('Нет такого встроенного предмета');
+  const o = { id: raw.id };
+  if (typeof raw.name === 'string' && raw.name.trim()) o.name = raw.name.trim().slice(0, 40);
+  if (GROUPS[raw.group]) o.group = raw.group;
+  if (Number.isFinite(raw.size)) o.size = Math.round(Math.max(30, Math.min(1200, raw.size)));
+  if (typeof raw.image === 'string' && raw.image) {
+    if (!/^data:image\/(webp|png|jpeg);base64,[A-Za-z0-9+/]+=*$/.test(raw.image) || raw.image.length > 2_000_000) throw new Error('Картинка не подходит');
+    o.image = raw.image;
+  }
+  return o;
+}
+
+async function applyOv(o) {
+  let art = null;
+  if (o.image) { const im = await loadImage(o.image); art = 'override/' + o.id; registerImage(art, im); }
+  applyOverride({ id: o.id, name: o.name, group: o.group, size: o.size, art });
+}
+
+// Сохранить правку встроенного предмета (null-поля — вернуть исходное).
+export async function saveOverride(raw) {
+  const o = validateOverride(raw);
+  const next = new Map(overrides); next.set(o.id, o);
+  await saveOverrides([...next.values()]);
+  overrides.set(o.id, o);
+  clearOverride(o.id); forgetImage('override/' + o.id);
+  await applyOv(o);
+  return o;
+}
+export async function resetOverride(id) {
+  const next = new Map(overrides); next.delete(id);
+  await saveOverrides([...next.values()]);
+  overrides.delete(id);
+  clearOverride(id); forgetImage('override/' + id);
+}
+async function loadOwnOverrides() {
+  let list = [];
+  try { list = await loadOverrides(); } catch (e) { list = []; }
+  for (const raw of list) { try { const o = validateOverride(raw); overrides.set(o.id, o); await applyOv(o); } catch (e) { /* пропускаем испорченную */ } }
+}
+
 // ── Паки ──
 // Пак — один файл: { format:'sunny-home-pack', version:1, id, name, items:[записи предметов] }.
 // Встроенные паки игры лежат в папке packs/ и попадают в сборку (window.EMBEDDED_PACKS).
@@ -40,20 +87,23 @@ export const PACK_FORMAT = 'sunny-home-pack';
 const packs = new Map(); // id → { id, name, count }
 export const listPacks = () => [...packs.values()];
 
-export function makePack(name, ids) {
+export function makePack(name, ids, withOverrides = true) {
   const clean = String(name || '').trim().slice(0, 40) || 'Новый пак';
   const slug = clean.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '') || 'pack';
   const items = ids.map((id) => records.get(id)).filter(Boolean);
-  if (!items.length) throw new Error('Выбери хотя бы один предмет');
-  return { format: PACK_FORMAT, version: 1, id: slug + '_' + Date.now().toString(36), name: clean, created: new Date().toISOString().slice(0, 10), items };
+  const ovs = withOverrides ? listOverrides() : [];
+  if (!items.length && !ovs.length) throw new Error('Выбери хотя бы один предмет');
+  return { format: PACK_FORMAT, version: 1, id: slug + '_' + Date.now().toString(36), name: clean, created: new Date().toISOString().slice(0, 10), items, overrides: ovs };
 }
 
 export function validatePack(raw) {
   if (!raw || raw.format !== PACK_FORMAT) throw new Error('Это не пак «Солнечного дома»');
   if (!/^[a-z0-9_]{1,80}$/.test(raw.id || '')) throw new Error('У пака неверный ID');
   const items = (Array.isArray(raw.items) ? raw.items : []).map(validateRecord);
-  if (!items.length) throw new Error('В паке нет предметов');
-  return { format: PACK_FORMAT, version: 1, id: raw.id, name: String(raw.name || raw.id).slice(0, 40), items };
+  const ovs = [];
+  for (const o of Array.isArray(raw.overrides) ? raw.overrides : []) { try { ovs.push(validateOverride(o)); } catch (e) { /* неизвестный предмет — пропуск */ } }
+  if (!items.length && !ovs.length) throw new Error('В паке нет предметов');
+  return { format: PACK_FORMAT, version: 1, id: raw.id, name: String(raw.name || raw.id).slice(0, 40), items, overrides: ovs };
 }
 
 // Встроенные паки — при запуске (до чтения сохранения). Возвращает число установленных предметов.
@@ -66,7 +116,8 @@ export async function loadBuiltinPacks() {
         if (records.has(rec.id)) continue; // свой предмет с тем же ID важнее
         await install(rec, { builtin: true }); n++;
       }
-      packs.set(pack.id, { id: pack.id, name: pack.name, count: pack.items.length });
+      for (const o of pack.overrides) if (!overrides.has(o.id)) await applyOv(o); // своя правка в студии важнее
+      packs.set(pack.id, { id: pack.id, name: pack.name, count: pack.items.length, fixes: pack.overrides.length });
     } catch (e) { /* испорченный пак пропускаем — игра работает без него */ }
   }
   return n;
@@ -75,6 +126,7 @@ export const getRecord = (id) => records.get(id) || null;
 
 // При запуске. Возвращает текст предупреждения или ''.
 export async function loadLibrary() {
+  await loadOwnOverrides();
   let list = null, note = '';
   try { list = await loadCatalogRecords(); } catch (e) { list = null; }
   if (!list) {
@@ -120,7 +172,12 @@ export async function deleteRecord(id) {
 
 // Импорт пака: новый формат «sunny-home-items» v2 или пак старой Studio 0.3 (v1).
 export async function importPack(pack) {
-  if (pack?.format === PACK_FORMAT) pack = { format: 'sunny-home-items', version: 2, items: validatePack(pack).items };
+  if (pack?.format === PACK_FORMAT) {
+    const full = validatePack(pack);
+    for (const o of full.overrides) await saveOverride(o); // правки встроенных предметов из пака
+    if (!full.items.length) return full.overrides.length;
+    pack = { format: 'sunny-home-items', version: 2, items: full.items };
+  }
   if (!pack || pack.format !== 'sunny-home-items') throw new Error('Это не пак предметов «Солнечного дома»');
   const incoming = pack.version === 2 ? pack.items.map(validateRecord) : fromStudioPack(pack.items).records;
   if (!incoming.length) throw new Error('В паке нет предметов с картинками');

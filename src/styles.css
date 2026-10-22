@@ -216,3 +216,4 @@ button:disabled { opacity: .4; cursor: default; }
 .pk-item img { width: 56px; height: 56px; object-fit: contain; }
 .pk-item:has(input:checked) { border-color: #8fc07a; background: #f1fbe9; }
 .pk-list { margin: 6px 0 0 18px; padding: 0; font-size: 14px; }
+.ie-card.changed { border-color: #e0a75a; background: #fff5e3; }

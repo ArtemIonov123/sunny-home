@@ -103,6 +103,20 @@ export async function saveCatalogRecords(records) {
   throw new Error('Браузер не смог сохранить предметы. Скачай пак в «Данные» и освободи место.');
 }
 
+// Правки встроенных предметов (название, группа, размер, своя картинка) — рядом со своими предметами.
+const OVERRIDES_KEY = 'sunny-home-overrides-v1';
+export async function loadOverrides() {
+  const remote = await idb(await db(), 'catalog', 'readonly', 'overrides');
+  if (Array.isArray(remote)) return remote;
+  const local = readLocal(OVERRIDES_KEY);
+  return Array.isArray(local) ? local : [];
+}
+export async function saveOverrides(list) {
+  if (await idb(await db(), 'catalog', 'readwrite', 'overrides', list)) return 'indexeddb';
+  try { localStorage.setItem(OVERRIDES_KEY, JSON.stringify(list)); return 'local'; } catch (e) { /* нет места */ }
+  throw new Error('Браузер не смог сохранить правку. Освободи место и попробуй снова.');
+}
+
 // Предметы из Sunny Home Studio 0.3 (старая админка), если они остались в браузере.
 export async function loadOldStudio() {
   const old = await openDb('sunny-home-studio-v1', ['data'], 1);
