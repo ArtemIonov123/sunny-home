@@ -94,9 +94,9 @@ export function createItemEditor({ store, actions, toast, onChange }) {
     c.fillStyle = '#f6e3c4'; c.fillRect(0, 0, W, floorY);
     c.fillStyle = '#e2b27c'; c.fillRect(0, floorY, W, H - floorY);
     c.fillStyle = '#c99158'; c.fillRect(0, floorY - 6, W, 8);
-    const mila = img('chars/girl');
+    const mila = img('hero/girl'); // собранная Мила — для сравнения размера
     const standY = H * 0.86;
-    if (mila) { const h = 300 * k, w = h * mila.width / mila.height; c.drawImage(mila, 70 - w / 2 + 40, standY - h, w, h); }
+    if (mila) { const h = 330 * k, w = h * mila.width / mila.height; c.drawImage(mila, 70 - w / 2 + 40, standY - h, w, h); }
     if (!draft.image) { c.fillStyle = '#b9a07c'; c.font = '16px system-ui'; c.textAlign = 'center'; c.fillText('Загрузи картинку', W * 0.66, H * 0.4); return; }
     if (!previewIm || previewIm.src !== draft.image) { try { previewIm = await loadImage(draft.image); } catch (e) { return; } }
     const w = draft.w * k, h = w * previewIm.height / previewIm.width, x = W * 0.66 - w / 2;

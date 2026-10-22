@@ -5,6 +5,7 @@ import { itemDef, allItemDefs, GROUPS, ROOM_TYPES, WALL_PATTERNS, FLOOR_MATERIAL
 import { img } from '../assets.js';
 import { escapeHtml as esc } from '../util.js';
 import { createAdmin } from './admin.js';
+import { createHeroEditor } from './heroEditor.js';
 import { installFastTap } from './tap.js';
 import { anims } from '../render/anims.js';
 import { play, soundOn, setSound } from '../audio.js';
@@ -28,6 +29,7 @@ export function createHud({ root, store, camera, actions, onChange }) {
     </div>
     <nav class="rooms" aria-label="Комнаты"></nav>
     <div class="hud-bottom-right">
+      <button class="btn big round" data-act="heroes" aria-label="Герои" title="Герои">😊</button>
       <button class="btn big round" data-act="design" aria-label="Редактор комнаты" title="Редактор комнаты">🛠️</button>
       <button class="btn big round primary" data-act="things" aria-label="Вещи" title="Вещи">🧺</button>
     </div>
@@ -46,6 +48,7 @@ export function createHud({ root, store, camera, actions, onChange }) {
   const roomsNav = q('.rooms'), toastEl = q('.toast');
   let openPanel = null, toastTimer = 0, activeRoom = null, designTab = 'furniture', startDrag = null, toLocal = (x, y) => ({ x, y }), press = null, suppressUntil = 0;
   const admin = createAdmin({ root, store, camera, actions, toast, onChange });
+  const heroEditor = createHeroEditor({ root, store, actions, onChange });
 
   const last = {};
   function syncSound() { const t = soundOn() ? '🔊' : '🔇'; if (last.sound !== t) { last.sound = t; q('[data-act=sound]').textContent = t; } }
@@ -148,6 +151,7 @@ export function createHud({ root, store, camera, actions, onChange }) {
     else if (act === 'full') fullscreen();
     else if (act === 'admin') { showPanel(null); admin.open(); }
     else if (act === 'things') showPanel('things');
+    else if (act === 'heroes') { showPanel(null); heroEditor.toggle(nearestHero()); }
     else if (act === 'design') setDesign(true);
     else if (act === 'done') setDesign(false);
     else if (act === 'arrange') {
@@ -187,7 +191,21 @@ export function createHud({ root, store, camera, actions, onChange }) {
     renderFinish();
   });
 
+  // Какого героя открыть в «Героях»: того, кто сейчас в кадре (ближе к середине экрана).
+  function nearestHero() {
+    const mid = camera.x + camera.viewW / 2;
+    let best = null, bd = Infinity;
+    for (const c of store.state.chars) {
+      if (!c.look) continue;
+      const r = store.layout.byId.get(c.room); if (!r) continue;
+      const d = Math.abs(r.x0 + c.x - mid);
+      if (d < bd) { bd = d; best = c.id; }
+    }
+    return best;
+  }
+
   function setDesign(on) {
+    if (on && heroEditor.isOpen) heroEditor.close();
     mode.set(on);
     root.closest('#app')?.classList.toggle('design', on);
     play(on ? 'open' : 'close');

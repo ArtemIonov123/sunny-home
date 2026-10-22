@@ -126,6 +126,132 @@ def grid_texture(name, rel, height):
     save(im.convert('RGB'), rel)
 
 
+# ── Герой-конструктор ──
+# Все слои кладём в ОБЩУЮ систему координат «холста героя» (как body_stand.png 1024×1536,
+# сверху добавлено место под голову), режем по содержимому и запоминаем смещение.
+# Серые (перекрашиваемые) пиксели → слой *_t, цветные и контур → слой *_f.
+HERO_TOP = 330            # запас сверху под голову и причёски (в единицах body_stand)
+HERO_OUT = 0.5            # итоговый масштаб картинок
+HEAD_S = 0.5              # голова в масштабе тела
+HEAD_AT = (512, 250)      # куда приходится подбородок (центр низа головы) на теле
+HEAD_CHIN = (676, 1110)   # подбородок на head.png
+FACE_BOX = (204, 272, 1050, 1014)    # лицо на face_*.png
+FACE_TO = (380, 440, 972, 960)       # куда лицо ложится на head.png
+# Подгонка одежды: рамка вещи → рамка на теле (body_stand / голова), если GPT нарисовал не в том месте.
+WEAR_FIT = {
+    'wear_tshirt': ('body', (262, 262, 762, 724)),
+    'wear_pants': ('body', (310, 668, 714, 1338)),
+    'wear_skirt': ('body', (184, 656, 840, 1068)),
+    'wear_sneakers': ('body', (332, 1318, 692, 1436)),
+    'wear_cap': ('head', (40, 0, 1290, 600)),
+    'wear_glasses': ('head', (330, 500, 1020, 760)),
+}
+
+
+def hero_canvas_size():
+    return (round(1024 * HERO_OUT), round((1536 + HERO_TOP) * HERO_OUT))
+
+
+def place(im, scale, ox, oy):
+    """Картинку (её 0,0) — в координаты холста героя: масштаб и смещение (в единицах тела)."""
+    W, H = hero_canvas_size()
+    s = scale * HERO_OUT
+    im = im.resize((max(1, round(im.width * s)), max(1, round(im.height * s))), Image.LANCZOS)
+    canvas = Image.new('RGBA', (W, H))
+    canvas.alpha_composite(im, (round(ox * HERO_OUT), round((oy + HERO_TOP) * HERO_OUT))) if ox >= 0 and oy + HERO_TOP >= 0 else canvas.paste(im, (round(ox * HERO_OUT), round((oy + HERO_TOP) * HERO_OUT)), im)
+    return canvas
+
+
+def head_to_body(im):
+    """Слой в координатах head.png → холст героя."""
+    ox = HEAD_AT[0] - HEAD_CHIN[0] * HEAD_S
+    oy = HEAD_AT[1] - HEAD_CHIN[1] * HEAD_S
+    return place(im, HEAD_S, ox, oy)
+
+
+def fit_box(im, box_to, canvas_size):
+    """Растянуть содержимое картинки в рамку box_to на холсте размера canvas_size."""
+    bb = solid_bbox(im)
+    part = im.crop(bb)
+    w, h = box_to[2] - box_to[0], box_to[3] - box_to[1]
+    part = part.resize((max(1, w), max(1, h)), Image.LANCZOS)
+    out = Image.new('RGBA', canvas_size)
+    out.alpha_composite(part, (box_to[0], box_to[1]))
+    return out
+
+
+def split_tint(im):
+    """Серое (перекрашивается) отдельно от цветного и контура. Серое нормализуем: светлое → почти белое."""
+    px = im.load()
+    t = Image.new('RGBA', im.size); f = Image.new('RGBA', im.size)
+    tp, fp = t.load(), f.load()
+    vals = []
+    for y in range(im.height):
+        for x in range(im.width):
+            r, g, b, a = px[x, y]
+            if not a:
+                continue
+            mx, mn = max(r, g, b), min(r, g, b)
+            sat = (mx - mn) / mx if mx else 0
+            if sat < 0.16 and mx > 75:
+                tp[x, y] = (mx, mx, mx, a); vals.append(mx)
+            else:
+                fp[x, y] = (r, g, b, a)
+    if vals:
+        vals.sort(); wp = vals[int(len(vals) * 0.9)]
+        lut = [min(255, round(v * 250 / max(wp, 1))) for v in range(256)]
+        r, g, b, a = t.split()
+        t = Image.merge('RGBA', (r.point(lut), g.point(lut), b.point(lut), a))
+    return t, f
+
+
+def hero_layer(name, canvas, layout, tint=True):
+    """Сохранить слой: обрезать по содержимому, записать смещение."""
+    parts = split_tint(canvas) if tint else (None, canvas)
+    for suffix, im in zip(('t', 'f'), parts):
+        if im is None:
+            continue
+        bb = im.getchannel('A').getbbox()
+        if not bb:
+            continue
+        key = f'hero/{name}_{suffix}'
+        save(im.crop(bb), key + '.webp', quality=90)
+        layout[key] = bb[:2]
+
+
+def build_hero():
+    L = lambda n: Image.open(os.path.join(SRC, 'hero', n + '.png')).convert('RGBA')
+    layout = {}
+    W, H = hero_canvas_size()
+    hero_layer('body_stand', place(L('body_stand'), 1, 0, 0), layout)
+    hero_layer('head', head_to_body(L('head')), layout)
+    # Лица: все в одной рамке (GPT нарисовал их одинаково).
+    s = (FACE_TO[2] - FACE_TO[0]) / (FACE_BOX[2] - FACE_BOX[0])
+    for n in ('happy', 'laugh', 'sad', 'surprised', 'sleep', 'yum'):
+        f = L('face_' + n)
+        on_head = Image.new('RGBA', (1355, 1161))
+        fs = f.resize((round(f.width * s), round(f.height * s)), Image.LANCZOS)
+        on_head.alpha_composite(fs, (round(FACE_TO[0] - FACE_BOX[0] * s), round(FACE_TO[1] - FACE_BOX[1] * s))) if FACE_TO[0] - FACE_BOX[0] * s >= 0 else on_head.paste(fs, (round(FACE_TO[0] - FACE_BOX[0] * s), round(FACE_TO[1] - FACE_BOX[1] * s)), fs)
+        hero_layer('face_' + n, head_to_body(on_head), layout, tint=False)
+    for n in ('braids', 'bob', 'ponytail', 'bun', 'curly', 'spiky', 'bangs', 'long_front', 'long_back'):
+        hero_layer('hair_' + n, head_to_body(L('hair_' + n).crop((0, 0, 1355, 1161))), layout)
+    for n in ('wear_tshirt', 'wear_dress', 'wear_pants', 'wear_skirt', 'wear_sneakers', 'wear_cap', 'wear_glasses'):
+        im = L(n)
+        fit = WEAR_FIT.get(n)
+        if fit and fit[0] == 'head':
+            hero_layer(n, head_to_body(fit_box(im, fit[1], (1355, 1161))), layout)
+        else:
+            if fit:
+                im = fit_box(im, fit[1], (1024, 1536))
+            hero_layer(n, place(im, 1, 0, 0), layout)
+    js = ['// Создано tools/prepare_art.py — не править руками. Смещения слоёв героя на общем холсте.',
+          f'export const HERO_SIZE = [{W}, {H}];',
+          'export const HERO_LAYERS = {']
+    js += [f"  '{k}': [{v[0]}, {v[1]}]," for k, v in sorted(layout.items())]
+    js.append('};')
+    open(os.path.join(ROOT, 'src', 'render', 'heroLayout.js'), 'w').write('\n'.join(js) + '\n')
+
+
 def copy_webp(name, rel):
     im = Image.open(os.path.join(SRC, name))
     save(im.convert('RGBA'), rel, quality=90)
@@ -170,6 +296,8 @@ if __name__ == '__main__':
     for n, mw, mh in [('bed', 1000, None), ('nightstand', 400, None), ('bedside_lamp', None, 360), ('dresser', 700, None),
                       ('teddy_bear', 260, None), ('alarm_clock', 200, None), ('book', None, 220), ('wall_shelf_small', 500, None)]:
         sprite(f'bedroom/{n}.png', f'items/{n}.webp', max_w=mw, max_h=mh)
+    # Герой-конструктор (тело, голова, лица, причёски, одежда — слоями).
+    build_hero()
     # Из прототипа 0.4.1
     copy_webp('legacy/room_table.webp', 'items/table.webp')
     copy_webp('legacy/room_picture.webp', 'items/picture.webp')

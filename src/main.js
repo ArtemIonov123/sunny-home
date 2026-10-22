@@ -16,6 +16,7 @@ import { play } from './audio.js';
 import { surfacesOf } from './core/physics.js';
 import { mode } from './ui/mode.js';
 import { itemDef } from './core/catalog.js';
+import { refreshHero } from './render/hero.js';
 
 const $ = (id) => document.getElementById(id);
 
@@ -40,6 +41,7 @@ async function boot() {
     } catch (e) { /* нет старой комнаты */ }
   }
   if (!state) state = validate(defaultState());
+  for (const c of state.chars) refreshHero(c.id, c.look); // картинки героев — до расстановки (нужны размеры)
   normalize(state);
 
   const store = createStore(state);
@@ -53,6 +55,7 @@ async function boot() {
   hud.setDragStarter(interaction.startFromInventory, viewport.toLocal);
 
   // ── кадры: рисуем только когда что-то меняется или движется ──
+  const faceNow = new Map(), faceTimers = new Map(); // временное лицо героя (смех после щекотки)
   let running = false, last = 0, night = state.night ? 1 : 0;
   function invalidate() { if (!running) { running = true; last = 0; requestAnimationFrame(frame); } }
   // Автокачество: если кадры подряд идут медленно (дольше ~28 мс), снижаем чёткость холста.
@@ -108,7 +111,7 @@ async function boot() {
       return res;
     });
   }
-  store.on('change', ({ save }) => { invalidate(); if (save) { clearTimeout(saveTimer); saveTimer = setTimeout(saveNow, 400); } });
+  store.on('change', ({ save }) => { for (const c of store.state.chars) refreshHero(c.id, c.look, faceNow.get(c.id)); invalidate(); if (save) { clearTimeout(saveTimer); saveTimer = setTimeout(saveNow, 400); } });
   window.addEventListener('pagehide', () => { saveNow(); });
   document.addEventListener('visibilitychange', () => { if (document.hidden) saveNow(); });
 
@@ -121,7 +124,16 @@ async function boot() {
   // Без текста: звук и движение говорят сами за себя.
   interaction.on('stashed', () => hud.refreshThings());
   interaction.on('tap', ({ kind, id }) => {
-    if (kind === 'char') { anims.hop('char:' + id); play(id === 'cat' ? 'meow' : 'boing'); }
+    if (kind === 'char') {
+      anims.hop('char:' + id); play(id === 'cat' ? 'meow' : 'boing');
+      // Пощекотали — смеётся, потом возвращается обычное лицо.
+      const c = store.state.chars.find((c) => c.id === id);
+      if (c?.look) {
+        faceNow.set(id, 'laugh'); refreshHero(id, c.look, 'laugh');
+        clearTimeout(faceTimers.get(id));
+        faceTimers.set(id, setTimeout(() => { faceNow.delete(id); refreshHero(id, store.state.chars.find((x) => x.id === id)?.look); invalidate(); }, 1100));
+      }
+    }
     else {
       const tapKind = itemDef(store.state.items.find((i) => i.id === id)?.def)?.tap;
       if (tapKind === 'ring') { anims.ring('item:' + id); play('ring'); invalidate(); return; }

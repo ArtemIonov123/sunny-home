@@ -106,8 +106,9 @@ export function putCustomDef(def) { custom.set(def.id, def); }
 export function removeCustomDef(id) { custom.delete(id); }
 
 export const CHARS = {
-  girl: { name: 'Мила',   art: 'chars/girl', h: 300 },
-  boy:  { name: 'Тим',    art: 'chars/boy',  h: 300 },
+  // Мила и Тим собираются из частей (render/hero.js), их картинка — 'hero/<id>'.
+  girl: { name: 'Мила',   art: 'hero/girl', h: 330 },
+  boy:  { name: 'Тим',    art: 'hero/boy',  h: 330 },
   cat:  { name: 'Персик', art: 'chars/cat',  h: 160 },
 };
 

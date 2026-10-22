@@ -4,8 +4,9 @@
 import { ITEMS, itemDef, CHARS, ROOM_TYPES, WALL_PATTERNS, FLOOR_MATERIALS } from '../core/catalog.js';
 import { defaultState, newRoom, MAX_ROOMS, NEW_IN_INVENTORY, BATH_START, BEDROOM_START, BEDROOM_SMALL } from '../core/house.js';
 import { clamp, isHex } from '../util.js';
+import { cleanLook } from '../core/looks.js';
 
-export const SCHEMA = 10;
+export const SCHEMA = 11;
 
 const MIGRATIONS = {
   // 1 → 2: появился шкафчик. Все вещи из версии 1 стоят в доме, формат вещи в доме не меняется.
@@ -100,6 +101,8 @@ const MIGRATIONS = {
     }
     return { ...s, items, next, schema: 10 };
   },
+  // 10 → 11: у героев появилась внешность (look). Нет — значит по умолчанию (подставит validate).
+  10: (s) => ({ ...s, schema: 11 }),
 };
 
 const num = (v, a, b, d) => (Number.isFinite(v) ? clamp(v, a, b) : d);
@@ -168,7 +171,10 @@ export function validate(raw) {
   const chars = Object.keys(CHARS).map((id, k) => {
     const c = (Array.isArray(s.chars) ? s.chars : []).find((c) => c?.id === id);
     const ok = c && roomIds.has(c.room) && Number.isFinite(c.x) && Number.isFinite(c.y);
-    return ok ? { id, room: c.room, x: c.x, y: c.y } : { id, room: fallbackRoom, x: 700 + k * 300, y: 800 };
+    const look = cleanLook(c?.look, id); // у кошки внешности нет
+    const out = ok ? { id, room: c.room, x: c.x, y: c.y } : { id, room: fallbackRoom, x: 700 + k * 300, y: 800 };
+    if (look) out.look = look;
+    return out;
   });
 
   const maxId = Math.max(0, ...[...ids]);

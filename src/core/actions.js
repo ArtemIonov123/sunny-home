@@ -210,6 +210,10 @@ export function createActions(store, camera) {
       return moved;
     },
 
+    // Внешность героя (кожа, волосы, лицо, одежда) — с отменой и сохранением.
+    setLook(charId, look) {
+      store.change((s) => { const c = s.chars.find((c) => c.id === charId); if (c) c.look = look; });
+    },
     toggleNight() { store.change((s) => { s.night = !s.night; }); },
   };
 }

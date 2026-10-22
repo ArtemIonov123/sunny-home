@@ -291,6 +291,22 @@ async function device(name, width, height, touch) {
     }
   }
 
+  // 18. Герои: панель выезжает, причёска и одежда меняются, после перезагрузки — те же
+  {
+    await tap('[data-act=heroes]'); await p.waitForTimeout(350);
+    check(await p.evaluate(() => !document.querySelector('.hero-sheet').hidden), 'панель «Герои» открылась');
+    await tap('[data-hs-hero=girl]');
+    await tap('[data-hs-tab=hair]'); await tap('[data-hs-hair=bun]'); await tap('[data-hs-haircolor="#d4503a"]');
+    await tap('[data-hs-tab=wear]'); await tap('[data-hs-wear=pants]');
+    const lk = await p.evaluate(() => window.__sunny.store.state.chars.find((c) => c.id === 'girl').look);
+    check(lk.hair === 'bun' && lk.hairColor === '#d4503a' && lk.wear.pants && !lk.wear.dress, `причёска, цвет и штаны (платье снято): ${JSON.stringify(lk)}`);
+    await tap('[data-hs-close]'); await p.waitForTimeout(400);
+    await p.evaluate(() => window.__sunny.saveNow());
+    await p.reload(); await p.waitForFunction(() => window.__sunny); await p.waitForTimeout(500);
+    const lk2 = await p.evaluate(() => window.__sunny.store.state.chars.find((c) => c.id === 'girl').look);
+    check(lk2.hair === 'bun' && lk2.wear.pants, 'после перезагрузки внешность та же');
+  }
+
   // 17. Телевизор: нажатие включает (идёт мультик), повторное — выключает
   {
     const tv = await p.evaluate(() => {

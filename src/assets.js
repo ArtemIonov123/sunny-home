@@ -3,7 +3,10 @@
 const images = new Map();
 const masks = new Map();
 
+import { HERO_LAYERS } from './render/heroLayout.js';
+
 export const ASSET_KEYS = [
+  ...Object.keys(HERO_LAYERS), // части героя-конструктора
   'rooms/living/wall', 'rooms/living/floor_wood', 'rooms/living/baseboard',
   'items/table', 'items/picture', 'items/window', 'items/door_frame',
   'rooms/lawn/sky', 'rooms/lawn/ground', 'rooms/lawn/fence',
@@ -16,7 +19,7 @@ export const ASSET_KEYS = [
   'items/towel_rack', 'items/soap', 'items/rubber_duck', 'items/wall_clock',
   'items/wardrobe', 'items/wardrobe_open', 'items/bed', 'items/nightstand', 'items/bedside_lamp', 'items/dresser',
   'items/teddy_bear', 'items/alarm_clock', 'items/book', 'items/wall_shelf_small',
-  'chars/girl', 'chars/boy', 'chars/cat',
+  'chars/cat',
 ];
 
 function source(key) {
