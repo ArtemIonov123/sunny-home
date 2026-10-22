@@ -157,6 +157,8 @@ const now = () => performance.now() / 1000;
 const motions = new Map(); // id вещи → { type, t0, dur }
 export const animalAnims = {
   happy(id) { motions.set(id, { type: 'happy', t0: now(), dur: 1.3 }); },
+  shake(id) { motions.set(id, { type: 'shake', t0: now(), dur: 1.1 }); },
+  progress(id, type) { const m = motions.get(id); if (!m || m.type !== type) return null; const p = (now() - m.t0) / m.dur; return p >= 0 && p <= 1 ? p : null; },
   active() { const t = now(); for (const [k, m] of motions) if (t - m.t0 > m.dur) motions.delete(k); return motions.size > 0; },
 };
 
@@ -193,6 +195,7 @@ export function animalPose(id, { walk = null, carried = false, tilt = 0, sleep =
   const m = motions.get(id);
   if (m && !sleep) {
     const p = Math.min(1, (t - m.t0) / m.dur), env = Math.sin(Math.PI * p);
+    if (m.type === 'shake') { pose.rot = Math.sin(t * 46) * 0.13 * env; pose.head = -Math.sin(t * 46) * 0.2 * env; pose.tail = Math.sin(t * 40) * 0.6 * env; } // отряхивается
     if (m.type === 'happy') { pose.tail = Math.sin(t * 24) * 0.5 * env + pose.tail * (1 - env); pose.head = -0.15 * env; }
   }
   return pose;

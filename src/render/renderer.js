@@ -7,9 +7,10 @@ import { img, maskOf } from '../assets.js';
 import { itemBounds, charBounds, charHitBox, depthOf } from '../core/placement.js';
 import { backgroundFor, clearBackgrounds, prewarm } from './background.js';
 import { anims } from './anims.js';
-import { drawWater, waterParams } from './water.js';
+import { drawWater, waterParams, cutStreams } from './water.js';
+import { soak, wetness, wantsShake, drawDrips, drawPuddle, drawShakeSpray } from './wet.js';
 import { getRig, drawRig, heroPose } from './rig.js';
-import { getAnimal, drawAnimal, animalPose } from './animal.js';
+import { getAnimal, drawAnimal, animalPose, animalAnims } from './animal.js';
 import { sizeOf } from '../assets.js';
 import { mode } from '../ui/mode.js';
 import { surfacesOf, seatsOf, isHidden, isSmall } from '../core/physics.js';
@@ -121,6 +122,23 @@ export function createRenderer(canvas, store, camera) {
     drawAnimal(ctx, rig, { x: -b.w / 2, y: -b.h, w: b.w, h: b.h }, animalPose(obj.id, { ...opts, rig }), opts.flip ?? !!obj.flip);
     ctx.restore();
     return true;
+  }
+
+  // Мокрое животное: лужица, а вышло из-под воды — отряхивается (брызги в стороны). Всегда true.
+  function wetAnimal(e) {
+    const key = 'item:' + e.obj.id, wl = wetness(key);
+    if (!wl) return true;
+    if (!e.obj.on) drawPuddle(ctx, e.b.x + e.b.w / 2, e.b.y + e.b.h, e.b.w * 0.6, wl);
+    if (wantsShake(key)) animalAnims.shake(e.obj.id);
+    afterAnimal.push(e);
+    animating = true;
+    return true;
+  }
+  let afterAnimal = [];
+  function drawAnimalWet(e) {
+    const key = 'item:' + e.obj.id, wl = wetness(key), p = animalAnims.progress(e.obj.id, 'shake');
+    if (p !== null) drawShakeSpray(ctx, e.b, p, e.obj.id);
+    if (wl) drawDrips(ctx, e.b, wl * 0.8, e.obj.id * 5, [0.35, 0.6]);
   }
 
   // Герой по частям: общая поза (прыжок, сплющивание) + движения костей (дыхание, взмах, болтание ногами).
@@ -303,7 +321,7 @@ export function createRenderer(canvas, store, camera) {
     ctx.setTransform(k, 0, 0, k, -camera.x * k, 0);
     const carried = [];
     const list = entries(drag, carried);
-    const lights = []; animating = false; idleHeroes = false;
+    const lights = []; animating = false; idleHeroes = false; afterAnimal = [];
     // Сначала позы всех вещей: вещь на мебели повторяет движение мебели (качнули шкаф — молоко качается с ним).
     const byId = new Map();
     for (const e of list) {
@@ -316,6 +334,13 @@ export function createRenderer(canvas, store, camera) {
       e.pose = pose;
       if (e.kind === 'item') byId.set(e.obj.id, e);
     }
+    // Кого может намочить вода (герои и животные): рамка тела в мире.
+    const wetBoxes = [];
+    for (const e of list) {
+      if (e.kind === 'char' && getRig(e.obj.id) && !e.obj.seat?.lie) { const h = e.hb || e.b; wetBoxes.push({ key: 'char:' + e.obj.id, x0: h.x + h.w * 0.22, y0: h.y + h.h * 0.04, x1: h.x + h.w * 0.78, y1: h.y + h.h }); }
+      else if (e.kind === 'item' && itemDef(e.obj.def)?.animal) wetBoxes.push({ key: 'item:' + e.obj.id, x0: e.b.x + e.b.w * 0.12, y0: e.b.y + e.b.h * 0.1, x1: e.b.x + e.b.w * 0.88, y1: e.b.y + e.b.h });
+    }
+    const lateWater = []; // вода, которая бьёт по герою, — поверх него
     for (const e of list) {
       const pose = e.pose;
       if (!pose || pose.dy > -20) {
@@ -331,15 +356,26 @@ export function createRenderer(canvas, store, camera) {
         after = (x, y, w, h) => {
           const m = ctx.getTransform(); // запоминаем положение — ночью свет рисуется ещё раз поверх темноты
           lights.push({ m, power, x, y, w, h, since: litSince.get(e.obj.id) });
-          if (power.water) { drawWater(ctx, tnow(), waterParams(power.water, x, y, w, h)); animating = true; }
+          if (power.water) {
+            // Струя падает на героя/животное — разбивается о него, а он мокнет. Такую воду рисуем поверх всех.
+            const ox = e.b.x + e.b.w / 2 + (e.pose?.dx || 0), oy = e.b.y + e.b.h + (e.pose?.dy || 0);
+            const cut = cutStreams(waterParams(power.water, x, y, w, h), wetBoxes.map((o) => ({ key: o.key, x0: o.x0 - ox, y0: o.y0 - oy, x1: o.x1 - ox, y1: o.y1 - oy })));
+            for (const k2 of cut.hits) soak(k2);
+            if (cut.hits.length) lateWater.push({ m: ctx.getTransform(), params: cut.params }); else drawWater(ctx, tnow(), cut.params);
+            animating = true;
+          }
           if (power.screen) { const [a, b2, c, d] = power.screen; drawScreen(x + a * w, y + b2 * h, (c - a) * w, (d - b2) * h, litSince.get(e.obj.id)); animating = true; }
         };
       }
       if (e.kind === 'item' && e.obj.held) continue; // в руке — рисуется вместе с героем
-      if (e.kind === 'item' && itemDef(e.obj.def)?.animal && drawAnimalItem(e.obj, e.b, pose, { sleep: (nightLevel > 0.5 && !e.obj.on) || pets?.poseOf(e.obj.id) === 'nap', sniff: pets?.poseOf(e.obj.id) === 'sniff', walk: pets?.walkOf(e.obj.id) })) { idleHeroes = true; if (chain.length) ctx.restore(); continue; }
+      if (e.kind === 'item' && itemDef(e.obj.def)?.animal && wetAnimal(e) && drawAnimalItem(e.obj, e.b, pose, { sleep: (nightLevel > 0.5 && !e.obj.on) || pets?.poseOf(e.obj.id) === 'nap', sniff: pets?.poseOf(e.obj.id) === 'sniff', walk: pets?.walkOf(e.obj.id) })) { if (afterAnimal.at(-1) === e) drawAnimalWet(e); idleHeroes = true; if (chain.length) ctx.restore(); continue; }
       if (e.kind === 'char' && getRig(e.obj.id)) {
         const seat = e.obj.seat ? (e.obj.seat.lie ? 'lie' : 'sit') : null;
-        drawHeroRig(e.obj.id, e.b, pose, { reach: drag?.hero === e.obj.id, seat, covered: seat === 'lie' && !!itemDef(byId.get(e.obj.seat.id)?.obj.def)?.cover });
+        const wl = wetness('char:' + e.obj.id);
+        if (wl && !seat) drawPuddle(ctx, e.b.x + e.b.w / 2, e.b.y + e.b.h, e.b.w * 0.5, wl);
+        drawHeroRig(e.obj.id, e.b, pose, { reach: drag?.hero === e.obj.id, seat, covered: !!seat && !!itemDef(byId.get(e.obj.seat.id)?.obj.def)?.cover });
+        if (seat === 'sit' && itemDef(byId.get(e.obj.seat.id)?.obj.def)?.cover) drawCover(byId.get(e.obj.seat.id)); // сидит в ванне — бортик перед ним
+        if (wl && !(seat && itemDef(byId.get(e.obj.seat.id)?.obj.def)?.cover)) { const g = e.hb ? e.hb.y + e.hb.h : e.b.y + e.b.h; drawDrips(ctx, e.b, wl, e.obj.id.length * 17, [0.1, 0.62], g); animating = true; } // с мокрого капает (в ванне — нет: капли внутри)
         if (seat === 'lie') {
           const bed = byId.get(e.obj.seat.id);
           drawCover(bed); // одеяло поверх туловища
@@ -351,6 +387,7 @@ export function createRenderer(canvas, store, camera) {
       else drawSprite(e.art, e.b, { pose, after });
       if (chain.length) ctx.restore();
     }
+    for (const L of lateWater) { ctx.save(); ctx.setTransform(L.m); drawWater(ctx, tnow(), L.params); ctx.restore(); }
     drawPartitions();
     if (guidesRoomId) drawGuides(guidesRoomId);
     if (drag && drag.kind !== 'pan') {
@@ -364,6 +401,8 @@ export function createRenderer(canvas, store, camera) {
         else drawAnimalItem(drag.obj, drag.b, null, { carried: true, tilt: drag.tilt || 0, lift: true });
       } else if (drag.kind === 'char' && getRig(drag.id) && drag.walk) drawHeroRig(drag.id, drag.b, null, { walk: drag.walk }); // идёт сам по полу
       else if (drag.kind === 'char' && getRig(drag.id)) drawHeroRig(drag.id, drag.b, { dx: 0, dy: 0, rot: drag.tilt || 0, sx: 1.06, sy: 1.06 }, { carried: true, tilt: drag.tilt || 0 });
+      const dwl = wetness((drag.kind === 'char' ? 'char:' : 'item:') + drag.id);
+      if (dwl) { drawDrips(ctx, drag.b, dwl, 99, [0.1, 0.7], drag.b.y + drag.b.h + 18); animating = true; } // несёшь мокрого — капает
       else drawSprite(drag.art, drag.b, { glow: true, tilt: drag.tilt || 0 });
       // Вещи с полок и столешницы едут вместе с мебелью.
       if (carried.length && drag.from) {

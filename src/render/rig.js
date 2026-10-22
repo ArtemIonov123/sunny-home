@@ -307,6 +307,7 @@ export function heroPose(id, { carried = false, tilt = 0, holding = false, reach
     pose.shinL = -0.24 + sw * 0.16; pose.shinR = 0.24 + sw * 0.16; // а голени — вниз и болтаются
     pose.armUpL = 0.1 + breathe * 0.015; pose.armUpR = -0.1 - breathe * 0.015;
     pose.armLoL = -0.3; pose.armLoR = 0.3;
+    if (covered) pose.only = ORDER.filter((n) => n !== 'shinL' && n !== 'shinR'); // сидит в ванне: голени — внутри, за бортиком
   } else if (seat === 'lie') {
     // Лежит и спит: дышит медленно, руки вдоль тела.
     const slow = Math.sin(t * 1.3 + ph);

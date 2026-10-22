@@ -75,3 +75,19 @@ export function waterParams(arr, x, y, w, h) {
   const [wx, wy, we, ws, dir = 0, push = 0] = arr;
   return { x: x + wx * w, y: y + wy * h, yEnd: y + we * h, width: ws * w, dir, push };
 }
+
+// Струя попала на героя или животное: вода разбивается о него (ниже не летит), а он мокнет.
+// boxes — [{ key, x0, y0, x1, y1 }] в тех же координатах, что и params. Возвращает { params, hits }.
+export function cutStreams(params, boxes) {
+  if (!boxes.length) return { params, hits: [] };
+  let yEnd = params.yEnd;
+  const hits = new Set();
+  for (const s of streams(params)) {
+    for (let i = 1; i <= 24; i++) {
+      const [px, py] = at(s.sx, s.sy, s.vx, s.vy, (s.T * i) / 24);
+      const b = boxes.find((o) => px >= o.x0 && px <= o.x1 && py >= o.y0 && py <= o.y1);
+      if (b) { hits.add(b.key); yEnd = Math.min(yEnd, Math.max(params.y + 4, py)); break; }
+    }
+  }
+  return { params: { ...params, yEnd }, hits: [...hits] };
+}

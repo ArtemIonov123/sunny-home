@@ -53,7 +53,7 @@ export const ITEMS = {
   tshirt:  { name: 'Футболка', art: 'items/tshirt', wear: 'tshirt', w: 140, anchor: 'bottom', place: 'floor', group: 'clothes' },
   pants:   { name: 'Штанишки', art: 'items/pants',  wear: 'pants', h: 160, anchor: 'bottom', place: 'floor', group: 'clothes' },
   dress:   { name: 'Платье',   art: 'items/dress',  wear: 'dress', h: 160, anchor: 'bottom', place: 'floor', group: 'clothes' },
-  bathtub:     { name: 'Ванна с душем', art: 'items/bathtub',     w: 540, anchor: 'bottom', place: 'floor', group: 'furniture', power: { water: [0.775, 0.185, 0.5, 0.13, -18, 0.18] }, surfaces: [[0.06, 0.74, 0.5]] },
+  bathtub:     { name: 'Ванна с душем', art: 'items/bathtub',     w: 540, anchor: 'bottom', place: 'floor', group: 'furniture', power: { water: [0.775, 0.185, 0.5, 0.13, -18, 0.18] }, surfaces: [[0.06, 0.74, 0.5]], seats: [[0.2, 0.8, 0.74]], cover: [0, 0.52, 1, 1] }, // сидит в ванне: бортик — поверх
   bath_sink:   { name: 'Раковина',      art: 'items/bath_sink',   h: 280, anchor: 'bottom', place: 'floor', group: 'furniture', power: { water: [0.53, 0.095, 0.27, 0.02, 0, 0.05] }, surfaces: [[0.06, 0.94, 0.205]] },
   toilet:      { name: 'Унитаз',        art: 'items/toilet', openArt: 'items/toilet_open', h: 240, anchor: 'bottom', place: 'floor', group: 'furniture', sounds: { open: 'lid', close: 'flush' }, seats: [[0.3, 0.7, 0.5]] },
   wardrobe:     { name: 'Шкаф',        art: 'items/wardrobe', openArt: 'items/wardrobe_open', h: 440, anchor: 'bottom', place: 'floor', group: 'furniture',
