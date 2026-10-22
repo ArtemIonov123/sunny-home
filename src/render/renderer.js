@@ -201,7 +201,10 @@ export function createRenderer(canvas, store, camera) {
     if (!im) return;
     const [a, b2, c, d] = def.cover, b = pe.b;
     ctx.save(); // качание кровати уже применено (герой рисуется в её «цепочке»)
-    ctx.beginPath(); ctx.rect(b.x + a * b.w, b.y + b2 * b.h, (c - a) * b.w, (d - b2) * b.h); ctx.clip();
+    ctx.beginPath();
+    if (def.coverPoly) def.coverPoly.forEach(([fx, fy], i) => (i ? ctx.lineTo : ctx.moveTo).call(ctx, b.x + fx * b.w, b.y + fy * b.h)); // по краю одеяла — подушка не режет героя
+    else ctx.rect(b.x + a * b.w, b.y + b2 * b.h, (c - a) * b.w, (d - b2) * b.h);
+    ctx.clip();
     ctx.drawImage(im, b.x, b.y, b.w, b.h);
     ctx.restore();
   }
@@ -319,7 +322,12 @@ export function createRenderer(canvas, store, camera) {
       if (e.kind === 'char' && getRig(e.obj.id)) {
         const seat = e.obj.seat ? (e.obj.seat.lie ? 'lie' : 'sit') : null;
         drawHeroRig(e.obj.id, e.b, pose, { reach: drag?.hero === e.obj.id, seat, covered: seat === 'lie' && !!itemDef(byId.get(e.obj.seat.id)?.obj.def)?.cover });
-        if (seat === 'lie') { drawCover(byId.get(e.obj.seat.id)); drawZzz(e); } // одеяло поверх, «Zzz» над головой
+        if (seat === 'lie') {
+          const bed = byId.get(e.obj.seat.id);
+          drawCover(bed); // одеяло поверх туловища
+          if (itemDef(bed?.obj.def)?.cover) drawHeroRig(e.obj.id, e.b, pose, { seat, covered: true, arms: true }); // а руки — поверх одеяла
+          drawZzz(e);
+        }
         idleHeroes = true;
       }
       else drawSprite(e.art, e.b, { pose, after });

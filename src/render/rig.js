@@ -182,7 +182,7 @@ export function buildRig(look, face = null, grip = {}) {
 const KNEE_CUT = { torso: [0, LAP_Y + 2], lap: [LAP_Y - 2, 2000], legL: [0, KNEE_Y + KNEE_LAP], legR: [0, KNEE_Y + KNEE_LAP], shinL: [KNEE_Y - KNEE_LAP, 2000], shinR: [KNEE_Y - KNEE_LAP, 2000] };
 
 // Голова спящего на подушке: наклон (рад, минус — макушкой к изголовью) и размер.
-export const LIE = { tilt: -0.85, scale: 0.78 };
+export const LIE = { tilt: -1.2, scale: 0.8, arm: -0.4, fore: -1.2 }; // arm, fore — руки сложены на одеяле
 
 // Нарисовать героя по позе. b — рамка героя в мире (как у картинки), pose — углы костей.
 const HAND = [412, 578], MOUTH = [256, 236]; // правая ладошка и рот на холсте героя
@@ -290,7 +290,7 @@ export const rigAnims = {
 };
 
 // Поза героя сейчас. carried — герой в руке (скорость для болтания ногами).
-export function heroPose(id, { carried = false, tilt = 0, holding = false, reach = false, seat = null, covered = false } = {}) {
+export function heroPose(id, { carried = false, tilt = 0, holding = false, reach = false, seat = null, covered = false, arms = false } = {}) {
   const t = now(), ph = (id.charCodeAt(0) % 7) * 0.9; // у каждого героя своя фаза — не дышат хором
   const breathe = Math.sin(t * 2.2 + ph);
   const pose = {
@@ -311,8 +311,11 @@ export function heroPose(id, { carried = false, tilt = 0, holding = false, reach
     // Лежит и спит: дышит медленно, руки вдоль тела.
     const slow = Math.sin(t * 1.3 + ph);
     pose.lie = true; pose.bob = slow * 1.2; pose.head = 0.05;
-    if (covered) { pose.only = ['hairBack', 'head']; pose.lieHead = true; pose.head = Math.sin(t * 0.7 + ph) * 0.03; } // под одеялом — видна только голова на подушке
     pose.armUpL = 0.04; pose.armUpR = -0.04; pose.armLoL = 0; pose.armLoR = 0;
+    if (covered) {
+      pose.only = arms ? ['armUpL', 'armLoL', 'armUpR', 'armLoR'] : ['hairBack', 'torso', 'head']; pose.lieHead = true; pose.head = Math.sin(t * 0.7 + ph) * 0.03;
+      pose.armUpL = LIE.arm + slow * 0.02; pose.armUpR = -LIE.arm - slow * 0.02; pose.armLoL = LIE.fore; pose.armLoR = -LIE.fore; // руки на одеяле
+    } // под одеялом: голова на подушке, плечи уходят под одеяло, руки — поверх одеяла (ноги не рисуем)
   }
   if (holding && seat !== 'lie') { pose.armUpR = -0.1; pose.armLoR = -0.45; } // держит вещь чуть перед собой
   if (reach) { // к герою поднесли вещь — тянется навстречу
