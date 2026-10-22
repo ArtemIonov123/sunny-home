@@ -77,13 +77,24 @@ async function fit(src, size) {
   cv.getContext('2d').drawImage(im, (size - im.width * s) / 2, (size - im.height * s) / 2, im.width * s, im.height * s);
   return cv;
 }
-async function makeCover(items, k) {
+export const COVER_COLORS = ['#ffd68c', '#bae2ff', '#ffc4d6', '#c8ecbe', '#e1cdff', '#ffb38a', '#9fe3d6', '#fff1a8', '#f3e3cf', '#c9d3ff'];
+// Картинка «во весь холст» (обрезка по центру, как background-size: cover).
+async function drawCover(c, src, W, H) {
+  const im = await loadImage(src), s = Math.max(W / im.width, H / im.height);
+  c.drawImage(im, (W - im.width * s) / 2, (H - im.height * s) / 2, im.width * s, im.height * s);
+}
+// Обложка пака 480×300. style: { color, bg (своя картинка-фон под вещами), full (своя обложка целиком) }.
+export async function makeCover(items, k = 0, style = {}) {
   const W = 480, H = 300, cv = document.createElement('canvas'); cv.width = W; cv.height = H;
   const c = cv.getContext('2d');
   c.beginPath(); c.roundRect ? c.roundRect(0, 0, W, H, 36) : c.rect(0, 0, W, H); c.clip();
-  c.fillStyle = COLORS[k % COLORS.length]; c.fillRect(0, 0, W, H);
-  c.fillStyle = 'rgba(255,255,255,.35)';
-  for (const [x, y, r] of [[60, 50, 70], [420, 260, 110], [400, 40, 40], [90, 270, 50]]) { c.beginPath(); c.arc(x, y, r, 0, Math.PI * 2); c.fill(); }
+  if (style.full) { await drawCover(c, style.full, W, H); return cv.toDataURL('image/webp', 0.88); }
+  c.fillStyle = style.color || COLORS[k % COLORS.length]; c.fillRect(0, 0, W, H);
+  if (style.bg) await drawCover(c, style.bg, W, H);
+  else {
+    c.fillStyle = 'rgba(255,255,255,.35)';
+    for (const [x, y, r] of [[60, 50, 70], [420, 260, 110], [400, 40, 40], [90, 270, 50]]) { c.beginPath(); c.arc(x, y, r, 0, Math.PI * 2); c.fill(); }
+  }
   const pics = items.slice(0, 4), n = pics.length, size = n <= 2 ? 170 : 140;
   for (let i = 0; i < n; i++) {
     const t = await fit(pics[i].image, size);
@@ -101,6 +112,7 @@ export async function readCatalog() {
 // Опубликовать (или обновить) пак: файл пака + запись в каталоге. Возвращает запись каталога.
 export async function publishPack(raw, onStep = () => {}) {
   const pack = { ...validatePack(raw), price: Math.max(0, Number(raw.price) || 0) };
+  if (raw.coverStyle) pack.coverStyle = raw.coverStyle; // фон обложки — хранится в паке, чтобы при обновлении остался
   onStep('Читаю магазин…');
   const { cat, sha } = await readCatalog();
   const old = cat.packs.find((p) => p.id === pack.id), k = old ? cat.packs.indexOf(old) : cat.packs.length;
@@ -109,7 +121,7 @@ export async function publishPack(raw, onStep = () => {}) {
     id: pack.id, name: pack.name, version: (old?.version || 0) + 1,
     price: pack.price, currency: 'PLN', priceLabel: pack.price ? pack.price.toFixed(2).replace('.', ',') + ' zł' : '',
     product: 'pack_' + pack.id, file: 'packs/' + pack.id + '.json', items: pack.items.length,
-    cover: pack.items.length ? await makeCover(pack.items, k) : old?.cover || '',
+    cover: pack.items.length || pack.coverStyle?.full ? await makeCover(pack.items, k, pack.coverStyle || {}) : old?.cover || '',
     preview: await Promise.all(pack.items.slice(0, 8).map(async (it) => (await fit(it.image, 96)).toDataURL('image/webp', 0.8))),
   };
   onStep('Загружаю пак…');

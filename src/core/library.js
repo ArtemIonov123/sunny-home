@@ -119,13 +119,13 @@ export const listPacks = () => [...packs.values()];
 const TR = { а: 'a', б: 'b', в: 'v', г: 'g', д: 'd', е: 'e', ё: 'e', ж: 'zh', з: 'z', и: 'i', й: 'y', к: 'k', л: 'l', м: 'm', н: 'n', о: 'o', п: 'p', р: 'r', с: 's', т: 't', у: 'u', ф: 'f', х: 'h', ц: 'c', ч: 'ch', ш: 'sh', щ: 'sch', ъ: '', ы: 'y', ь: '', э: 'e', ю: 'yu', я: 'ya', ą: 'a', ć: 'c', ę: 'e', ł: 'l', ń: 'n', ó: 'o', ś: 's', ź: 'z', ż: 'z' };
 const translit = (s) => [...s].map((ch) => TR[ch] ?? ch).join('');
 
-export function makePack(name, ids, withOverrides = true, price = 0, keepId = '') {
+export function makePack(name, ids, withOverrides = true, price = 0, keepId = '', coverStyle = null) {
   const clean = String(name || '').trim().slice(0, 40) || 'Новый пак';
   const slug = translit(clean.toLowerCase()).replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '') || 'pack';
   const items = ids.map((id) => records.get(id)).filter(Boolean);
   const ovs = withOverrides ? listOverrides() : [];
   if (!items.length && !ovs.length) throw new Error('Выбери хотя бы один предмет');
-  return { format: PACK_FORMAT, version: 1, id: /^[a-z0-9_]{1,80}$/.test(keepId) ? keepId : slug + '_' + Date.now().toString(36), name: clean, created: new Date().toISOString().slice(0, 10), price: Math.max(0, Math.round(Number(price) * 100) / 100) || 0, items, overrides: ovs };
+  return { format: PACK_FORMAT, version: 1, id: /^[a-z0-9_]{1,80}$/.test(keepId) ? keepId : slug + '_' + Date.now().toString(36), name: clean, created: new Date().toISOString().slice(0, 10), price: Math.max(0, Math.round(Number(price) * 100) / 100) || 0, items, overrides: ovs, ...(coverStyle && Object.keys(coverStyle).length ? { coverStyle } : {}) };
 }
 
 export function validatePack(raw) {
@@ -135,7 +135,16 @@ export function validatePack(raw) {
   const ovs = [];
   for (const o of Array.isArray(raw.overrides) ? raw.overrides : []) { try { ovs.push(validateOverride(o)); } catch (e) { /* неизвестный предмет — пропуск */ } }
   if (!items.length && !ovs.length) throw new Error('В паке нет предметов');
-  return { format: PACK_FORMAT, version: 1, id: raw.id, name: String(raw.name || raw.id).slice(0, 40), items, overrides: ovs };
+  const out = { format: PACK_FORMAT, version: 1, id: raw.id, name: String(raw.name || raw.id).slice(0, 40), items, overrides: ovs };
+  // Оформление обложки (для студии и магазина): цвет, своя картинка-фон или обложка целиком.
+  const cs = raw.coverStyle;
+  if (cs && typeof cs === 'object') {
+    const st = {};
+    if (/^#[0-9a-f]{6}$/i.test(cs.color || '')) st.color = cs.color;
+    for (const k of ['bg', 'full']) if (typeof cs[k] === 'string' && IMG_RE.test(cs[k]) && cs[k].length < 2_000_000) st[k] = cs[k];
+    if (Object.keys(st).length) out.coverStyle = st;
+  }
+  return out;
 }
 
 // Встроенные паки — при запуске (до чтения сохранения). Возвращает число установленных предметов.

@@ -44,14 +44,28 @@ def thumb(im, size):
     return out
 
 
-def make_cover(items, k):
-    """Обложка 480×300: цветной фон с кругами и 3–4 вещи пака."""
+def cover_fill(src, W, H):
+    im = data_im(src); s = max(W / im.width, H / im.height)
+    im = im.resize((round(im.width * s), round(im.height * s)), Image.LANCZOS)
+    return im.crop(((im.width - W) // 2, (im.height - H) // 2, (im.width - W) // 2 + W, (im.height - H) // 2 + H))
+
+
+def make_cover(items, k, style=None):
+    """Обложка 480×300: фон (цвет / своя картинка / своя обложка целиком — style из студии) и 3–4 вещи пака."""
     W, H = 480, 300
-    bg = COLORS[k % len(COLORS)]
+    style = style or {}
+    mask = Image.new('L', (W, H), 0); ImageDraw.Draw(mask).rounded_rectangle((0, 0, W - 1, H - 1), 36, fill=255)
+    if style.get('full'):
+        im = cover_fill(style['full'], W, H); im.putalpha(mask); return im
+    col = style.get('color')
+    bg = tuple(int(col[i:i + 2], 16) for i in (1, 3, 5)) if col else COLORS[k % len(COLORS)]
     im = Image.new('RGBA', (W, H), bg + (255,))
     d = ImageDraw.Draw(im)
-    for i, (x, y, r) in enumerate([(60, 50, 70), (420, 260, 110), (400, 40, 40), (90, 270, 50)]):
-        d.ellipse((x - r, y - r, x + r, y + r), fill=tuple(min(255, c + 22) for c in bg) + (255,))
+    if style.get('bg'):
+        im.alpha_composite(cover_fill(style['bg'], W, H))
+    else:
+        for i, (x, y, r) in enumerate([(60, 50, 70), (420, 260, 110), (400, 40, 40), (90, 270, 50)]):
+            d.ellipse((x - r, y - r, x + r, y + r), fill=tuple(min(255, c + 22) for c in bg) + (255,))
     pics = [data_im(it['image']) for it in items[:4]]
     n = len(pics)
     for i, p in enumerate(pics):
@@ -59,7 +73,6 @@ def make_cover(items, k):
         x = int(W * (i + 1) / (n + 1) - t.width / 2)
         y = H - t.height - 30 - (18 if i % 2 else 0)
         im.alpha_composite(t, (x, y))
-    mask = Image.new('L', (W, H), 0); ImageDraw.Draw(mask).rounded_rectangle((0, 0, W - 1, H - 1), 36, fill=255)
     im.putalpha(mask)
     return im
 
@@ -76,7 +89,7 @@ def add(path, price):
     cat = load_cat()
     old = next((p for p in cat['packs'] if p['id'] == pid), None)
     k = cat['packs'].index(old) if old else len(cat['packs'])
-    cover = pack.get('cover') or to_url(make_cover(pack['items'], k), 85)
+    cover = pack.get('cover') or to_url(make_cover(pack['items'], k, pack.get('coverStyle')), 85)
     entry = {
         'id': pid, 'name': pack.get('name', pid), 'version': (old or {}).get('version', 0) + 1,
         'price': price, 'currency': 'PLN', 'priceLabel': (f'{price:.2f}'.replace('.', ',') + ' zł') if price else '',
