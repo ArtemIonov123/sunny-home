@@ -78,7 +78,7 @@ export function createSettings({ root, onChange, friends = null, toast = () => {
     if (!friends) return '';
     if (st.status !== 'on') {
       return `<div class="st-friends"><span>${st.status === 'error' ? '📡' : '⏳'}</span><div><b>Друзья</b>
-        <small>${st.status === 'error' ? 'Нет связи с сервером.' : st.status === 'connecting' ? 'Подключаюсь…' : 'Нужен интернет.'}</small></div>
+        <small>${st.status === 'error' ? 'Нет связи с сервером.' : st.status === 'connecting' ? 'Подключаюсь…' : 'Нужен интернет.'}</small>${st.status === 'error' && st.error ? `<small class="fr-err">${esc(st.error)}</small>` : ''}</div>
         ${st.status !== 'connecting' ? '<button data-fr-retry aria-label="Ещё раз">🔄</button>' : ''}</div>`;
     }
     const person = (f, extra) => `<div class="fr-person"><span class="fr-ava${f.online ? ' on' : ''}"><img src="${avatarFromLook(f.look, f.bg)}" alt=""></span><b>${esc(f.nick || '…')}</b>${extra}</div>`;
