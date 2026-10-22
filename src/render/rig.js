@@ -15,9 +15,12 @@ const mx = (p) => [W - p[0], p[1]]; // зеркально: правая стор
 const mxPoly = (poly) => poly.map(mx);
 
 // Суставы (на холсте героя). «Левая» — слева на картинке.
+// Отдельные части от GPT есть? Тогда суставы — по ним (посчитаны по перекрытию частей), иначе — по вырезанному телу.
+const HAS_PARTS = !!HERO_LAYERS['hero/arm_upper_left_t'] || !!HERO_LAYERS['hero/arm_upper_left_f'];
+const SH = HAS_PARTS ? [185, 336] : [176, 336], EL = HAS_PARTS ? [148, 442] : [140, 458];
 export const JOINTS = {
-  neck: [256, 300], hipL: [212, 584], hipR: [300, 584],
-  shoulderL: [176, 336], elbowL: [140, 458], shoulderR: mx([176, 336]), elbowR: mx([140, 458]),
+  neck: [256, 300], hipL: HAS_PARTS ? [211, 580] : [212, 584], hipR: HAS_PARTS ? [301, 580] : [300, 584],
+  shoulderL: SH, elbowL: EL, shoulderR: mx(SH), elbowR: mx(EL),
 };
 // Кость: сустав, родитель, область на холсте (чтобы не держать лишние пиксели).
 export const BONES = {
@@ -160,6 +163,22 @@ export function buildRig(look, face = null, grip = {}) {
 
 // Нарисовать героя по позе. b — рамка героя в мире (как у картинки), pose — углы костей.
 const HAND = [412, 578], MOUTH = [256, 236]; // правая ладошка и рот на холсте героя
+
+// Углы плеча и предплечья, чтобы ладошка оказалась у рта (две кости, локоть — внутрь, через грудь).
+let reachCache = null;
+function reachMouth() {
+  if (reachCache) return reachCache;
+  const S = JOINTS.shoulderR, E = JOINTS.elbowR, T = [MOUTH[0] + 18, MOUTH[1] + 12];
+  const L1 = Math.hypot(E[0] - S[0], E[1] - S[1]), L2 = Math.hypot(HAND[0] - E[0], HAND[1] - E[1]);
+  const d = Math.min(Math.hypot(T[0] - S[0], T[1] - S[1]), L1 + L2 - 1);
+  const a0 = Math.atan2(E[1] - S[1], E[0] - S[0]), b0 = Math.atan2(HAND[1] - E[1], HAND[0] - E[0]);
+  const al = Math.acos(Math.max(-1, Math.min(1, (L1 * L1 + d * d - L2 * L2) / (2 * L1 * d))));
+  const elbowDir = Math.atan2(T[1] - S[1], T[0] - S[0]) - al;
+  const E2 = [S[0] + L1 * Math.cos(elbowDir), S[1] + L1 * Math.sin(elbowDir)];
+  const norm = (a) => Math.atan2(Math.sin(a), Math.cos(a));
+  const up = norm(elbowDir - a0), lo = norm(Math.atan2(T[1] - E2[1], T[0] - E2[0]) - b0 - up);
+  return (reachCache = [up, lo]);
+}
 let biteCv = null;
 
 // held — вещи в руке: [{ im, w, h (в мире), bites, drink }].
@@ -178,7 +197,10 @@ export function drawRig(ctx, rig, b, pose = {}, held = []) {
     if (a) { ctx.translate(px, py); ctx.rotate(a); ctx.translate(-px, -py); }
   };
   let mHand = null, mHead = null;
-  for (const name of ORDER) {
+  // Кости из pose.front рисуются сразу после туловища (перед ним), остальные — по порядку.
+  const front = pose.front || [];
+  const order = front.length ? ORDER.filter((n) => !front.includes(n)).flatMap((n) => (n === 'torso' ? ['torso', ...front] : [n])) : ORDER;
+  for (const name of order) {
     const bn = rig.bones[name];
     if (name === 'armLoR' && held.length) { ctx.save(); apply(name); mHand = ctx.getTransform(); ctx.restore(); }
     if (name === 'head' && held.length) { ctx.save(); apply(name); mHead = ctx.getTransform(); ctx.restore(); }
@@ -259,12 +281,20 @@ export function heroPose(id, { carried = false, tilt = 0, holding = false, reach
   if (m) {
     const p = Math.min(1, (t - m.t0) / m.dur), env = Math.sin(Math.PI * Math.min(1, p * 1.2)); // плавно вверх и обратно
     if (m.type === 'wave') {
-      pose.armUpR = -0.03 - 2.3 * AMP * env;
+      pose.armUpR = -0.03 - (FULL_PARTS ? 1.95 : 2.3) * AMP * env; // рука сбоку от головы, а не за ней
       pose.armLoR = (-0.6 * env + Math.sin(t * 14) * 0.45 * env) * AMP;
       pose.head = 0.08 * env;
     } else if (m.type === 'eat') {
-      pose.toMouth = env; // вещь — ко рту и обратно
-      pose.armUpR = -0.1 - 0.5 * AMP * env; pose.armLoR = -0.45 + 0.9 * env;
+      if (FULL_PARTS) {
+        // Настоящие руки: рука сама подносит еду ко рту (через грудь), еда — в кулачке.
+        const [up, lo] = reachMouth(), u0 = pose.armUpR, l0 = pose.armLoR;
+        pose.armUpR = u0 + (up - u0) * env; pose.armLoR = l0 + (lo - l0) * env;
+        pose.front = ['armUpR', 'armLoR'];
+      } else {
+        pose.toMouth = env; // вырезанные руки далеко не поднимаются — еда «подлетает» ко рту сама
+        pose.front = ['armLoR'];
+        pose.armUpR = -0.1 - 0.5 * AMP * env; pose.armLoR = -0.45 + 0.9 * env;
+      }
       pose.head = -0.06 * env;
     } else if (m.type === 'cheer') {
       pose.armUpL = 0.03 + 2.2 * AMP * env; pose.armUpR = -0.03 - 2.2 * AMP * env;
