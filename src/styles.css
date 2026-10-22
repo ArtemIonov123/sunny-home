@@ -360,3 +360,13 @@ button.link { border: 0; background: none; color: #a8794c; text-decoration: unde
 .an-slot input { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
 .an-preview { flex: 1 1 300px; }
 .an-preview canvas { width: 100%; max-width: 560px; touch-action: none; }
+/* Позвать животное: кнопки с мордочками слева над комнатами */
+.pets { position: absolute; left: max(14px, env(safe-area-inset-left)); bottom: 84px; display: flex; flex-direction: column-reverse; gap: 10px; }
+.pets .pet { width: 64px; height: 64px; padding: 4px; border-radius: 50%; display: grid; place-items: center; }
+.pets .pet img { width: 54px; height: 54px; object-fit: contain; pointer-events: none; }
+.pets .pet.ping { animation: pet-ping .45s ease-out; }
+@keyframes pet-ping { 0% { transform: scale(1); } 40% { transform: scale(1.18) rotate(-6deg); } 100% { transform: scale(1); } }
+#app.compact .pets { bottom: 66px; }
+#app.compact .pets .pet { width: 52px; height: 52px; }
+#app.compact .pets .pet img { width: 44px; height: 44px; }
+#app.design .pets, #app.heroes .pets, #app.shopping .pets { visibility: hidden; }

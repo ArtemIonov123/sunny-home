@@ -12,6 +12,7 @@ import { installFastTap } from './tap.js';
 import { anims } from '../render/anims.js';
 import { play, soundOn, setSound } from '../audio.js';
 import { mode } from './mode.js';
+import { getAnimal } from '../render/animal.js';
 import { isSmall } from '../core/physics.js';
 
 // Иконки комнат: ребёнку не нужно читать, чтобы найти кухню.
@@ -30,6 +31,7 @@ export function createHud({ root, store, camera, actions, onChange }) {
       ${STUDIO ? '<button class="btn admin" data-act="admin">✎ Админка</button>' : ''}
     </div>
     <nav class="rooms" aria-label="Комнаты"></nav>
+    <div class="pets" aria-label="Позвать животное"></div>
     <div class="hud-bottom-right">
       <button class="btn big round" data-act="shop" aria-label="Магазин" title="Магазин">🛍️</button>
       <button class="btn big round" data-act="heroes" aria-label="Герои" title="Герои">😊</button>
@@ -157,6 +159,7 @@ export function createHud({ root, store, camera, actions, onChange }) {
     else if (act === 'full') fullscreen();
     else if (act === 'admin') { showPanel(null); admin.open(); }
     else if (act === 'things') showPanel('things');
+    else if (t.dataset.pet) { callPet?.(Number(t.dataset.pet)); t.classList.remove('ping'); void t.offsetWidth; t.classList.add('ping'); }
     else if (act === 'shop') { showPanel(null); if (heroEditor.isOpen) heroEditor.close(); shop.toggle(); }
     else if (act === 'heroes') { showPanel(null); heroEditor.toggle(nearestHero()); }
     else if (act === 'design') setDesign(true);
@@ -250,7 +253,30 @@ export function createHud({ root, store, camera, actions, onChange }) {
     if (last.undo !== undoOff) { last.undo = undoOff; q('[data-act=undo]').disabled = undoOff; }
     if (last.night !== night) { last.night = night; q('[data-act=night]').textContent = night; }
     syncSound();
+    syncPets();
     admin.sync();
+  }
+
+  // Кнопки «позвать»: по одной на каждое животное в доме, с его мордочкой.
+  let pets = null, callPet = null;
+  const faces = new Map(); // id определения → картинка мордочки
+  function faceOf(defId) {
+    if (faces.has(defId)) return faces.get(defId);
+    const head = getAnimal(defId)?.parts.head; if (!head) return '';
+    const S = 96, cv = document.createElement('canvas'); cv.width = cv.height = S;
+    const k = Math.min(S / head.cv.width, S / head.cv.height);
+    cv.getContext('2d').drawImage(head.cv, (S - head.cv.width * k) / 2, (S - head.cv.height * k) / 2, head.cv.width * k, head.cv.height * k);
+    const url = cv.toDataURL('image/webp', 0.9);
+    faces.set(defId, url);
+    return url;
+  }
+  function syncPets() {
+    if (!pets) return;
+    const list = pets.list.slice(0, 4);
+    const sig = list.map((i) => i.id + ':' + i.def).join('|');
+    if (last.pets === sig) return;
+    last.pets = sig;
+    q('.pets').innerHTML = list.map((i) => `<button class="btn round pet" data-pet="${i.id}" aria-label="Позвать: ${esc(itemDef(i.def)?.name || '')}"><img src="${faceOf(i.def)}" alt="" draggable="false"></button>`).join('');
   }
 
   return {
@@ -264,6 +290,7 @@ export function createHud({ root, store, camera, actions, onChange }) {
     setStorageNote: (t) => admin.setStorageNote(t),
     closePanels() { if (!mode.design) showPanel(null); },
     setDesign,
+    setPets(p, onCall) { pets = p; callPet = onCall; },
   };
 }
 

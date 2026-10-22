@@ -18,6 +18,7 @@ export function createRenderer(canvas, store, camera) {
   // alpha:false — непрозрачный холст дешевле передавать на экран.
   const ctx = canvas.getContext('2d', { alpha: false });
   let k = 1;
+  let pets = null; // «ум» животных (core/pets.js): где животное, пока идёт само
 
   let quality = 1, lastCss = [0, 0]; // quality < 1 — игра сама снизила чёткость на медленном телефоне
   function resize(cssW, cssH) {
@@ -45,8 +46,9 @@ export function createRenderer(canvas, store, camera) {
       if (wb.x + wb.w < left || wb.x > right) return;
       list.push({ kind, obj, b: wb, art, depth: depthOf(kind, obj, parentOf) });
     };
-    for (const i of s.items) {
-      if (drag && drag.kind === 'item' && drag.id === i.id) continue;
+    for (const i0 of s.items) {
+      if (drag && drag.kind === 'item' && drag.id === i0.id) continue;
+      const o = pets?.override(i0.id), i = o ? { ...i0, ...o } : i0; // животное идёт само — его место сейчас у «ума»
       if (drag && drag.kind === 'item' && i.on?.id === drag.id) { // едет вместе с мебелью в руке
         if (isHidden(i, parentOf)) continue;
         const r = lay.byId.get(i.room), def = itemDef(i.def);
@@ -334,7 +336,7 @@ export function createRenderer(canvas, store, camera) {
         };
       }
       if (e.kind === 'item' && e.obj.held) continue; // в руке — рисуется вместе с героем
-      if (e.kind === 'item' && itemDef(e.obj.def)?.animal && drawAnimalItem(e.obj, e.b, pose, { sleep: nightLevel > 0.5 && !e.obj.on })) { idleHeroes = true; if (chain.length) ctx.restore(); continue; }
+      if (e.kind === 'item' && itemDef(e.obj.def)?.animal && drawAnimalItem(e.obj, e.b, pose, { sleep: nightLevel > 0.5 && !e.obj.on, walk: pets?.walkOf(e.obj.id) })) { idleHeroes = true; if (chain.length) ctx.restore(); continue; }
       if (e.kind === 'char' && getRig(e.obj.id)) {
         const seat = e.obj.seat ? (e.obj.seat.lie ? 'lie' : 'sit') : null;
         drawHeroRig(e.obj.id, e.b, pose, { reach: drag?.hero === e.obj.id, seat, covered: seat === 'lie' && !!itemDef(byId.get(e.obj.seat.id)?.obj.def)?.cover });
@@ -409,5 +411,5 @@ export function createRenderer(canvas, store, camera) {
     return true;
   }
 
-  return { sway, get animating() { return animating; }, get idleHeroes() { return idleHeroes; }, resize, draw, hit, warmup, lowerQuality, get quality() { return quality; }, get scale() { return k; } };
+  return { setPets(p) { pets = p; }, sway, get animating() { return animating; }, get idleHeroes() { return idleHeroes; }, resize, draw, hit, warmup, lowerQuality, get quality() { return quality; }, get scale() { return k; } };
 }

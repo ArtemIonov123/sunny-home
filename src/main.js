@@ -21,6 +21,7 @@ import { itemDef, allItemDefs } from './core/catalog.js';
 import { refreshHero } from './render/hero.js';
 import { rigAnims, getRig, drawRig, LIE } from './render/rig.js';
 import { animalAnims, setupAnimal } from './render/animal.js';
+import { createPets } from './core/pets.js';
 
 const $ = (id) => document.getElementById(id);
 
@@ -60,6 +61,15 @@ async function boot() {
   hud = createHud({ root: $('ui'), store, camera, actions, onChange: () => invalidate() });
   const interaction = createInteraction({ canvas, viewport, camera, renderer, store, isOverStash: hud.isOverStash });
   hud.setDragStarter(interaction.startFromInventory, viewport.toLocal);
+  // Животные гуляют сами; в редакторе комнаты, ночью и пока что-то тянут пальцем — отдыхают.
+  const pets = createPets({
+    store, camera,
+    isPaused: () => mode.design || store.state.night || !!interaction.drag,
+    onArrive: (id, called) => { if (called) { anims.hop('item:' + id); animalAnims.happy(id); play(itemDef(store.state.items.find((i) => i.id === id)?.def)?.animal?.voice || 'pop'); } },
+  });
+  renderer.setPets(pets);
+  hud.setPets(pets, (id) => { if (pets.call(id)) { play('whoosh'); invalidate(); } });
+  setInterval(() => { if (!running && !document.hidden && pets.wantsFrame()) invalidate(); }, 600); // кадров нет, а кому-то пора гулять
 
   // ── кадры: рисуем только когда что-то меняется или движется ──
   let tapCount = 0;
@@ -100,6 +110,7 @@ async function boot() {
     camera.worldW = store.layout.width;
     let busy = camera.update(dt);
     busy = interaction.frame(dt) || busy;
+    busy = pets.tick(dt) || busy;
     busy = anims.active() || busy;
     busy = swayStep(dt, fresh) || busy;
     busy = renderer.animating || rigAnims.active() || animalAnims.active() || !!interaction.drag || busy; // включённый телевизор на экране — мультик идёт
@@ -132,7 +143,7 @@ async function boot() {
   // ── события касаний ──
   interaction.on('frame', invalidate);
   mode.on('change', () => invalidate());
-  interaction.on('dragstart', (g) => { if (g.kind === 'item') hud.showStash(true); });
+  interaction.on('dragstart', (g) => { if (g.kind === 'item') { hud.showStash(true); if (itemDef(g.obj.def)?.animal) pets.stop(g.id); } });
   interaction.on('dragend', () => { hud.showStash(false); hud.refreshThings(); });
   interaction.on('stash', (on) => hud.hotStash(on));
   // Без текста: звук и движение говорят сами за себя.
