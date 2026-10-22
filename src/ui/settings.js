@@ -2,7 +2,7 @@
 // Друзья (код дружбы, запросы, гости) — следующий шаг, нужен сервер (Firebase).
 import { img } from '../assets.js';
 import { play, soundOn, setSound, vibroOn, setVibro } from '../audio.js';
-import { getProfile, setProfile, randomNick, AVATAR_BG } from '../core/profile.js';
+import { getProfile, setProfile, cleanNick, AVATAR_BG } from '../core/profile.js';
 import { escapeHtml as esc } from '../util.js';
 import { composeHero } from '../render/hero.js';
 
@@ -43,7 +43,7 @@ export function avatarSrc(face, bg, size = 120) {
 }
 
 export function createSettings({ root, onChange, friends = null, toast = () => {} }) {
-  let gate = null, adding = false, addMsg = '';
+  let gate = null, adding = false, addMsg = '', naming = false, nickMsg = '';
   const el = document.createElement('div');
   el.className = 'settings-sheet';
   el.hidden = true;
@@ -55,7 +55,8 @@ export function createSettings({ root, onChange, friends = null, toast = () => {
       <header><b>⚙️</b><button class="close" data-st-close aria-label="Закрыть">×</button></header>
       <div class="st-me">
         <img class="st-avatar" src="${avatarSrc(p.face, p.bg, 160)}" alt="">
-        <div class="st-name"><b>${esc(p.nick)}</b><button data-st-nick aria-label="Другое имя">🎲</button></div>
+        ${naming ? `<div class="st-name st-name-edit"><input data-st-nickin maxlength="16" value="${esc(p.nick)}" autocomplete="off"><button class="primary" data-st-nicksave aria-label="Готово">✓</button></div>${nickMsg ? `<p class="fr-msg">${esc(nickMsg)}</p>` : ''}`
+          : `<button class="st-name" data-st-nick aria-label="Изменить имя"><b>${esc(p.nick)}</b><span>✏️</span></button>`}
       </div>
       <div class="st-row st-faces">${['girl', 'boy'].map((f) => `<button class="st-face${p.face === f ? ' on' : ''}" data-st-face="${f}"><img src="${avatarSrc(f, p.bg, 96)}" alt=""></button>`).join('')}</div>
       <div class="st-row st-colors">${AVATAR_BG.map((c) => `<button class="swatch${p.bg === c ? ' on' : ''}" style="--c:${c}" data-st-bg="${c}" aria-label="${c}"></button>`).join('')}</div>
@@ -120,7 +121,12 @@ export function createSettings({ root, onChange, friends = null, toast = () => {
     if (d.stClose !== undefined) return close();
     if (d.stGatecancel !== undefined) { gate = null; render(); return; }
     if (Object.keys(d).some((k) => k.startsWith('fr'))) { frAction(d); return; }
-    if (d.stNick !== undefined) { setProfile({ nick: randomNick() }); play('pop'); }
+    if (d.stNick !== undefined) { askGate(() => { naming = true; nickMsg = ''; render(); const i = el.querySelector('[data-st-nickin]'); i?.focus(); i?.select(); }); return; }
+    else if (d.stNicksave !== undefined) {
+      const n = cleanNick(el.querySelector('[data-st-nickin]').value);
+      if (!n) { nickMsg = 'Имя — от 2 до 16 букв или цифр (без ссылок и телефонов)'; play('nope'); render(); return; }
+      setProfile({ nick: n }); naming = false; nickMsg = ''; play('yum');
+    }
     else if (d.stFace) { setProfile({ face: d.stFace }); play('boing'); }
     else if (d.stBg) { setProfile({ bg: d.stBg }); play('click'); }
     else if (d.stSound !== undefined) { setSound(!soundOn()); play('pop'); }
@@ -129,9 +135,10 @@ export function createSettings({ root, onChange, friends = null, toast = () => {
     render(); onChange?.(); friends?.updateProfile();
   });
 
+  el.addEventListener('keydown', (e) => { if (e.key === 'Enter' && e.target.matches('[data-st-nickin]')) el.querySelector('[data-st-nicksave]')?.click(); if (e.key === 'Enter' && e.target.matches('[data-fr-code]')) el.querySelector('[data-fr-send]')?.click(); });
   function open() { render(); el.hidden = false; play('pop'); if (friends && friends.state.status !== 'on') friends.start(); }
-  function close() { el.hidden = true; gate = null; adding = false; play('click'); }
+  function close() { el.hidden = true; gate = null; adding = false; naming = false; play('click'); }
   // Друзья обновились (пришёл запрос, друг вышел в сеть) — перерисовать, если открыто и не идёт ввод кода.
-  function refresh() { if (!el.hidden && !gate && !(adding && document.activeElement?.matches?.('[data-fr-code]'))) render(); }
+  function refresh() { if (!el.hidden && !gate && !naming && !(adding && document.activeElement?.matches?.('[data-fr-code]'))) render(); }
   return { open, close, refresh, get isOpen() { return !el.hidden; } };
 }

@@ -384,8 +384,11 @@ button.link { border: 0; background: none; color: #a8794c; text-decoration: unde
 .st-card .close { width: 44px; height: 44px; border-radius: 50%; border: 2px solid #ead6b4; background: #fff; font-size: 24px; }
 .st-me { display: flex; flex-direction: column; align-items: center; gap: 6px; }
 .st-avatar { width: 110px; height: 110px; border-radius: 50%; border: 4px solid #fff; box-shadow: 0 0 0 3px #c9a477; }
-.st-name { display: flex; align-items: center; gap: 8px; font-size: 18px; }
-.st-name button { width: 44px; height: 44px; border-radius: 50%; border: 2px solid #ead6b4; background: #fff; font-size: 22px; }
+.st-name { display: flex; align-items: center; gap: 8px; font-size: 18px; border: 0; background: none; color: inherit; min-height: 44px; padding: 0 8px; border-radius: 14px; }
+button.st-name:active { background: #f4ecdf; }
+.st-name span { font-size: 18px; }
+.st-name-edit input { width: 190px; min-height: 44px; border-radius: 12px; border: 2px solid #c9a477; padding: 0 10px; font-size: 18px; }
+.st-name-edit .primary { width: 44px; height: 44px; border-radius: 50%; border: 0; background: #678a6a; color: #fff; font-size: 20px; }
 .st-row { display: flex; justify-content: center; flex-wrap: wrap; gap: 10px; margin-top: 12px; }
 .st-face { width: 68px; height: 68px; border-radius: 50%; border: 3px solid #f2e2c8; background: #fff; padding: 2px; }
 .st-face img { width: 100%; height: 100%; border-radius: 50%; pointer-events: none; }
