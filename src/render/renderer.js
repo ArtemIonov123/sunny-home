@@ -7,6 +7,7 @@ import { img, maskOf } from '../assets.js';
 import { itemBounds, charBounds, depthOf } from '../core/placement.js';
 import { backgroundFor, clearBackgrounds, prewarm } from './background.js';
 import { anims } from './anims.js';
+import { getRig, drawRig, heroPose } from './rig.js';
 import { mode } from '../ui/mode.js';
 import { surfacesOf, isHidden, isSmall } from '../core/physics.js';
 
@@ -96,6 +97,16 @@ export function createRenderer(canvas, store, camera) {
     if (glow) ctx.scale(1.06, 1.06);
     ctx.drawImage(im, -b.w / 2, -b.h, b.w, b.h);
     if (after) after(-b.w / 2, -b.h, b.w, b.h); // рисунок поверх (экран телевизора) — качается вместе с вещью
+    ctx.restore();
+  }
+
+  // Герой по частям: общая поза (прыжок, сплющивание) + движения костей (дыхание, взмах, болтание ногами).
+  function drawHeroRig(id, b, pose, opts = {}) {
+    ctx.save();
+    ctx.translate(b.x + b.w / 2 + (pose?.dx || 0), b.y + b.h + (pose?.dy || 0));
+    if (pose?.rot) ctx.rotate(pose.rot);
+    if (pose && (pose.sx !== 1 || pose.sy !== 1)) ctx.scale(pose.sx || 1, pose.sy || 1);
+    drawRig(ctx, getRig(id), { x: -b.w / 2, y: -b.h, w: b.w, h: b.h }, heroPose(id, opts));
     ctx.restore();
   }
 
@@ -191,7 +202,7 @@ export function createRenderer(canvas, store, camera) {
     if (pose.sx !== 1 || pose.sy !== 1) ctx.scale(pose.sx || 1, pose.sy || 1);
     ctx.translate(-px, -py);
   }
-  let animating = false; // в этом кадре на экране идёт мультик — нужен следующий кадр
+  let animating = false, idleHeroes = false; // idleHeroes — на экране герои (дышат: нужны редкие кадры) // в этом кадре на экране идёт мультик — нужен следующий кадр
   const sway = { angle: 0 }; // задаёт main.js (качание от прокрутки)
   const keyOf = (e) => (e.kind === 'char' ? 'char:' : 'item:') + e.obj.id;
 
@@ -263,7 +274,7 @@ export function createRenderer(canvas, store, camera) {
     ctx.setTransform(k, 0, 0, k, -camera.x * k, 0);
     const carried = [];
     const list = entries(drag, carried);
-    const lights = []; animating = false;
+    const lights = []; animating = false; idleHeroes = false;
     // Сначала позы всех вещей: вещь на мебели повторяет движение мебели (качнули шкаф — молоко качается с ним).
     const byId = new Map();
     for (const e of list) {
@@ -295,7 +306,8 @@ export function createRenderer(canvas, store, camera) {
           if (power.screen) { const [a, b2, c, d] = power.screen; drawScreen(x + a * w, y + b2 * h, (c - a) * w, (d - b2) * h, litSince.get(e.obj.id)); animating = true; }
         };
       }
-      drawSprite(e.art, e.b, { pose, after });
+      if (e.kind === 'char' && getRig(e.obj.id)) { drawHeroRig(e.obj.id, e.b, pose); idleHeroes = true; }
+      else drawSprite(e.art, e.b, { pose, after });
       if (chain.length) ctx.restore();
     }
     drawPartitions();
@@ -305,7 +317,8 @@ export function createRenderer(canvas, store, camera) {
       ctx.globalAlpha = drag.valid ? 1 : 0.6;
       ctx.fillStyle = 'rgba(70,45,20,.18)'; // тень под вещью в руке
       ctx.beginPath(); ctx.ellipse(drag.b.x + drag.b.w / 2, drag.b.y + drag.b.h + 18, drag.b.w * 0.32, 10, 0, 0, Math.PI * 2); ctx.fill();
-      drawSprite(drag.art, drag.b, { glow: true, tilt: drag.tilt || 0 });
+      if (drag.kind === 'char' && getRig(drag.id)) drawHeroRig(drag.id, drag.b, { dx: 0, dy: 0, rot: drag.tilt || 0, sx: 1.06, sy: 1.06 }, { carried: true, tilt: drag.tilt || 0 });
+      else drawSprite(drag.art, drag.b, { glow: true, tilt: drag.tilt || 0 });
       // Вещи с полок и столешницы едут вместе с мебелью.
       if (carried.length && drag.from) {
         const ddx = drag.b.x - drag.from.x, ddy = drag.b.y - drag.from.y;
@@ -352,5 +365,5 @@ export function createRenderer(canvas, store, camera) {
     return true;
   }
 
-  return { sway, get animating() { return animating; }, resize, draw, hit, warmup, lowerQuality, get quality() { return quality; }, get scale() { return k; } };
+  return { sway, get animating() { return animating; }, get idleHeroes() { return idleHeroes; }, resize, draw, hit, warmup, lowerQuality, get quality() { return quality; }, get scale() { return k; } };
 }

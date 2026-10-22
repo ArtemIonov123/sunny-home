@@ -5,6 +5,7 @@
 import { HERO_SIZE, HERO_LAYERS } from './heroLayout.js';
 import { img, registerImage } from '../assets.js';
 import { WEAR_ORDER, WEAR_TOP } from '../core/looks.js';
+import { buildRig, setRig } from './rig.js';
 
 const tints = new Map(); // 'ключ|цвет' → холст
 function tinted(key, color) {
@@ -63,7 +64,8 @@ export function refreshHero(charId, look, face = null) {
   const sig = JSON.stringify([look, face]);
   if (built.get(charId) === sig) return false;
   built.set(charId, sig);
-  registerImage('hero/' + charId, composeHero(look, { face }));
+  registerImage('hero/' + charId, composeHero(look, { face })); // целиком: размеры и «хватание пальцем»
+  setRig(charId, buildRig(look, face)); // по частям: для движений
   return true;
 }
 

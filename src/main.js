@@ -17,6 +17,7 @@ import { surfacesOf } from './core/physics.js';
 import { mode } from './ui/mode.js';
 import { itemDef } from './core/catalog.js';
 import { refreshHero } from './render/hero.js';
+import { rigAnims, getRig, drawRig } from './render/rig.js';
 
 const $ = (id) => document.getElementById(id);
 
@@ -55,9 +56,14 @@ async function boot() {
   hud.setDragStarter(interaction.startFromInventory, viewport.toLocal);
 
   // ── кадры: рисуем только когда что-то меняется или движется ──
+  let tapCount = 0;
   const faceNow = new Map(), faceTimers = new Map(); // временное лицо героя (смех после щекотки)
   let running = false, last = 0, night = state.night ? 1 : 0;
-  function invalidate() { if (!running) { running = true; last = 0; requestAnimationFrame(frame); } }
+  let idleTimer = 0; // редкий кадр для дыхания героев; любое событие — сразу полный кадр
+  function invalidate() {
+    if (idleTimer) { clearTimeout(idleTimer); idleTimer = 0; running = false; }
+    if (!running) { running = true; last = 0; requestAnimationFrame(frame); }
+  }
   // Автокачество: если кадры подряд идут медленно (дольше ~28 мс), снижаем чёткость холста.
   let slowFrames = 0, measured = 0;
   function watchSpeed(ms) {
@@ -90,12 +96,14 @@ async function boot() {
     busy = interaction.frame(dt) || busy;
     busy = anims.active() || busy;
     busy = swayStep(dt, fresh) || busy;
-    busy = renderer.animating || busy; // включённый телевизор на экране — мультик идёт
+    busy = renderer.animating || rigAnims.active() || !!interaction.drag || busy; // включённый телевизор на экране — мультик идёт
     const goal = store.state.night ? 1 : 0;
     if (Math.abs(goal - night) > 0.005) { night += (goal - night) * Math.min(1, dt * 3); busy = true; } else night = goal;
     renderer.draw(interaction.drag, night, hud.guides);
     hud.sync();
-    if (busy) requestAnimationFrame(frame); else running = false;
+    if (busy) requestAnimationFrame(frame);
+    else if (renderer.idleHeroes && !document.hidden) { last = 0; idleTimer = setTimeout(() => { idleTimer = 0; requestAnimationFrame(frame); }, 55); } // герои дышат: ~15 кадров в секунду, бережём батарею
+    else running = false;
   }
 
   // ── сохранение ──
@@ -125,7 +133,9 @@ async function boot() {
   interaction.on('stashed', () => hud.refreshThings());
   interaction.on('tap', ({ kind, id }) => {
     if (kind === 'char') {
-      anims.hop('char:' + id); play(id === 'cat' ? 'meow' : 'boing');
+      const waves = (tapCount = (tapCount + 1) % 2) === 0;
+      if (waves && store.state.chars.find((c) => c.id === id)?.look) { rigAnims.wave(id); play('pop'); } // машет рукой
+      else { anims.hop('char:' + id); rigAnims.cheer(id); play(id === 'cat' ? 'meow' : 'boing'); } // прыгает, руки вверх
       // Пощекотали — смеётся, потом возвращается обычное лицо.
       const c = store.state.chars.find((c) => c.id === id);
       if (c?.look) {
@@ -187,7 +197,7 @@ async function boot() {
   });
 
   // Для автотестов и отладки.
-  window.__sunny = { store, camera, renderer, actions, viewport, saveNow, physics: { surfacesOf }, mode, hud };
+  window.__sunny = { rig: { rigAnims, getRig, drawRig }, store, camera, renderer, actions, viewport, saveNow, physics: { surfacesOf }, mode, hud };
 }
 
 boot().catch((e) => {

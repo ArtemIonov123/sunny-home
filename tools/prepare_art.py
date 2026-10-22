@@ -244,6 +244,15 @@ def build_hero():
             if fit:
                 im = fit_box(im, fit[1], (1024, 1536))
             hero_layer(n, place(im, 1, 0, 0), layout)
+    # Части для анимации (если GPT уже прислал): на том же холсте, что body_stand, — без подгонки.
+    PARTS = ['body_torso', 'arm_upper_left', 'arm_upper_right', 'arm_lower_left', 'arm_lower_right',
+             'hand_grip_left', 'hand_grip_right', 'leg_left', 'leg_right',
+             'wear_tshirt_body', 'wear_tshirt_sleeve_left', 'wear_tshirt_sleeve_right',
+             'wear_dress_body', 'wear_dress_sleeve_left', 'wear_dress_sleeve_right',
+             'wear_pants_hips', 'wear_pants_leg_left', 'wear_pants_leg_right']
+    for n in PARTS:
+        if os.path.exists(os.path.join(SRC, 'hero', n + '.png')):
+            hero_layer(n, place(L(n), 1, 0, 0), layout)
     js = ['// Создано tools/prepare_art.py — не править руками. Смещения слоёв героя на общем холсте.',
           f'export const HERO_SIZE = [{W}, {H}];',
           'export const HERO_LAYERS = {']
