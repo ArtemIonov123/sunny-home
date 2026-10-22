@@ -53,6 +53,7 @@ const SOUNDS = {
   buzz:   () => { tone({ f0: 140, f1: 170, dur: 0.14, type: 'sawtooth', vol: 0.035 }); tone({ f0: 280, f1: 320, dur: 0.12, type: 'square', vol: 0.012 }); },
   sizzle: () => { for (let k = 0; k < 3; k++) tone({ f0: 3000 + k * 400, f1: 2400, dur: 0.05, type: 'sawtooth', vol: 0.012, delay: k * 0.04 }); },
   slosh:  () => { tone({ f0: 190, f1: 110, dur: 0.28, type: 'sine', vol: 0.07 }); tone({ f0: 420, f1: 240, dur: 0.16, type: 'triangle', vol: 0.025, delay: 0.13 }); },
+  kibble: () => { for (let k = 0; k < 9; k++) tone({ f0: 1400 + Math.random() * 900, f1: 900, dur: 0.03, type: 'triangle', vol: 0.035, delay: k * 0.045 + Math.random() * 0.02 }); },
   bubble: () => { tone({ f0: 300, f1: 700, dur: 0.08, type: 'sine', vol: 0.05 }); },
   tick:   () => { tone({ f0: 2000, f1: 1900, dur: 0.02, type: 'square', vol: 0.03 }); },
   ding:   () => { tone({ f0: 1568, f1: 1568, dur: 0.5, type: 'sine', vol: 0.08 }); tone({ f0: 2093, f1: 2093, dur: 0.6, type: 'sine', vol: 0.05, delay: 0.08 }); },

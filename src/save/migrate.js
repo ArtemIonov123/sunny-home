@@ -2,12 +2,12 @@
 // Правило: новое поле или изменение формата → schema+1 и функция в MIGRATIONS.
 // Старые сохранения никогда не выбрасываются молча.
 import { ITEMS, itemDef, CHARS, ROOM_TYPES, WALL_PATTERNS, FLOOR_MATERIALS } from '../core/catalog.js';
-import { defaultState, newRoom, MAX_ROOMS, NEW_IN_INVENTORY, BATH_START, BEDROOM_START, BEDROOM_SMALL } from '../core/house.js';
+import { defaultState, newRoom, MAX_ROOMS, NEW_IN_INVENTORY, BATH_START, BEDROOM_START, BEDROOM_SMALL, PET_START, PET_INV } from '../core/house.js';
 import { clamp, isHex } from '../util.js';
 import { cleanLook } from '../core/looks.js';
 import { isLocked } from '../core/access.js';
 
-export const SCHEMA = 15;
+export const SCHEMA = 16;
 
 const MIGRATIONS = {
   // 1 → 2: появился шкафчик. Все вещи из версии 1 стоят в доме, формат вещи в доме не меняется.
@@ -121,6 +121,21 @@ const MIGRATIONS = {
     }
     return { ...s, items, next, schema: 15 };
   },
+  // 15 → 16: всё для животных — миска и корм, лежанка, мячик (если такой комнаты нет — в шкафчик), косточка и мышка — в шкафчик.
+  15: (s) => {
+    const items = Array.isArray(s.items) ? s.items.map((i) => ({ ...i })) : [];
+    let next = Number.isInteger(s.next) ? s.next : 1;
+    for (const i of items) if (Number.isInteger(i.id) && i.id >= next) next = i.id + 1;
+    const rooms = Array.isArray(s.rooms) ? s.rooms : [];
+    for (const [def, room, x, y] of PET_START) {
+      if (items.some((i) => i.def === def)) continue;
+      const r = rooms.find((q) => q.id === room);
+      items.push(r && x < (r.width || 1600) - 80 ? { id: next++, def, room, x, y } : { id: next++, def, inv: true });
+    }
+    for (const def of PET_INV) if (!items.some((i) => i.def === def)) items.push({ id: next++, def, inv: true });
+    return { ...s, items, next, schema: 16 };
+  },
+
 };
 
 const num = (v, a, b, d) => (Number.isFinite(v) ? clamp(v, a, b) : d);
@@ -183,6 +198,7 @@ export function validate(raw) {
     }
     if (!inInventory && i.open === true) item.open = true;
     if (!inInventory && i.lit === true) item.lit = true;
+    if (!inInventory && i.full === true) item.full = true; // миска с кормом
     if (i.flip === true) item.flip = true;
     if (!inInventory && i.held && CHARS[i.held.by]) item.held = { by: i.held.by }; // место — от героя (syncChildren)
     if (Number.isInteger(i.bites) && i.bites > 0 && i.bites < 3) item.bites = i.bites;

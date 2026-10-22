@@ -70,11 +70,15 @@ async function boot() {
   const pets = createPets({
     store, camera,
     isPaused: () => mode.design || store.state.night || !!interaction.drag || visit?.mode === 'guest', // в гостях животными управляет хозяин
-    onAct: (id, what) => { // сами решили: гавкнуть (слышно, только если на экране), запрыгнуть на диван
+    onAct: (id, what, toyId) => { // сами решили: гавкнуть (слышно, только если на экране), запрыгнуть на диван
       const i = store.state.items.find((x) => x.id === id), r = i && store.layout.byId.get(i.room);
       const seen = r && r.x0 + i.x > camera.x - 50 && r.x0 + i.x < camera.x + camera.viewW + 50;
       if (what === 'bark' && seen) { animalAnims.happy(id); anims.hop('item:' + id); play(itemDef(i.def)?.animal?.voice || 'pop'); }
       if (what === 'hop') { anims.fall('item:' + id, -60); if (seen) play('boing'); }
+      if (what === 'eat' && seen) for (let k = 0; k < 5; k++) setTimeout(() => play('chomp'), 300 + k * 650); // хрум-хрум
+      if (what === 'happy') { animalAnims.happy(id); anims.hop('item:' + id); if (seen) play(itemDef(i.def)?.animal?.voice || 'pop'); }
+      if (what === 'grab' && seen) play('pick');
+      if (what === 'drop') { anims.fall('item:' + toyId, -40); if (seen) play('drop'); }
       invalidate();
     },
     onWalk: (id, w) => visit?.petWalk(id, w), // гостям — куда пошло животное
@@ -177,7 +181,7 @@ async function boot() {
   // ── события касаний ──
   interaction.on('frame', invalidate);
   mode.on('change', () => invalidate());
-  interaction.on('dragstart', (g) => { if (g.kind === 'item') { hud.showStash(true); if (itemDef(g.obj.def)?.animal) pets.stop(g.id); } });
+  interaction.on('dragstart', (g) => { if (g.kind === 'item') { hud.showStash(true); if (itemDef(g.obj.def)?.animal) pets.stop(g.id); else pets.release(g.id); } });
   interaction.on('dragend', () => { hud.showStash(false); hud.refreshThings(); });
   interaction.on('stash', (on) => hud.hotStash(on));
   // Без текста: звук и движение говорят сами за себя.
@@ -297,6 +301,9 @@ async function boot() {
       const an = itemDef(it?.def)?.animal;
       if (an && !it.held) { pets.stop(id); anims.hop('item:' + id); animalAnims.happy(id); play(an.voice || 'pop'); invalidate(); return; } // животное радуется: прыжок, хвост, голос
       if (tryCook(id)) return; // прибор с продуктами — готовит
+      const pk = itemDef(it?.def)?.pet;
+      if (pk === 'food' && pourFood(id)) return;
+      if (pk === 'fetch' && !itemDef(it.def).tap) { anims.hop('item:' + id); play('boing'); if (pets.fetch(id)) invalidate(); invalidate(); return; } // мячик прыгает — щенок бежит
       const tapKind = itemDef(store.state.items.find((i) => i.id === id)?.def)?.tap;
       if (tapKind === 'ring') { anims.ring('item:' + id); play('ring'); invalidate(); return; }
       if (tapKind === 'squeak') { anims.squash('item:' + id); play('squeak'); invalidate(); return; }
@@ -326,6 +333,27 @@ async function boot() {
     invalidate();
   });
   interaction.on('tapEmpty', () => hud.closePanels());
+
+  // ── Вещи для животных ──
+  // Корм поставили к миске (или нажали на него рядом с миской) — корм сыплется, животное бежит есть.
+  function pourFood(bagId) {
+    const bag = store.state.items.find((i) => i.id === bagId && !i.inv); if (!bag) return false;
+    const bowls = store.state.items.filter((i) => !i.inv && i.room === bag.room && itemDef(i.def)?.pet === 'bowl' && Math.abs(i.x - bag.x) < 190).sort((a, b) => Math.abs(a.x - bag.x) - Math.abs(b.x - bag.x));
+    const bowl = bowls[0]; if (!bowl) return false;
+    anims.wobble('item:' + bagId); play('kibble');
+    if (!bowl.full) setTimeout(() => {
+      store.change((s) => { const b = s.items.find((i) => i.id === bowl.id); if (b) b.full = true; }, { undo: false });
+      anims.squash('item:' + bowl.id); play('pop'); pets.callToBowl(bowl.id); invalidate();
+    }, 380);
+    else anims.squash('item:' + bowl.id);
+    invalidate();
+    return true;
+  }
+  interaction.on('placed', ({ id }) => {
+    const it = store.state.items.find((i) => i.id === id), k = itemDef(it?.def)?.pet;
+    if (k === 'food') pourFood(id);
+    else if ((k === 'fetch' || k === 'chew') && pets.fetch(id)) invalidate(); // бросили игрушку — несётся за ней
+  });
 
   document.addEventListener('keydown', (e) => {
     if (['INPUT', 'SELECT', 'TEXTAREA'].includes(e.target.tagName)) return;

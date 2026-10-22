@@ -339,6 +339,10 @@ if __name__ == '__main__':
     # Еда для рецептов (тостер, плита).
     for n in ('bread', 'toast', 'egg', 'fried_egg', 'cheese', 'pizza', 'carrot', 'potato', 'soup'):
         sprite(f'food/food_{n}.png', f'items/{n}.webp', max_w=280, max_h=280)
+    # Всё для животных: миска (пустая/полная), корм, игрушки, лежанка.
+    sprite_pair('pets/pet_bowl_empty.png', 'pets/pet_bowl_full.png', 'items/pet_bowl_empty.webp', 'items/pet_bowl_full.webp', 240)
+    for n, mw in [('pet_food_bag', 300), ('pet_bone', 260), ('pet_ball', 200), ('pet_toy_mouse', 240), ('pet_bed', 520)]:
+        sprite(f'pets/{n}.png', f'items/{n}.webp', max_w=mw, max_h=mw)
     for n in ('banana', 'apple', 'milk', 'juice', 'cake', 'sandwich', 'tomato'):
         copy_webp(f'legacy/{n}.webp', f'items/{n}.webp')
     # Кухня.

@@ -28,6 +28,9 @@ export function newRoom(type, id) {
 }
 
 // Кухня, стирка, еда и одежда — в шкафчике (поверхностей для блендера ещё нет).
+// Всё для животных: миска и корм — в гостиной, лежанка и мячик — в детской, косточка и мышка — в шкафчике.
+export const PET_START = [['pet_bowl', 'living', 1080, 815], ['pet_food_bag', 'living', 1190, 808], ['pet_bed', 'kids', 560, 820], ['pet_ball', 'kids', 900, 830]];
+export const PET_INV = ['pet_bone', 'pet_toy_mouse'];
 export const NEW_IN_INVENTORY = ['blender', 'smoothie_banana', 'banana', 'banana', 'apple', 'milk', 'juice', 'cake', 'sandwich', 'tomato', 'tshirt', 'pants', 'dress'];
 // В новом доме часть этого стоит на кухне (см. defaultState), остальное — в шкафчике.
 const KITCHEN_START = ['blender', 'banana', 'banana', 'apple', 'milk', 'juice', 'tomato', 'toaster'];
@@ -82,11 +85,12 @@ export function defaultState() {
     { id: id++, def: 'dress', room: 'bedroom', x: 0, y: 0, on: { id: wardrobe, s: 1, dx: 0 } },
     ...BEDROOM_SMALL.map(([def, par, s, dx]) => ({ id: id++, def, room: 'bedroom', x: 0, y: 0, on: { id: byDef(par, 'bedroom'), s, dx } })));
   if (!isLocked('dog')) items.push(it('dog', 'living', 760, 790)); // щенок — если его выдают всем (иначе он в паке)
+  items.push(...PET_START.map(([def, room, x, y]) => it(def, room, x, y)));
   const rest = [...NEW_IN_INVENTORY];
   for (const d of [...KITCHEN_START, 'tshirt', 'dress']) { const k = rest.indexOf(d); if (k >= 0) rest.splice(k, 1); }
   return {
-    schema: 15, // = SCHEMA в save/migrate.js
-    rooms, items: [...items, ...['picture', 'picture', 'table', 'window', 'door', ...rest].map((def) => ({ id: id++, def, inv: true }))], next: id,
+    schema: 16, // = SCHEMA в save/migrate.js
+    rooms, items: [...items, ...['picture', 'picture', 'table', 'window', 'door', ...PET_INV, ...rest].map((def) => ({ id: id++, def, inv: true }))], next: id,
     chars: [
       { id: 'girl', room: 'living', x: 900, y: 770 },
       { id: 'boy', room: 'living', x: 1700, y: 800 },

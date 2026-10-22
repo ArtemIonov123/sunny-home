@@ -67,6 +67,13 @@ export const ITEMS = {
   // Животные — на общем скелете (render/animal.js): части лежат в assets/animals/, картинка целиком собирается из них.
   dog: { name: 'Щенок', art: 'animals/dog', w: 200, anchor: 'bottom', place: 'floor', group: 'animals', small: true,
          animal: { parts: animalParts('dog'), joints: {}, voice: 'woof' } },
+  // Всё для животных (core/pets.js): корм сыплется в миску, животное ест; мячик и мышку приносит; косточку грызёт; спит на лежанке.
+  pet_bowl:      { name: 'Миска',    art: 'items/pet_bowl_empty', fullArt: 'items/pet_bowl_full', w: 120, anchor: 'bottom', place: 'floor', group: 'animals', small: true, pet: 'bowl' },
+  pet_food_bag:  { name: 'Корм',     art: 'items/pet_food_bag',  h: 120, anchor: 'bottom', place: 'floor', group: 'animals', small: true, pet: 'food' },
+  pet_bone:      { name: 'Косточка', art: 'items/pet_bone',      w: 90,  anchor: 'bottom', place: 'floor', group: 'animals', small: true, pet: 'chew' },
+  pet_ball:      { name: 'Мячик',    art: 'items/pet_ball',      w: 60,  anchor: 'bottom', place: 'floor', group: 'animals', small: true, pet: 'fetch' },
+  pet_toy_mouse: { name: 'Мышка',    art: 'items/pet_toy_mouse', w: 80,  anchor: 'bottom', place: 'floor', group: 'animals', small: true, pet: 'fetch', tap: 'squeak' },
+  pet_bed:       { name: 'Лежанка',  art: 'items/pet_bed',       w: 250, anchor: 'bottom', place: 'floor', group: 'animals', pet: 'bed', surfaces: [[0.2, 0.8, 0.55]] },
   teddy_bear:   { name: 'Мишка',     art: 'items/teddy_bear',  w: 100, anchor: 'bottom', place: 'floor', group: 'toys', tap: 'squeak' },
   alarm_clock:  { name: 'Будильник', art: 'items/alarm_clock', w: 62,  anchor: 'bottom', place: 'floor', group: 'decor', tap: 'ring' },
   book:         { name: 'Книжка',    art: 'items/book',        h: 70,  anchor: 'bottom', place: 'floor', group: 'toys' },

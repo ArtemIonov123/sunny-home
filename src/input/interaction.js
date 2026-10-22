@@ -235,6 +235,7 @@ export function createInteraction({ canvas, viewport, camera, renderer, store, i
     const fy = isItem && itemDef(d.obj.def).place !== 'floor' ? 0 : Math.min(0, (d.kind === 'char' ? d.b.y + d.b.h : d.ay) - landY);
     anims.fall((isItem ? 'item:' : 'char:') + d.id, fy, isItem ? fx : 0);
     if (fy < -12) setTimeout(() => play('land'), 120); else play('drop');
+    if (isItem) events.emit('placed', { id: d.id }); // для животных: бросили мячик, поставили корм к миске
   }
 
   function animateFallen(kids) {

@@ -64,8 +64,9 @@ export function createRenderer(canvas, store, camera) {
       if (isHidden(i, parentOf)) continue; // внутри закрытого холодильника — за дверью не видно
       const def = itemDef(i.def), r = lay.byId.get(i.room); if (!r || !def) continue;
       let b = itemBounds(i);
+      if (i.lift) b = { ...b, y: b.y - i.lift }; // игрушка в пасти у животного
       if (i.open && def.openBox) { const [ox, oy, ow, oh] = def.openBox; b = { x: b.x + ox * b.w, y: b.y + oy * b.h, w: ow * b.w, h: oh * b.h }; } // своя «открытая» картинка другого размера
-      add('item', i, b, i.open && def.openArt ? def.openArt : def.art, r.x0);
+      add('item', i, b, i.open && def.openArt ? def.openArt : i.full && def.fullArt ? def.fullArt : def.art, r.x0); // миска с кормом — своя картинка
     }
     for (const c0 of s.chars) {
       if (mode.design) break; // в редакторе героев не видно — не мешают расставлять мебель
@@ -469,7 +470,7 @@ export function createRenderer(canvas, store, camera) {
       const ck = e.kind === 'item' && cooking?.get(e.obj.id);
       if (ck) { const prev = after; after = (x, y, w, h) => { prev?.(x, y, w, h); drawMachineFx(ck, x, y, w, h); }; animating = true; }
       if (e.kind === 'item' && e.obj.held) continue; // в руке — рисуется вместе с героем
-      if (e.kind === 'item' && itemDef(e.obj.def)?.animal && wetAnimal(e) && drawAnimalItem(e.obj, e.b, pose, { sleep: (nightLevel > 0.5 && !e.obj.on) || pets?.poseOf(e.obj.id) === 'nap', sniff: pets?.poseOf(e.obj.id) === 'sniff', walk: pets?.walkOf(e.obj.id) })) { if (afterAnimal.at(-1) === e) drawAnimalWet(e); idleHeroes = true; if (chain.length) ctx.restore(); continue; }
+      if (e.kind === 'item' && itemDef(e.obj.def)?.animal && wetAnimal(e) && drawAnimalItem(e.obj, e.b, pose, { sleep: (nightLevel > 0.5 && (!e.obj.on || itemDef(byId.get(e.obj.on.id)?.obj.def)?.pet === 'bed')) || pets?.poseOf(e.obj.id) === 'nap', sniff: ['sniff', 'eat', 'chew'].includes(pets?.poseOf(e.obj.id)), walk: pets?.walkOf(e.obj.id) })) { if (afterAnimal.at(-1) === e) drawAnimalWet(e); idleHeroes = true; if (chain.length) ctx.restore(); continue; }
       if (e.kind === 'char' && getRig(e.obj.id)) {
         const seat = e.obj.seat ? (e.obj.seat.lie ? 'lie' : 'sit') : null;
         const wl = wetness('char:' + e.obj.id);
