@@ -40,16 +40,16 @@ export const ITEMS = {
   tv_stand:   { name: 'Тумба с телевизором', art: 'items/tv_stand', w: 420, power: { screen: [0.135, 0.04, 0.865, 0.525] }, anchor: 'bottom', place: 'floor', group: 'furniture', surfaces: [[0.05, 0.27, 0.60], [0.73, 0.95, 0.60]] },
   plant_big:  { name: 'Монстера',  art: 'items/plant_big',  h: 380, anchor: 'bottom', place: 'floor', group: 'decor' },
   bookshelf:  { name: 'Стеллаж',   art: 'items/bookshelf',  h: 440, anchor: 'bottom', place: 'floor', group: 'furniture', surfaces: [[0.12, 0.88, 0.335], [0.12, 0.88, 0.605], [0.12, 0.88, 0.875]] },
-  blender:         { name: 'Блендер',           art: 'items/blender',         h: 190, anchor: 'bottom', place: 'floor', group: 'appliances', surfaces: [[0.15, 0.7, 0.58]] },
-  washing_machine: { name: 'Стиральная машина', art: 'items/washing_machine', h: 250, anchor: 'bottom', place: 'floor', group: 'appliances', surfaces: [[0.08, 0.92, 0.03]] },
+  blender:         { name: 'Блендер',           art: 'items/blender',         h: 190, anchor: 'bottom', place: 'floor', group: 'appliances', surfaces: [[0.15, 0.7, 0.58]], machine: { move: 'shake', fx: 'spin', at: [0.44, 0.38, 0.3], hide: true, out: 'shelf' } },
+  washing_machine: { name: 'Стиральная машина', art: 'items/washing_machine', h: 250, anchor: 'bottom', place: 'floor', group: 'appliances', surfaces: [[0.08, 0.92, 0.03]], machine: { move: 'shake', fx: 'spin', at: [0.5, 0.52, 0.245], hide: true, out: 'pop' } },
   laundry_basket:  { name: 'Корзина для белья', art: 'items/laundry_basket',  w: 190, anchor: 'bottom', place: 'floor', group: 'furniture' },
   fridge:          { name: 'Холодильник', art: 'items/fridge', openArt: 'items/fridge_open', h: 420, anchor: 'bottom', place: 'floor', group: 'appliances',
                      surfaces: [[0.05, 0.6, 0.01], [0.08, 0.5, 0.255, 1], [0.08, 0.5, 0.455, 1], [0.08, 0.5, 0.575, 1], [0.08, 0.5, 0.70, 1], [0.08, 0.5, 0.885, 1]] },
-  stove:           { name: 'Плита',        art: 'items/stove',           h: 260, anchor: 'bottom', place: 'floor', group: 'appliances', surfaces: [[0.06, 0.94, 0.13]] },
+  stove:           { name: 'Плита',        art: 'items/stove',           h: 260, anchor: 'bottom', place: 'floor', group: 'appliances', surfaces: [[0.06, 0.94, 0.13]], machine: { move: 'none', fx: 'steam', at: [0.5, 0.1, 0.3], hide: false, out: 'shelf' } },
   sink_counter:    { name: 'Мойка',        art: 'items/sink_counter',    w: 380, power: { water: [0.565, 0.1, 0.31, 0.025, 0, 0.05] }, anchor: 'bottom', place: 'floor', group: 'furniture', surfaces: [[0.03, 0.97, 0.22]] },
   kitchen_counter: { name: 'Кухонная тумба', art: 'items/kitchen_counter', w: 380, anchor: 'bottom', place: 'floor', group: 'furniture', surfaces: [[0.03, 0.97, 0.04]] },
   kitchen_shelf:   { name: 'Полка',        art: 'items/kitchen_shelf',   w: 420, anchor: 'center', place: 'wall', group: 'furniture', indoorOnly: true, surfaces: [[0.03, 0.97, 0.08]] },
-  toaster:         { name: 'Тостер',       art: 'items/toaster',         w: 110, anchor: 'bottom', place: 'floor', group: 'appliances', surfaces: [[0.2, 0.78, 0.07]] },
+  toaster:         { name: 'Тостер',       art: 'items/toaster',         w: 110, anchor: 'bottom', place: 'floor', group: 'appliances', surfaces: [[0.2, 0.78, 0.07]], machine: { move: 'bounce', fx: 'glow', at: [0.5, 0.1, 0.35], hide: true, out: 'shelf' } },
   tshirt:  { name: 'Футболка', art: 'items/tshirt', wear: 'tshirt', w: 140, anchor: 'bottom', place: 'floor', group: 'clothes' },
   pants:   { name: 'Штанишки', art: 'items/pants',  wear: 'pants', h: 160, anchor: 'bottom', place: 'floor', group: 'clothes' },
   dress:   { name: 'Платье',   art: 'items/dress',  wear: 'dress', h: 160, anchor: 'bottom', place: 'floor', group: 'clothes' },
@@ -112,6 +112,14 @@ export function allItemDefs() {
   ];
 }
 
+// Прибор (есть рецепты): как работает. move — само тело (трясётся/подпрыгивает/стоит), fx — эффект в точке at
+// [x, y, размер] (доли картинки; размер — доля ширины): крутится внутри (барабан, чаша), пар, свечение;
+// hide — продукты уходят внутрь; out — готовое появляется на приборе ('shelf') или выпрыгивает на пол ('pop').
+export const MACHINE_MOVES = { shake: 'Трясётся', bounce: 'Подпрыгивает', none: 'Стоит' };
+export const MACHINE_FX = { none: 'Нет', spin: 'Крутится внутри (барабан, чаша)', steam: 'Пар', glow: 'Светится' };
+export const MACHINE_DEFAULT = { move: 'shake', fx: 'none', at: [0.5, 0.4, 0.25], hide: false, out: 'shelf' };
+export const machineOf = (def) => ({ ...MACHINE_DEFAULT, ...(def?.machine || {}) });
+
 export function customDefs() { return [...custom.values()]; }
 
 // Из сохранённой записи делаем определение, понятное движку.
@@ -127,6 +135,7 @@ export function toDef(rec) {
     ...(rec.open ? { openArt: 'custom/' + rec.id + '_open', openBox: rec.open.box } : {}),
     ...(rec.power ? { power: rec.power } : {}),
     ...(rec.tap ? { tap: rec.tap } : {}),
+    ...(rec.machine ? { machine: rec.machine } : {}),
     ...(rec.drink ? { drink: true } : {}),
     ...(rec.wear ? { wear: rec.wear } : {}),
     // Животное: части на скелете (render/animal.js), картинки — custom/<id>_a_<часть>.
@@ -153,6 +162,7 @@ export function applyOverride(o) {
   if (o.seats) { d.seats = o.seats.length ? o.seats : undefined; d.cover = o.cover || undefined; d.coverPoly = undefined; }
   if (o.power) d.power = o.power;
   if (o.tap) d.tap = o.tap;
+  if (o.machine) d.machine = o.machine;
   if (o.animal && base.animal) d.animal = { ...base.animal, joints: { ...(base.animal.joints || {}), ...(o.animal.joints || {}) }, ...(o.animal.voice !== undefined ? { voice: o.animal.voice } : {}) };
   return true;
 }

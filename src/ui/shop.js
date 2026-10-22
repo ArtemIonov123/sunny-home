@@ -37,7 +37,7 @@ export function createShop({ root, onInstalled, openThings }) {
   function renderGrid() {
     const c = getCatalog();
     q('.shop-off').hidden = !isOffline();
-    grid.innerHTML = (c?.packs || []).map((p) => `<button class="sh-card" data-sh-pack="${esc(p.id)}" aria-label="${esc(p.name)}">
+    grid.innerHTML = (c?.packs || []).filter((p) => !p.gift).map((p) => `<button class="sh-card" data-sh-pack="${esc(p.id)}" aria-label="${esc(p.name)}">
         <img src="${p.cover}" alt="">${badge(p)}${p.slides?.length ? `<i class="sh-count">${'●'.repeat(Math.min(6, p.slides.length + 1))}</i>` : ''}<span class="sh-name">${esc(p.name)}</span></button>`).join('')
       || '<p class="sh-empty">⏳</p>';
   }

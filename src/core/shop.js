@@ -81,7 +81,7 @@ export async function autoGifts(onNew) {
     if (!entry.gift || entry.price) continue;
     const st = status(entry);
     if (st === 'installed') continue;
-    try { const ids = await download(entry); if (ids.length) onNew?.(ids); } catch (e) { /* в другой раз */ }
+    try { const ids = await download(entry); onNew?.(ids); } catch (e) { /* в другой раз */ }
   }
 }
 

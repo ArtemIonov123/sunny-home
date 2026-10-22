@@ -5,7 +5,7 @@
 import { listRecords, getRecord, saveRecord, deleteRecord, newId, getOverride, saveOverride, resetOverride, listOverrides, PACK_FORMAT } from '../core/library.js';
 import { allItemDefs, itemDef, originalDef } from '../core/catalog.js';
 import { isGiven, studioSetGiven, lockedList } from '../core/access.js';
-import { hasToken, publishForPlayers, GIFT_ID } from '../core/publish.js';
+import { hasToken, sendGameUpdate } from '../core/publish.js';
 import { normalize } from '../core/actions.js';
 import { ANIMAL_PARTS, JOINT_PARTS, VOICES, buildAnimal, composeAnimal, drawAnimal, animalPose, autoJoint } from '../render/animal.js';
 import { img, loadImage, registerImage, forgetImage } from '../assets.js';
@@ -63,12 +63,9 @@ export function createAnimalEditor({ store, actions, toast, onChange }) {
 
   // «Отправить игрокам»: кого из встроенных не выдавать + подарок со своими животными (галочка «выдать»).
   async function sendToPlayers() {
-    const gifts = animals().filter((r) => r.give);
-    const ovs = listOverrides().filter((o) => itemDef(o.id)?.animal);
-    const gift = gifts.length || ovs.length ? { format: PACK_FORMAT, version: 1, id: GIFT_ID, name: 'Животные в подарок', price: 0, gift: true, items: gifts, overrides: ovs } : null;
     sending = 'Отправляю…'; render();
     try {
-      await publishForPlayers({ locked: lockedList().filter((id) => itemDef(id)), gift }, (t) => { sending = t; render(); });
+      await sendGameUpdate((t) => { sending = t; render(); });
       toast('Готово: у игроков обновится через 1–5 минут');
     } catch (e) { toast(e.message, true); }
     sending = ''; render();

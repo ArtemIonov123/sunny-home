@@ -1,6 +1,7 @@
 // Админка → «Предметы»: свои предметы из картинок GPT.
 // Картинка → название → группа → куда ставится → размер (сравнение с Милой) → сохранить.
-import { GROUPS, PLACES, allItemDefs, itemDef, originalDef, sizeKey } from '../core/catalog.js';
+import { GROUPS, PLACES, allItemDefs, itemDef, originalDef, sizeKey, machineOf, MACHINE_FX, MACHINE_MOVES } from '../core/catalog.js';
+import { allRecipes } from '../core/recipes.js';
 import { listRecords, getRecord, saveRecord, deleteRecord, importPack, exportPack, newId, MIN_W, MAX_W, LIBRARY_LIMIT, getOverride, saveOverride, resetOverride } from '../core/library.js';
 import { normalize } from '../core/actions.js';
 import { streams, drawStreams } from '../render/water.js';
@@ -66,7 +67,7 @@ export function createItemEditor({ store, actions, toast, onChange }) {
       <p class="adm-help">Свои предметы: ${mine.length} из ${LIBRARY_LIMIT}. Пак — это файл со всеми своими предметами и картинками: так их можно перенести на другое устройство. Подходят и паки старой админки 0.3.</p>
       <div class="ie-grid">${mine.map((r) => `<button class="ie-card" data-ie-edit="${esc(r.id)}"><img src="${img('custom/' + r.id)?.src || r.image}" alt=""><b>${esc(r.name)}</b><small>${GROUPS[r.group]} · ${PLACES[r.place].split(' ')[0]} ${PLACES[r.place].split(' ')[1] || ''}</small></button>`).join('') || '<p class="adm-help">Пока нет своих предметов. Нажми «Новый предмет» и загрузи картинку от GPT.</p>'}</div>
       <h4>Встроенные предметы (${builtins.length})</h4>
-      <p class="adm-help">Можно поменять название, группу, размер и картинку. «Вернуть как было» — исходный вид. Правки попадают в пак (вкладка «Паки»).</p>
+      <p class="adm-help">Можно поменять название, группу, размер и картинку. «Вернуть как было» — исходный вид. Правки видны только в студии — игрокам их отправляет кнопка «📤 В игру» вверху (или пак).</p>
       <div class="ie-grid">${builtins.map((d) => `<button class="ie-card${getOverride(d.id) ? ' changed' : ''}" data-ie-builtin="${esc(d.id)}"><img src="${img(d.art)?.src || ''}" alt=""><b>${esc(d.name)}</b><small>${GROUPS[d.group] || ''}${getOverride(d.id) ? ' · изменён' : ''}</small></button>`).join('')}</div>`;
   }
 
@@ -75,8 +76,8 @@ export function createItemEditor({ store, actions, toast, onChange }) {
     const def = itemDef(id), base = originalDef(id), o = getOverride(id), key = sizeKey(id);
     const copy = (v) => (v === undefined ? undefined : JSON.parse(JSON.stringify(v)));
     return { builtin: true, id, name: def.name, group: def.group, place: def.place, sizeKey: key, size: def[key], baseSize: base[key], image: o?.image || '', origArt: base.art,
-      surfaces: copy(def.surfaces) || [], seats: copy(def.seats) || [], cover: copy(def.cover), power: copy(def.power), tap: def.tap, openArt: def.openArt,
-      baseLiving: JSON.stringify([base.surfaces || [], base.seats || [], base.cover || null, base.power || null, base.tap || null]) };
+      surfaces: copy(def.surfaces) || [], seats: copy(def.seats) || [], cover: copy(def.cover), power: copy(def.power), tap: def.tap, openArt: def.openArt, machine: copy(def.machine),
+      baseLiving: JSON.stringify([base.surfaces || [], base.seats || [], base.cover || null, base.power || null, base.tap || null, base.machine || null]) };
   }
   const imgSrc = (d) => d.image || (d.builtin ? img(d.origArt)?.src : '') || '';
 
@@ -134,6 +135,19 @@ export function createItemEditor({ store, actions, toast, onChange }) {
   const KINDS = { thing: 'Обычная вещь', food: 'Еда (можно съесть)', drink: 'Напиток (можно выпить)', wear_tshirt: 'Одежда: футболка', wear_pants: 'Одежда: штанишки', wear_dress: 'Одежда: платье' };
   const kindOf = (d) => (d.wear ? 'wear_' + d.wear : d.drink ? 'drink' : d.group === 'food' ? 'food' : 'thing');
   const powerKind = (d) => (d.power?.glow ? 'glow' : d.power?.screen ? 'screen' : d.power?.water ? 'water' : '');
+  // Прибор: как работает, когда на нём продукты из рецепта (вкладка «Рецепты»).
+  function machineHtml(d, opt) {
+    if (!d.surfaces?.length) return '';
+    const m = machineOf(d), used = allRecipes().some((r) => r.machine === d.id);
+    return `<div class="lv-machine"><h5>⚙️ Прибор${used ? '' : ' <small>(нет рецептов — добавь во вкладке «Рецепты»)</small>'}</h5>
+      <div class="lv-row">
+        <label class="adm-field">Пока работает<select data-mc="move">${opt(MACHINE_MOVES, m.move)}</select></label>
+        <label class="adm-field">Эффект<select data-mc="fx">${opt(MACHINE_FX, m.fx)}</select></label>
+        <label class="adm-field">Продукты<select data-mc="hide">${opt({ '': 'Видны сверху', 1: 'Уходят внутрь' }, m.hide ? '1' : '')}</select></label>
+        <label class="adm-field">Готовое<select data-mc="out">${opt({ shelf: 'Появляется на приборе', pop: 'Выпрыгивает на пол' }, m.out)}</select></label>
+      </div>
+      <div class="ie-actions"><button data-mc-test>▶ Проверить</button></div></div>`;
+  }
   function livingHtml() {
     const d = draft, pk = powerKind(d);
     const opt = (obj, cur) => Object.entries(obj).map(([k, n]) => `<option value="${k}"${k === cur ? ' selected' : ''}>${n}</option>`).join('');
@@ -158,16 +172,19 @@ export function createItemEditor({ store, actions, toast, onChange }) {
         ${d.open ? '<button data-lv-noopen>Убрать «открыто»</button>' : ''}
       </div>`}
       ${waterBox}
+      ${machineHtml(d, opt)}
       <div class="lv-tools">
         <button data-lv-tool="surface" class="${tool === 'surface' ? 'on' : ''}">✏️ Полка</button>
         ${d.place === 'wall' ? '' : `<button data-lv-tool="seat" class="${tool === 'seat' ? 'on' : ''}">🪑 Сиденье</button>
         <button data-lv-tool="bed" class="${tool === 'bed' ? 'on' : ''}">🛏 Кровать</button>
         ${isBed ? `<button data-lv-tool="cover" class="${tool === 'cover' ? 'on' : ''}">🧸 Одеяло</button>` : ''}`}
         ${pk ? `<button data-lv-tool="power" class="${tool === 'power' ? 'on' : ''}">${pk === 'glow' ? '💡 Где свет' : pk === 'screen' ? '📺 Где экран' : '🚿 Откуда и куда вода'}</button>` : ''}
+        ${d.surfaces?.length && machineOf(d).fx !== 'none' ? `<button data-lv-tool="machine" class="${tool === 'machine' ? 'on' : ''}">⚙️ Где ${machineOf(d).fx === 'spin' ? 'крутится' : machineOf(d).fx === 'steam' ? 'пар' : 'свет'}</button>` : ''}
         ${pk === 'water' ? `<button data-lv-tool="wend" class="${tool === 'wend' ? 'on' : ''}">📏 Докуда падает</button>` : ''}
         ${hasOpen(d) ? `<span class="lv-sep"></span><button data-lv-view="closed" class="lv-view ${view === 'closed' ? 'on' : ''}">Закрыто</button><button data-lv-view="open" class="lv-view ${view === 'open' ? 'on' : ''}">Открыто</button>` : ''}
       </div>
-      <p class="adm-help">${tool === 'seat' ? 'Проведи пальцем слева направо по сиденью (на высоте, где герой сидит попой). Героя, отпущенного над ним, посадит.'
+      <p class="adm-help">${tool === 'machine' ? (machineOf(d).fx === 'spin' ? 'Поставь палец в середину барабана (чаши) и веди к краю — внутри этого круга будут крутиться продукты.' : 'Поставь палец туда, откуда идёт ' + (machineOf(d).fx === 'steam' ? 'пар (конфорка, кастрюля)' : 'свет') + ', и веди в сторону — чем дальше, тем больше.')
+        : tool === 'seat' ? 'Проведи пальцем слева направо по сиденью (на высоте, где герой сидит попой). Героя, отпущенного над ним, посадит.'
         : tool === 'bed' ? 'Проведи по матрасу от края подушки (там будет шея, голова — на подушке) к ногам. Героя уложит спать.'
         : tool === 'cover' ? 'Обведи одеяло: из угла в угол. Под ним героя не видно — только голову на подушке (одеяло должно начинаться сразу за подушкой).'
         : tool === 'surface' ? 'Проведи пальцем по картинке слева направо там, где вещи должны стоять (столешница, полка, сиденье).' + (d.open ? ' На картинке «Открыто» полка будет внутренней — видна только открытой.' : '')
@@ -187,7 +204,7 @@ export function createItemEditor({ store, actions, toast, onChange }) {
   const closedSrc = (d) => imgSrc(d);
   const openSrc = (d) => d.open?.image || (d.builtin && d.openArt ? img(d.openArt)?.src : '');
   // Рамка закрытой картинки на холсте редактора и рамка «открытой» внутри неё.
-  let lvIm = null, lvOpenIm = null;
+  let lvIm = null, lvOpenIm = null, mcTest = 0;
   function lvFrames(cv) {
     const im = lvIm; if (!im) return null;
     const box = draft.open?.box || [0, 0, 1, 1];
@@ -237,6 +254,19 @@ export function createItemEditor({ store, actions, toast, onChange }) {
       c.setLineDash([8, 6]); c.strokeStyle = '#4aa8f0'; c.lineWidth = 2; c.beginPath(); c.moveTo(F.R.x, yEnd); c.lineTo(F.R.x + F.R.w, yEnd); c.stroke(); c.setLineDash([]);
       c.fillStyle = '#4aa8f0'; c.beginPath(); c.arc(x, y, 6, 0, Math.PI * 2); c.fill();
     }
+    if (draft.surfaces?.length && (draft.machine || tool === 'machine' || mcTest)) {
+      const m = machineOf(draft), [mx, my] = at(m.at[0], m.at[1]), mr = m.at[2] * F.R.w, tt = performance.now() / 1000;
+      if (mcTest) { // ▶ Проверить: как будет в игре (упрощённо)
+        if (m.fx === 'spin') { c.save(); c.beginPath(); c.arc(mx, my, mr, 0, Math.PI * 2); c.clip(); c.fillStyle = '#78bef58c'; c.fillRect(mx - mr, my, mr * 2, mr); c.fillStyle = '#fff';
+          for (let k = 0; k < 8; k++) { const a = tt * 7 + k * 0.8; c.beginPath(); c.arc(mx + Math.cos(a) * mr * 0.6, my + Math.sin(a) * mr * 0.6, mr * 0.08, 0, Math.PI * 2); c.fill(); } c.restore(); }
+        else if (m.fx === 'steam') for (let k = 0; k < 8; k++) { const q = (tt * 0.7 + k / 8) % 1; c.fillStyle = `rgba(255,255,255,${0.7 * (1 - q)})`; c.beginPath(); c.arc(mx + (k % 3 - 1) * mr * 0.4, my - q * F.R.h * 0.55, 6 + q * 20, 0, Math.PI * 2); c.fill(); }
+        else if (m.fx === 'glow') { c.fillStyle = `rgba(255,200,90,${0.35 + 0.2 * Math.sin(tt * 7)})`; c.beginPath(); c.arc(mx, my, mr * 1.6, 0, Math.PI * 2); c.fill(); }
+      } else if (m.fx !== 'none') {
+        c.strokeStyle = '#e0864a'; c.lineWidth = 3; c.setLineDash([6, 5]);
+        c.beginPath(); c.arc(mx, my, Math.max(6, mr), 0, Math.PI * 2); c.stroke(); c.setLineDash([]);
+        c.font = '20px sans-serif'; c.fillText(m.fx === 'spin' ? '🌀' : m.fx === 'steam' ? '♨️' : '✨', mx - 10, my + 7);
+      }
+    }
     if (drawing && tool === 'power' && draft.power?.water) { c.strokeStyle = '#4aa8f0'; c.lineWidth = 3; c.beginPath(); c.moveTo(drawing.x0, drawing.y0); c.lineTo(drawing.x1, drawing.y1); c.stroke(); }
     else if (drawing && tool === 'cover') { c.strokeStyle = '#4a7fe0'; c.setLineDash([4, 4]); c.strokeRect(drawing.x0, drawing.y0, drawing.x1 - drawing.x0, drawing.y1 - drawing.y0); c.setLineDash([]); }
     else if (drawing) { c.strokeStyle = '#3f9a5a'; c.setLineDash([4, 4]); c.beginPath(); c.moveTo(drawing.x0, drawing.y0); c.lineTo(drawing.x1, ['surface', 'seat', 'bed'].includes(tool) ? drawing.y0 : drawing.y1); c.stroke(); c.setLineDash([]); }
@@ -274,6 +304,10 @@ export function createItemEditor({ store, actions, toast, onChange }) {
       }
     } else if (tool === 'cover') {
       if (Math.abs(b.fx - a.fx) > 0.05 && Math.abs(b.fy - a.fy) > 0.05) { draft.cover = [round(Math.min(a.fx, b.fx)), round(Math.min(a.fy, b.fy)), round(Math.max(a.fx, b.fx)), round(Math.max(a.fy, b.fy))]; dirty = true; }
+    } else if (tool === 'machine') {
+      const ar = lvIm ? lvIm.height / lvIm.width : 1, r = Math.hypot(b.fx - a.fx, (b.fy - a.fy) * ar);
+      draft.machine = { ...machineOf(draft), at: [round(a.fx), round(a.fy), Math.round(Math.max(0.05, Math.min(0.8, r || machineOf(draft).at[2])) * 1000) / 1000] };
+      dirty = true;
     } else if (tool === 'surface') {
       const x0 = Math.min(a.fx, b.fx), x1 = Math.max(a.fx, b.fx);
       if (x1 - x0 > 0.05) { (draft.surfaces ||= []).push(view === 'open' && hasOpen(draft) ? [round(x0), round(x1), round(a.fy), 1] : [round(x0), round(x1), round(a.fy)]); dirty = true; }
@@ -351,9 +385,9 @@ export function createItemEditor({ store, actions, toast, onChange }) {
     busy = true;
     try {
       const d = draft, base = originalDef(d.id);
-      const livingChanged = JSON.stringify([d.surfaces || [], d.seats || [], d.cover || null, d.power || null, d.tap || null]) !== d.baseLiving;
+      const livingChanged = JSON.stringify([d.surfaces || [], d.seats || [], d.cover || null, d.power || null, d.tap || null, d.machine || null]) !== d.baseLiving;
       await saveOverride({ id: d.id, name: d.name !== base.name ? d.name : undefined, group: d.group !== base.group ? d.group : undefined, size: d.size !== d.baseSize ? d.size : undefined, image: d.image || undefined,
-        ...(livingChanged ? { surfaces: d.surfaces || [], seats: d.seats || [], cover: d.cover, power: d.power, tap: d.tap } : {}) });
+        ...(livingChanged ? { surfaces: d.surfaces || [], seats: d.seats || [], cover: d.cover, power: d.power, tap: d.tap, machine: d.machine } : {}) });
       dirty = false;
       store.change((s) => normalize(s), { undo: false }); // новый размер — вещи в доме перестраиваются
       if (put) { const id = actions.take(d.id); if (id) actions.placeFromInventory(id); }
@@ -371,6 +405,11 @@ export function createItemEditor({ store, actions, toast, onChange }) {
     else if (b.dataset.ieEdit) { draft = JSON.parse(JSON.stringify(getRecord(b.dataset.ieEdit))); dirty = false; view = 'closed'; tool = 'surface'; }
     else if (b.dataset.ieBuiltin) { draft = builtinDraft(b.dataset.ieBuiltin); dirty = false; }
     else if (b.dataset.lvTool) { tool = b.dataset.lvTool; }
+    else if (b.dataset.mcTest !== undefined) { // ▶ Проверить: 2.5 секунды эффекта на картинке
+      mcTest = performance.now() + 2500;
+      const loop = () => { drawLiving(); if (performance.now() < mcTest) requestAnimationFrame(loop); else { mcTest = 0; drawLiving(); } };
+      requestAnimationFrame(loop); return;
+    }
     else if (b.dataset.lvView) { view = b.dataset.lvView; }
     else if (b.dataset.lvDelseat !== undefined) { read(); draft.seats.splice(Number(b.dataset.lvDelseat), 1); if (!draft.seats.some((s) => s[3])) { delete draft.cover; if (tool === 'cover') tool = 'surface'; } dirty = true; }
     else if (b.dataset.lvDelcover !== undefined) { read(); delete draft.cover; dirty = true; }
@@ -433,6 +472,11 @@ export function createItemEditor({ store, actions, toast, onChange }) {
       delete draft.drink; delete draft.wear;
       if (k === 'food' || k === 'drink') { draft.group = 'food'; if (k === 'drink') draft.drink = true; }
       else if (k.startsWith('wear_')) { draft.wear = k.slice(5); draft.group = 'clothes'; }
+      dirty = true; render();
+    } else if (e.target.matches('[data-mc]')) {
+      read(); const k = e.target.dataset.mc, v = e.target.value;
+      draft.machine = { ...machineOf(draft), [k]: k === 'hide' ? v === '1' : v };
+      if (k === 'fx' && v !== 'none') tool = 'machine';
       dirty = true; render();
     } else if (e.target.matches('[data-lv-tap]')) { read(); if (e.target.value) draft.tap = e.target.value; else delete draft.tap; dirty = true; }
     else if (e.target.matches('[data-lv-power]')) {

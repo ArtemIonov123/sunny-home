@@ -67,7 +67,9 @@ button:disabled { opacity: .4; cursor: default; }
 .admin-sheet { position: absolute; right: 0; top: 0; bottom: 0; width: min(640px, 56%); display: flex; flex-direction: column; background: #f7f5ec; border: 2px solid #9fb28f; border-right: 0; border-radius: 24px 0 0 24px; box-shadow: -10px 0 40px #3c4a3333; color: #44503c; font-family: system-ui, sans-serif; touch-action: pan-y; user-select: text; -webkit-user-select: text; }
 .admin-sheet header { display: flex; align-items: center; gap: 10px; padding: 10px 14px; border-bottom: 1px solid #dfe3d2; }
 .admin-sheet header b { font-size: 18px; }
-.admin-sheet nav { display: flex; gap: 4px; flex: 1; overflow-x: auto; }
+.admin-sheet nav { display: flex; gap: 4px; flex: 1; min-width: 0; overflow-x: auto; }
+.admin-sheet .adm-send { flex: none; min-height: 40px; border: 0; border-radius: 12px; padding: 0 12px; font-weight: 700; background: #ffe2a8; color: #6a4a10; }
+.admin-sheet .adm-send:disabled { opacity: .45; }
 .admin-sheet .tab { min-height: 44px; border: 0; border-radius: 12px; background: transparent; padding: 0 14px; font-weight: 700; font-size: 15px; }
 .admin-sheet .tab.on { background: #dfe8d2; color: #3e5f3a; }
 .adm-body { overflow-y: auto; padding: 12px 14px 18px; }
@@ -271,6 +273,9 @@ button:disabled { opacity: .4; cursor: default; }
 .lv { margin-top: 14px; padding: 12px; border: 2px dashed #ead6b4; border-radius: 18px; background: #fffdf7; }
 .lv h4 { margin: 0 0 8px; }
 .lv-row { display: flex; flex-wrap: wrap; gap: 10px; align-items: flex-end; margin-bottom: 8px; }
+.lv-machine { background: #fff4e3; border-radius: 12px; padding: 8px 10px 4px; margin-bottom: 8px; }
+.lv-machine h5 { margin: 0 0 6px; font-size: 15px; }
+.lv-machine h5 small { font-weight: 400; color: #9a7a50; }
 .lv-row .adm-field { flex: 1; min-width: 150px; }
 .ie-upload.small { min-height: 0; padding: 8px 12px; flex-direction: row; }
 .lv-tools { display: flex; flex-wrap: wrap; gap: 6px; margin: 6px 0; }

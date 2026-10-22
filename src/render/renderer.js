@@ -21,6 +21,8 @@ export function createRenderer(canvas, store, camera) {
   let k = 1;
   let pets = null; // «ум» животных (core/pets.js): где животное, пока идёт само
   let visit = null; // гости (net/visit.js)
+  let cooking = null; // приборы, которые сейчас работают (main.js): id → { t0, dur, mc, kids }
+  const sparkles = new Map(); // id вещи → когда появилась (звёздочки «готово!»)
 
   let quality = 1, lastCss = [0, 0]; // quality < 1 — игра сама снизила чёткость на медленном телефоне
   function resize(cssW, cssH) {
@@ -58,6 +60,7 @@ export function createRenderer(canvas, store, camera) {
         continue;
       }
       if (i.inv) continue; // в шкафчике — не в доме
+      if (i.on && cooking?.get(i.on.id)?.mc.hide) continue; // ушли внутрь работающего прибора
       if (isHidden(i, parentOf)) continue; // внутри закрытого холодильника — за дверью не видно
       const def = itemDef(i.def), r = lay.byId.get(i.room); if (!r || !def) continue;
       let b = itemBounds(i);
@@ -211,6 +214,63 @@ export function createRenderer(canvas, store, camera) {
     ctx.fillStyle = 'rgba(255,255,255,.12)';
     ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x + w * 0.45, y); ctx.lineTo(x + w * 0.2, y + h); ctx.lineTo(x, y + h); ctx.fill();
     ctx.restore();
+  }
+  // Работающий прибор: внутри крутятся продукты (барабан, чаша блендера), идёт пар или светится.
+  function drawMachineFx(ck, x, y, w, h) {
+    const t = tnow() - ck.t0, p = Math.min(1, t / ck.dur), [ax, ay, ar] = ck.mc.at;
+    const cx = x + ax * w, cy = y + ay * h, fade = Math.min(1, t * 4, (1 - p) * 6);
+    if (ck.mc.fx === 'spin') {
+      const r = ar * w;
+      ctx.save(); ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2); ctx.clip();
+      ctx.globalAlpha = fade;
+      // вода: волна, наклоняется в сторону вращения
+      ctx.fillStyle = 'rgba(120,190,245,.55)';
+      ctx.beginPath(); ctx.moveTo(cx - r, cy + r);
+      for (let k = 0; k <= 12; k++) { const qx = -r + (2 * r * k) / 12; ctx.lineTo(cx + qx, cy - r * 0.05 + Math.sin(k * 0.9 + t * 9) * r * 0.08 + qx * 0.25); }
+      ctx.lineTo(cx + r, cy + r); ctx.fill();
+      // продукты кружатся
+      const n = Math.max(1, ck.kids.length), sz = r * (n > 1 ? 0.75 : 0.95);
+      ck.kids.forEach((d, k) => {
+        const im = img(itemDef(d)?.art); if (!im) return;
+        const a = t * 7 + (k * Math.PI * 2) / n, rr = r * (n > 1 ? 0.42 : 0.28);
+        const iw = im.width >= im.height ? sz : sz * im.width / im.height, ih = im.width >= im.height ? sz * im.height / im.width : sz;
+        ctx.save(); ctx.translate(cx + Math.cos(a) * rr, cy + Math.sin(a) * rr); ctx.rotate(a * 1.3); ctx.drawImage(im, -iw / 2, -ih / 2, iw, ih); ctx.restore();
+      });
+      // пузырьки и пена
+      ctx.fillStyle = 'rgba(255,255,255,.85)';
+      for (let k = 0; k < 9; k++) { const a = t * 5 + k * 0.7, rr = r * (0.3 + 0.6 * ((k * 0.37) % 1)); ctx.beginPath(); ctx.arc(cx + Math.cos(a) * rr, cy + Math.sin(a) * rr, r * (0.04 + 0.03 * ((k * 0.61) % 1)), 0, Math.PI * 2); ctx.fill(); }
+      ctx.restore();
+      // блик стекла
+      ctx.save(); ctx.globalAlpha = 0.5 * fade; ctx.strokeStyle = '#fff'; ctx.lineWidth = Math.max(2, r * 0.07); ctx.lineCap = 'round';
+      ctx.beginPath(); ctx.arc(cx, cy, r * 0.8, Math.PI * 1.1, Math.PI * 1.45); ctx.stroke(); ctx.restore();
+    } else if (ck.mc.fx === 'steam') {
+      ctx.save();
+      for (let k = 0; k < 8; k++) {
+        const q = (t * 0.7 + k / 8) % 1, s = w / 300;
+        ctx.fillStyle = `rgba(255,255,255,${0.55 * (1 - q) * fade})`;
+        ctx.beginPath(); ctx.arc(cx + Math.sin(k * 2.3 + t * 2) * w * ar * 0.5 * q + (k % 3 - 1) * w * ar * 0.4, cy - q * h * 0.55, (10 + q * 30) * s, 0, Math.PI * 2); ctx.fill();
+      }
+      ctx.restore();
+    } else if (ck.mc.fx === 'glow') {
+      drawGlow(cx, cy, w * ar * 2.2, (0.7 + 0.25 * Math.sin(t * 7)) * fade);
+    }
+  }
+  // Звёздочки вокруг только что приготовленного.
+  function drawSparkles(list) {
+    if (!sparkles.size) return;
+    const t = tnow();
+    for (const [id, t0] of sparkles) {
+      const q = (t - t0) / 1.1; if (q >= 1) { sparkles.delete(id); continue; }
+      const e = list.find((x) => x.kind === 'item' && x.obj.id === id); if (!e || q < 0) { animating = true; continue; }
+      const cx = e.b.x + e.b.w / 2, cy = e.b.y + e.b.h / 2, R = Math.max(e.b.w, e.b.h) * 0.6;
+      ctx.save(); ctx.fillStyle = '#ffd84a'; ctx.globalAlpha = 1 - q;
+      for (let k = 0; k < 7; k++) {
+        const a = k * 0.9 + q * 1.5, rr = R * (0.6 + 0.5 * q), s = 9 * (1 - q * 0.6) * (k % 2 ? 0.7 : 1);
+        const x = cx + Math.cos(a) * rr, y = cy + Math.sin(a) * rr * 0.8;
+        ctx.beginPath(); for (let j = 0; j < 8; j++) { const rad = j % 2 ? s * 0.35 : s; ctx.lineTo(x + Math.cos(j * Math.PI / 4) * rad, y + Math.sin(j * Math.PI / 4) * rad); } ctx.fill();
+      }
+      ctx.restore(); animating = true;
+    }
   }
   // Тёплый свет торшера (рисуется «добавлением» цвета — ночью особенно заметно).
   function drawGlow(cx, cy, r, strength) {
@@ -406,6 +466,8 @@ export function createRenderer(canvas, store, camera) {
           if (power.screen) { const [a, b2, c, d] = power.screen; drawScreen(x + a * w, y + b2 * h, (c - a) * w, (d - b2) * h, litSince.get(e.obj.id)); animating = true; }
         };
       }
+      const ck = e.kind === 'item' && cooking?.get(e.obj.id);
+      if (ck) { const prev = after; after = (x, y, w, h) => { prev?.(x, y, w, h); drawMachineFx(ck, x, y, w, h); }; animating = true; }
       if (e.kind === 'item' && e.obj.held) continue; // в руке — рисуется вместе с героем
       if (e.kind === 'item' && itemDef(e.obj.def)?.animal && wetAnimal(e) && drawAnimalItem(e.obj, e.b, pose, { sleep: (nightLevel > 0.5 && !e.obj.on) || pets?.poseOf(e.obj.id) === 'nap', sniff: pets?.poseOf(e.obj.id) === 'sniff', walk: pets?.walkOf(e.obj.id) })) { if (afterAnimal.at(-1) === e) drawAnimalWet(e); idleHeroes = true; if (chain.length) ctx.restore(); continue; }
       if (e.kind === 'char' && getRig(e.obj.id)) {
@@ -428,6 +490,7 @@ export function createRenderer(canvas, store, camera) {
       if (chain.length) ctx.restore();
     }
     drawEmotes(list);
+    drawSparkles(list);
     for (const L of lateWater) { ctx.save(); ctx.setTransform(L.m); drawWater(ctx, tnow(), L.params); ctx.restore(); }
     drawPartitions();
     if (guidesRoomId) drawGuides(guidesRoomId);
@@ -491,5 +554,5 @@ export function createRenderer(canvas, store, camera) {
     return true;
   }
 
-  return { setPets(p) { pets = p; }, setVisit(v) { visit = v; }, sway, get animating() { return animating; }, get idleHeroes() { return idleHeroes; }, resize, draw, hit, warmup, lowerQuality, get quality() { return quality; }, get scale() { return k; } };
+  return { setCooking(c) { cooking = c; }, sparkle(ids) { const t = tnow() + 0.45; for (const id of ids) sparkles.set(id, t); }, setPets(p) { pets = p; }, setVisit(v) { visit = v; }, sway, get animating() { return animating; }, get idleHeroes() { return idleHeroes; }, resize, draw, hit, warmup, lowerQuality, get quality() { return quality; }, get scale() { return k; } };
 }

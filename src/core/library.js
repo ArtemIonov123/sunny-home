@@ -1,7 +1,7 @@
 // Библиотека своих предметов: создаются в админке, хранятся отдельно от дома,
 // переносятся паком (JSON с картинками внутри).
 // Запись: { id:'custom_…', name, group, place, w, image:'data:image/webp;base64,…' }
-import { GROUPS, PLACES, CUSTOM_PREFIX, toDef, putCustomDef, removeCustomDef, customDefs, applyOverride, clearOverride, isBuiltin } from './catalog.js';
+import { GROUPS, PLACES, CUSTOM_PREFIX, toDef, putCustomDef, removeCustomDef, customDefs, applyOverride, clearOverride, isBuiltin, MACHINE_FX, MACHINE_MOVES } from './catalog.js';
 import { loadImage, registerImage, forgetImage } from '../assets.js';
 import { loadCatalogRecords, saveCatalogRecords, loadOldStudio, loadOverrides, saveOverrides, loadRecipes, saveRecipes } from '../save/storage.js';
 import { validateRecipe, setOwnRecipes, listOwnRecipes, addPackRecipes } from './recipes.js';
@@ -49,6 +49,10 @@ export function cleanLiving(raw) {
   else if (p && fracs(p.screen, 4)) out.power = { screen: p.screen.slice(0, 4) };
   else if (p && fracs(p.water, 4)) out.power = { water: cleanWater(p.water) };
   if (TAPS[raw.tap]) out.tap = raw.tap;
+  const mc = raw.machine;
+  if (mc && typeof mc === 'object' && MACHINE_FX[mc.fx] !== undefined) {
+    out.machine = { move: MACHINE_MOVES[mc.move] ? mc.move : 'shake', fx: mc.fx, at: fracs(mc.at, 3) ? mc.at.slice(0, 3).map((v) => Math.round(v * 1000) / 1000) : [0.5, 0.4, 0.25], hide: mc.hide === true, out: mc.out === 'pop' ? 'pop' : 'shelf' };
+  }
   // Животное: картинки частей (data:URL), суставы (доли), голос.
   const an = raw.animal;
   if (an && typeof an === 'object' && an.parts && typeof an.parts === 'object') {
@@ -110,6 +114,7 @@ export function validateOverride(raw) {
   if (raw.seats !== undefined) { o.seats = lv.seats || []; if (lv.cover) o.cover = lv.cover; }
   if (lv.power) o.power = lv.power;
   if (lv.tap) o.tap = lv.tap;
+  if (lv.machine) o.machine = lv.machine;
   // Встроенное животное: суставы и голос (картинки — встроенные).
   if (raw.animal && typeof raw.animal === 'object' && itemDef(raw.id)?.animal) {
     const a = {};
@@ -127,7 +132,7 @@ export function validateOverride(raw) {
 async function applyOv(o) {
   let art = null;
   if (o.image) { const im = await loadImage(o.image); art = 'override/' + o.id; registerImage(art, im); }
-  applyOverride({ id: o.id, name: o.name, group: o.group, size: o.size, art, surfaces: o.surfaces, seats: o.seats, cover: o.cover, power: o.power, tap: o.tap, animal: o.animal });
+  applyOverride({ id: o.id, name: o.name, group: o.group, size: o.size, art, surfaces: o.surfaces, seats: o.seats, cover: o.cover, power: o.power, tap: o.tap, machine: o.machine, animal: o.animal });
   const d = itemDef(o.id);
   if (d?.animal) setupAnimal({ id: o.id, ...d }); // новые суставы — скелет заново
 }

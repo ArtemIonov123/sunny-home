@@ -20,6 +20,10 @@ export const anims = {
   ring(key) { list.set(key, { type: 'ring', t0: now(), dur: 1.3 }); },
   // Прибор работает: мелко трясётся всё время готовки.
   shake(key, dur) { list.set(key, { type: 'shake', t0: now(), dur }); },
+  // Прибор работает: подпрыгивает (тостер).
+  bounce(key, dur) { list.set(key, { type: 'bounce', t0: now(), dur }); },
+  // Готовое выпрыгивает из прибора: по дуге от (dx, dy) до своего места.
+  pop(key, dx, dy) { list.set(key, { type: 'pop', t0: now(), dur: 0.6, dx, dy }); },
   // Вернуться туда, откуда взяли (если положить некуда).
   back(key, dx, dy) { list.set(key, { type: 'back', t0: now(), dur: 0.35, dx, dy }); },
 
@@ -48,6 +52,11 @@ export const anims = {
       }
       case 'ring': { const f = (1 - p) ** 0.6; return { dx: Math.sin(p * 90) * 2.5 * f, dy: -Math.abs(Math.sin(p * 45)) * 6 * f, rot: Math.sin(p * 110) * 0.16 * f, sx: 1, sy: 1 }; }
       case 'shake': { const f = Math.min(1, (1 - p) * 6, p * 10); return { dx: Math.sin(p * a.dur * 80) * 3 * f, dy: -Math.abs(Math.sin(p * a.dur * 47)) * 2 * f, rot: Math.sin(p * a.dur * 63) * 0.03 * f, sx: 1, sy: 1 }; }
+      case 'bounce': { const f = Math.min(1, (1 - p) * 6, p * 10), u = Math.abs(Math.sin(p * a.dur * 9)); return { dx: 0, dy: -u * 9 * f, rot: 0, sx: 1 + (1 - u) * 0.04 * f, sy: 1 - (1 - u) * 0.04 * f }; }
+      case 'pop': {
+        if (p < 0.82) { const q = p / 0.82; return { dx: a.dx * (1 - q), dy: a.dy * (1 - q) - 140 * 4 * q * (1 - q), rot: (1 - q) * 0.6 * Math.sign(-a.dx || 1), sx: 0.6 + 0.4 * Math.min(1, q * 2), sy: 0.6 + 0.4 * Math.min(1, q * 2) }; }
+        const q = (p - 0.82) / 0.18, s = Math.sin(q * Math.PI) * 0.14; return { dx: 0, dy: 0, rot: 0, sx: 1 + s, sy: 1 - s };
+      }
       case 'back': { const q = easeOutBack(p); return { dx: a.dx * (1 - q), dy: a.dy * (1 - q), rot: 0, sx: 1, sy: 1 }; }
       default: return null;
     }

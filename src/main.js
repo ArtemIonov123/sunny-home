@@ -18,7 +18,8 @@ import { anims } from './render/anims.js';
 import { play } from './audio.js';
 import { surfacesOf, syncChildren } from './core/physics.js';
 import { mode } from './ui/mode.js';
-import { itemDef, allItemDefs } from './core/catalog.js';
+import { itemBounds } from './core/placement.js';
+import { itemDef, allItemDefs, machineOf } from './core/catalog.js';
 import { refreshHero } from './render/hero.js';
 import { rigAnims, getRig, drawRig, LIE } from './render/rig.js';
 import { animalAnims, setupAnimal } from './render/animal.js';
@@ -233,7 +234,8 @@ async function boot() {
   // ── Готовка ──
   // Нажали на прибор, на котором лежат продукты: есть рецепт — прибор работает и выдаёт результат;
   // рецепта нет — продукты подпрыгивают (ничего «нельзя», просто не получилось).
-  const cooking = new Set();
+  const cooking = new Map(); // прибор → { t0, dur, mc, kids } (рисует renderer: барабан, пар, свет)
+  renderer.setCooking(cooking);
   function tryCook(id) {
     const m = store.state.items.find((i) => i.id === id);
     if (!m || !isMachine(m.def) || cooking.has(id)) return cooking.has(id);
@@ -244,13 +246,24 @@ async function boot() {
       anims.wobble('item:' + id); kids.forEach((k, n) => anims.wobble('item:' + k.id, n * 0.05)); play('boing'); invalidate();
       return true;
     }
-    cooking.add(id);
-    anims.shake('item:' + id, recipe.time);
-    const snd = setInterval(() => play(recipe.sound), recipe.sound === 'tick' ? 300 : 140);
+    // Как работает прибор — настраивается в студии («Оживить» → «Прибор»).
+    const mc = machineOf(itemDef(m.def));
+    cooking.set(id, { t0: performance.now() / 1000, dur: recipe.time, mc, kids: kids.map((k) => k.def) });
+    if (mc.move === 'shake') anims.shake('item:' + id, recipe.time);
+    else if (mc.move === 'bounce') anims.bounce('item:' + id, recipe.time);
+    if (mc.hide) play('stash'); // продукты ушли внутрь
+    const snd = setInterval(() => play(recipe.sound), recipe.sound === 'tick' ? 300 : recipe.sound === 'slosh' ? 420 : 140);
     setTimeout(() => {
       clearInterval(snd); cooking.delete(id);
-      const made = actions.cook(id, recipe);
-      for (const n of made) anims.fall('item:' + n, -70);
+      const before = store.state.items.find((i) => i.id === id);
+      const made = actions.cook(id, recipe, mc.out);
+      const mm = store.state.items.find((i) => i.id === id) || before;
+      for (const n of made) {
+        const it = store.state.items.find((i) => i.id === n);
+        if (mc.out === 'pop' && it && !it.on) anims.pop('item:' + n, mm.x - it.x, (mm.y - itemBounds(mm).h * 0.5) - it.y); // из середины прибора — по дуге на пол
+        else anims.fall('item:' + n, mc.hide ? -110 : -70);
+      }
+      renderer.sparkle(made);
       anims.squash('item:' + id); play('ding'); setTimeout(() => play('pop'), 180);
       hud.refreshThings(); invalidate();
     }, recipe.time * 1000);

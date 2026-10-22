@@ -11,7 +11,7 @@ import { createItemEditor } from './itemEditor.js';
 import { createAnimalEditor } from './animalEditor.js';
 import { listRecords, listPacks, makePack, listOverrides } from '../core/library.js';
 import { resetShop, loadCatalog } from '../core/shop.js';
-import { getSettings, saveSettings, hasToken, testToken, readCatalog, publishPack, removePack, fetchStorePack, makeCover, COVER_COLORS } from '../core/publish.js';
+import { getSettings, saveSettings, hasToken, testToken, readCatalog, publishPack, sendGameUpdate, removePack, fetchStorePack, makeCover, COVER_COLORS } from '../core/publish.js';
 import { importPack, saveOwnRecipe, deleteOwnRecipe } from '../core/library.js';
 import { allRecipes, listOwnRecipes, BUILTIN_RECIPES, SOUNDS } from '../core/recipes.js';
 import { allItemDefs, itemDef } from '../core/catalog.js';
@@ -224,13 +224,36 @@ export function createAdmin({ root, store, camera, actions, toast, onChange }) {
       <input type="file" accept="application/json,.json" data-file hidden>`;
   }
 
+  // «📤 В игру»: правки встроенных, свои рецепты и животные — всем игрокам (через магазин на GitHub).
+  let sending = false;
+  async function sendUpdate() {
+    sending = true; render();
+    try {
+      const n = await sendGameUpdate();
+      toast(`Отправлено игрокам: правок ${n.overrides}, рецептов ${n.recipes}, животных ${n.items}. В игре появится через 1–5 минут (после перезапуска игры)`);
+    } catch (e) { toast(e.message, true); }
+    sending = false; render();
+  }
+  // Вкладки: на компьютере прокрутка колесом и перетаскиванием мышью (полосы прокрутки нет).
+  let navDrag = null;
+  el.addEventListener('wheel', (e) => {
+    const nav = e.target.closest?.('header nav'); if (!nav || nav.scrollWidth <= nav.clientWidth) return;
+    nav.scrollLeft += Math.abs(e.deltaY) > Math.abs(e.deltaX) ? e.deltaY : e.deltaX; e.preventDefault();
+  }, { passive: false });
+  el.addEventListener('pointerdown', (e) => { const nav = e.target.closest?.('header nav'); if (nav && e.pointerType === 'mouse') navDrag = { nav, x: e.clientX, s: nav.scrollLeft, moved: false }; });
+  window.addEventListener('pointermove', (e) => { if (!navDrag) return; const dx = e.clientX - navDrag.x; if (Math.abs(dx) > 5) navDrag.moved = true; navDrag.nav.scrollLeft = navDrag.s - dx; });
+  window.addEventListener('pointerup', () => { if (navDrag?.moved) { const stop = (ev) => { ev.stopPropagation(); ev.preventDefault(); }; el.addEventListener('click', stop, { capture: true, once: true }); setTimeout(() => el.removeEventListener('click', stop, { capture: true }), 50); } navDrag = null; });
+
   function render() {
     if (!isOpen) return;
     const tabs = { rooms: 'Комнаты', markup: 'Разметка', items: 'Предметы', animals: 'Животные', recipes: 'Рецепты', packs: 'Паки', data: 'Данные' };
+    const navX = el.querySelector('header nav')?.scrollLeft || 0; // перерисовка не должна сбрасывать прокрутку вкладок
     el.innerHTML = `<header><b>Админка</b>
         <nav>${Object.entries(tabs).map(([k, n]) => `<button class="tab${tab === k ? ' on' : ''}" data-tab="${k}">${n}</button>`).join('')}</nav>
+        <button class="adm-send" data-send${hasToken() && !sending ? '' : ' disabled'} title="${hasToken() ? 'Отправить правки, рецепты и животных всем игрокам' : 'Нужен ключ GitHub (Паки → публикация)'}">${sending ? '⏳' : '📤 В игру'}</button>
         <button class="close" data-x aria-label="Закрыть">×</button></header>
       <div class="adm-body">${tab === 'rooms' ? roomsTab() : tab === 'markup' ? markupTab() : tab === 'items' ? '<div class="items-tab"></div>' : tab === 'animals' ? '<div class="animals-tab"></div>' : tab === 'packs' ? packsTab() : tab === 'recipes' ? recipesTab() : dataTab()}</div>`;
+    const nav = el.querySelector('header nav'); if (nav) nav.scrollLeft = navX;
     if (tab === 'items') items.mount(el.querySelector('.items-tab'));
     if (tab === 'animals') animals.mount(el.querySelector('.animals-tab'));
     if (tab === 'packs') drawCoverPreview();
@@ -240,6 +263,7 @@ export function createAdmin({ root, store, camera, actions, toast, onChange }) {
     const b = e.target.closest('button'); if (!b || b.closest('.items-tab') || b.closest('.animals-tab')) return; // «Предметы» обрабатывает свой модуль
     const id = b.closest('.adm-row')?.dataset.id;
     if (b.dataset.x !== undefined) { if (items.dirty && tab === 'items') toast('Черновик предмета сохранится до следующего открытия админки'); return close(); }
+    if (b.dataset.send !== undefined) { sendUpdate(); return; }
     if (b.dataset.tab) { tab = b.dataset.tab; render(); onChange(); return; }
     if (b.dataset.up !== undefined) actions.moveRoom(id, -1);
     else if (b.dataset.down !== undefined) actions.moveRoom(id, 1);

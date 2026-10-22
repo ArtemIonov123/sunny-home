@@ -1,7 +1,9 @@
 // Публикация паков в магазин прямо из студии — через GitHub (файлы в папке store/ репозитория игры).
 // Нужен «ключ доступа» GitHub (fine-grained token: только этот репозиторий, право Contents: Read and write).
 // Ключ хранится только в браузере, где открыта студия. В игру этот модуль не попадает.
-import { validatePack } from './library.js';
+import { validatePack, listRecords, listOverrides, PACK_FORMAT } from './library.js';
+import { listOwnRecipes } from './recipes.js';
+import { lockedList } from './access.js';
 import { loadImage, img } from '../assets.js';
 import { itemDef } from './catalog.js';
 
@@ -202,4 +204,16 @@ export async function publishForPlayers({ locked, gift }, onStep = () => {}) {
   const { cat, sha } = await readCatalog();
   cat.locked = [...new Set(locked)];
   await putFile('store/catalog.json', JSON.stringify(cat, null, 1), `Магазин: выдавать игрокам (закрыто: ${cat.locked.join(', ') || 'ничего'})`, sha);
+}
+
+// «📤 В игру»: всё, что поменяли в студии, — игрокам. Один пак-подарок (ставится сам у всех):
+// правки встроенных предметов, свои рецепты, свои животные с «выдать игроку». Плюс список «не выдавать».
+// Комнаты и расстановка — это сохранение дома, не каталог: игрокам не отправляются.
+export async function sendGameUpdate(onStep = () => {}) {
+  const items = listRecords().filter((r) => r.animal && r.give);
+  const overrides = listOverrides(), recipes = listOwnRecipes();
+  const gift = items.length || overrides.length || recipes.length
+    ? { format: PACK_FORMAT, version: 1, id: GIFT_ID, name: 'Обновление игры', price: 0, gift: true, items, overrides, recipes } : null;
+  await publishForPlayers({ locked: lockedList().filter((id) => itemDef(id)), gift }, onStep);
+  return { items: items.length, overrides: overrides.length, recipes: recipes.length };
 }

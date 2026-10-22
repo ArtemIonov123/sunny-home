@@ -2,7 +2,7 @@
 // поэтому у всех есть отмена и автосохранение.
 import { itemDef, ROOM_TYPES } from './catalog.js';
 import { newRoom, uniqueRoomId, MAX_ROOMS, roomAtX } from './house.js';
-import { snapItem, snapChar } from './placement.js';
+import { snapItem, snapChar, itemBounds } from './placement.js';
 import { landing, syncChildren, releaseChildren, freeSpot, isSmall } from './physics.js';
 import { toggleWear, WEAR } from './looks.js';
 import { defaultState } from './house.js';
@@ -248,18 +248,19 @@ export function createActions(store, camera) {
       return 'hold';
     },
     // Приготовить: продукты с прибора уходят «в шкаф», на прибор встаёт результат. Возвращает ID новых вещей.
-    cook(machineId, recipe) {
+    cook(machineId, recipe, out = 'shelf') {
       const made = [];
       store.change((s) => {
         const m = s.items.find((i) => i.id === machineId); if (!m) return;
         for (const k of s.items) if (k.on?.id === machineId) { delete k.on; delete k.room; delete k.x; delete k.y; delete k.bites; delete k.held; k.inv = true; }
-        const hasShelf = !!itemDef(m.def)?.surfaces?.length, n = recipe.outputs.length;
+        const hasShelf = out !== 'pop' && !!itemDef(m.def)?.surfaces?.length, n = recipe.outputs.length;
+        const mb = itemBounds(m); // выпрыгивает — на пол справа от прибора
         recipe.outputs.forEach((def, j) => {
           let it = s.items.find((i) => i.inv && i.def === def && !made.includes(i.id));
           if (!it) { it = { id: s.next++, def }; s.items.push(it); }
           delete it.inv; it.room = m.room; it.x = m.x + (j - (n - 1) / 2) * 50; it.y = m.y;
           if (hasShelf) it.on = { id: m.id, s: 0, dx: (j - (n - 1) / 2) * 40 };
-          else { const room = s.rooms.find((r) => r.id === m.room); const pos = room && landing(s, def, room, m.x + 80 + j * 50, m.y, it.id); if (pos) { it.x = pos.x; it.y = pos.y; if (pos.on) it.on = { ...pos.on }; } }
+          else { const room = s.rooms.find((r) => r.id === m.room); const pos = room && landing(s, def, room, m.x + mb.w / 2 + 50 + j * 60, m.y + 20, it.id); if (pos) { it.x = pos.x; it.y = pos.y; if (pos.on) it.on = { ...pos.on }; } }
           made.push(it.id);
         });
         syncChildren(s);

@@ -4,7 +4,7 @@
 // Встроенные — ниже; свои — из студии (хранятся в браузере и входят в паки), из паков — при установке.
 import { itemDef } from './catalog.js';
 
-export const SOUNDS = { buzz: 'Жужжит (блендер)', sizzle: 'Шипит (плита)', bubble: 'Булькает (кастрюля)', tick: 'Тикает (тостер, духовка)' };
+export const SOUNDS = { buzz: 'Жужжит (блендер)', sizzle: 'Шипит (плита)', bubble: 'Булькает (кастрюля)', tick: 'Тикает (тостер, духовка)', slosh: 'Плещется (стиральная машина)' };
 
 export const BUILTIN_RECIPES = [
   { id: 'b_banana2', machine: 'blender', inputs: ['banana', 'banana'], outputs: ['smoothie_banana'], time: 2.5, sound: 'buzz' },
@@ -17,6 +17,7 @@ export const BUILTIN_RECIPES = [
   { id: 's_egg', machine: 'stove', inputs: ['egg'], outputs: ['fried_egg'], time: 2.5, sound: 'sizzle' },
   { id: 's_pizza', machine: 'stove', inputs: ['bread', 'tomato', 'cheese'], outputs: ['pizza'], time: 3.5, sound: 'sizzle' },
   { id: 's_soup', machine: 'stove', inputs: ['carrot', 'potato'], outputs: ['soup'], time: 3.5, sound: 'bubble' },
+  { id: 'w_tshirt', machine: 'washing_machine', inputs: ['tshirt'], outputs: ['tshirt'], time: 3, sound: 'slosh' },
   { id: 's_soup3', machine: 'stove', inputs: ['carrot', 'potato', 'tomato'], outputs: ['soup'], time: 3.5, sound: 'bubble' },
 ];
 
