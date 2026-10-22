@@ -11,6 +11,13 @@ export const BUILTIN_RECIPES = [
   { id: 'b_banana', machine: 'blender', inputs: ['banana'], outputs: ['smoothie_banana'], time: 2, sound: 'buzz' },
   { id: 'b_milkbanana', machine: 'blender', inputs: ['banana', 'milk'], outputs: ['smoothie_banana'], time: 2.5, sound: 'buzz' },
   { id: 'b_apple', machine: 'blender', inputs: ['apple'], outputs: ['juice'], time: 2, sound: 'buzz' },
+  // Тостер и плита.
+  { id: 't_toast', machine: 'toaster', inputs: ['bread'], outputs: ['toast'], time: 2.5, sound: 'tick' },
+  { id: 't_toast2', machine: 'toaster', inputs: ['bread', 'bread'], outputs: ['toast', 'toast'], time: 3, sound: 'tick' },
+  { id: 's_egg', machine: 'stove', inputs: ['egg'], outputs: ['fried_egg'], time: 2.5, sound: 'sizzle' },
+  { id: 's_pizza', machine: 'stove', inputs: ['bread', 'tomato', 'cheese'], outputs: ['pizza'], time: 3.5, sound: 'sizzle' },
+  { id: 's_soup', machine: 'stove', inputs: ['carrot', 'potato'], outputs: ['soup'], time: 3.5, sound: 'bubble' },
+  { id: 's_soup3', machine: 'stove', inputs: ['carrot', 'potato', 'tomato'], outputs: ['soup'], time: 3.5, sound: 'bubble' },
 ];
 
 const own = new Map();   // свои рецепты из студии (id → рецепт)

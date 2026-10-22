@@ -83,6 +83,16 @@ export const ITEMS = {
   cake:     { name: 'Кекс',     art: 'items/cake',     w: 65, anchor: 'bottom', place: 'floor', group: 'food' },
   sandwich: { name: 'Бутерброд', art: 'items/sandwich', w: 90, anchor: 'bottom', place: 'floor', group: 'food' },
   tomato:   { name: 'Помидор',  art: 'items/tomato',   w: 55, anchor: 'bottom', place: 'floor', group: 'food' },
+  // Для рецептов: тостер и плита.
+  bread:     { name: 'Хлеб',       art: 'items/bread',     w: 70, anchor: 'bottom', place: 'floor', group: 'food' },
+  toast:     { name: 'Тост',       art: 'items/toast',     w: 72, anchor: 'bottom', place: 'floor', group: 'food' },
+  egg:       { name: 'Яйцо',       art: 'items/egg',       h: 56, anchor: 'bottom', place: 'floor', group: 'food' },
+  fried_egg: { name: 'Яичница',    art: 'items/fried_egg', w: 90, anchor: 'bottom', place: 'floor', group: 'food' },
+  cheese:    { name: 'Сыр',        art: 'items/cheese',    w: 70, anchor: 'bottom', place: 'floor', group: 'food' },
+  pizza:     { name: 'Пицца',      art: 'items/pizza',     w: 105, anchor: 'bottom', place: 'floor', group: 'food' },
+  carrot:    { name: 'Морковка',   art: 'items/carrot',    h: 80, anchor: 'bottom', place: 'floor', group: 'food' },
+  potato:    { name: 'Картошка',   art: 'items/potato',    w: 64, anchor: 'bottom', place: 'floor', group: 'food' },
+  soup:      { name: 'Суп',        art: 'items/soup',      w: 100, anchor: 'bottom', place: 'floor', group: 'food' },
 };
 
 // ── Свои предметы из админки (каталог хранится отдельно от сохранения дома) ──

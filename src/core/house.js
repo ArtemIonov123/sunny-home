@@ -71,6 +71,7 @@ export function defaultState() {
     onIt('toaster', counter, 0, -100), onIt('blender', counter, 0, 90),
     onIt('banana', fridge, 2, -10), onIt('banana', fridge, 3, -10), onIt('apple', fridge, 2, -60), onIt('milk', fridge, 4, -50), onIt('tomato', fridge, 4, 0),
     onIt('juice', shelf, 0, -120),
+    onIt('egg', fridge, 1, -40), onIt('cheese', fridge, 1, 20), onIt('carrot', fridge, 5, -50), onIt('potato', fridge, 5, 10), onIt('bread', fridge, 3, 40), // для рецептов
   );
   const tub = byDef('bathtub', 'bath'), sink = byDef('bath_sink', 'bath');
   items.push({ id: id++, def: 'rubber_duck', room: 'bath', x: 0, y: 0, on: { id: tub, s: 0, dx: -60 } },

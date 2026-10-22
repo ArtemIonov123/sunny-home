@@ -336,6 +336,9 @@ if __name__ == '__main__':
     for n, mw, mh in [('blender', None, 420), ('washing_machine', 520, None), ('laundry_basket', 420, None), ('smoothie_banana', None, 300),
                       ('tshirt', 360, None), ('pants', None, 380), ('dress', None, 380)]:
         sprite(f'home/{n}.png', f'items/{n}.webp', max_w=mw, max_h=mh)
+    # Еда для рецептов (тостер, плита).
+    for n in ('bread', 'toast', 'egg', 'fried_egg', 'cheese', 'pizza', 'carrot', 'potato', 'soup'):
+        sprite(f'food/food_{n}.png', f'items/{n}.webp', max_w=280, max_h=280)
     for n in ('banana', 'apple', 'milk', 'juice', 'cake', 'sandwich', 'tomato'):
         copy_webp(f'legacy/{n}.webp', f'items/{n}.webp')
     # Кухня.
