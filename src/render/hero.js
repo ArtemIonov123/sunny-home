@@ -46,7 +46,7 @@ export function drawHero(c, look, { face = null, sc = 1 } = {}) {
   for (const w of WEAR_ORDER) if (look.wear[w]) part(c, 'wear_' + w, look.wear[w], sc);
   part(c, 'head', look.skin, sc);
   part(c, 'face_' + (face || look.face), null, sc);
-  if (hair !== 'none') part(c, 'hair_' + hair, look.hairColor, sc);
+  if (hair !== 'none') { part(c, 'hair_cap', look.hairColor, sc); part(c, 'hair_' + hair, look.hairColor, sc); } // шапочка закрывает макушку
   for (const w of WEAR_TOP) if (look.wear[w]) part(c, 'wear_' + w, look.wear[w], sc);
 }
 

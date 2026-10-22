@@ -10,7 +10,7 @@
   (если GPT не смог сделать прозрачность) превращается в прозрачный.
 """
 import os
-from PIL import Image, ImageOps
+from PIL import Image, ImageChops, ImageOps
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SRC = os.path.join(ROOT, 'art-src')
@@ -219,6 +219,34 @@ def hero_layer(name, canvas, layout, tint=True):
         layout[key] = bb[:2]
 
 
+def hair_cap(head):
+    """Верх головы (выше линии роста волос) — серый, с контуром по краю головы. Координаты head.png."""
+    from PIL import ImageFilter, ImageDraw
+    a = head.getchannel('A').point(lambda v: 255 if v > 40 else 0)
+    x0, y0, x1, y1 = a.getbbox()
+    W, H = head.size
+    # Линия роста волос: дуга — у лба выше, к ушам ниже.
+    line = Image.new('L', (W, H), 0)
+    d = ImageDraw.Draw(line)
+    cx, top, hh = (x0 + x1) / 2, y0, y1 - y0
+    pts = []
+    for k in range(0, 101):
+        t = k / 100
+        x = x0 + (x1 - x0) * t
+        u = (x - cx) / ((x1 - x0) / 2)           # -1..1
+        y = top + hh * (0.27 + 0.20 * u * u)       # середина лба 27%, бока 47%
+        pts.append((x, y))
+    d.polygon([(x0 - 5, -5), (x1 + 5, -5)] + pts[::-1], fill=255)
+    cap = ImageChops.multiply(a, line)
+    inner = a.filter(ImageFilter.MinFilter(17))   # голова без контура
+    edge = ImageChops.subtract(cap, inner)         # кромка шапочки по краю головы
+    out = Image.new('RGBA', (W, H))
+    fill = Image.new('RGBA', (W, H), (172, 172, 172, 255))
+    out.paste(fill, (0, 0), cap)
+    out.paste(Image.new('RGBA', (W, H), (52, 32, 24, 255)), (0, 0), edge)
+    return out.filter(ImageFilter.SMOOTH)
+
+
 def build_hero():
     L = lambda n: Image.open(os.path.join(SRC, 'hero', n + '.png')).convert('RGBA')
     layout = {}
@@ -233,6 +261,9 @@ def build_hero():
         fs = f.resize((round(f.width * s), round(f.height * s)), Image.LANCZOS)
         on_head.alpha_composite(fs, (round(FACE_TO[0] - FACE_BOX[0] * s), round(FACE_TO[1] - FACE_BOX[1] * s))) if FACE_TO[0] - FACE_BOX[0] * s >= 0 else on_head.paste(fs, (round(FACE_TO[0] - FACE_BOX[0] * s), round(FACE_TO[1] - FACE_BOX[1] * s)), fs)
         hero_layer('face_' + n, head_to_body(on_head), layout, tint=False)
+    # «Шапочка» волос под любой причёской: закрывает лысую макушку, которую причёски GPT
+    # не везде покрывают (голова шире нарисованных волос). Форма — верх головы над линией роста волос.
+    hero_layer('hair_cap', head_to_body(hair_cap(L('head'))), layout)
     for n in ('braids', 'bob', 'ponytail', 'bun', 'curly', 'spiky', 'bangs', 'long_front', 'long_back'):
         hero_layer('hair_' + n, head_to_body(L('hair_' + n).crop((0, 0, 1355, 1161))), layout)
     for n in ('wear_tshirt', 'wear_dress', 'wear_pants', 'wear_skirt', 'wear_sneakers', 'wear_cap', 'wear_glasses'):

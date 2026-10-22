@@ -17,6 +17,8 @@ export const HERO_LAYERS = {
   'hero/hair_braids_t': [127, 16],
   'hero/hair_bun_f': [124, 13],
   'hero/hair_bun_t': [131, 15],
+  'hero/hair_cap_f': [128, 24],
+  'hero/hair_cap_t': [134, 29],
   'hero/hair_curly_f': [96, 18],
   'hero/hair_curly_t': [99, 24],
   'hero/hair_long_back_f': [121, 17],

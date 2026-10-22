@@ -64,7 +64,7 @@ export function createHeroEditor({ root, store, actions, onChange }) {
 
   function renderWho() {
     who.innerHTML = heroes().map((c) => {
-      const t = partThumb(HEAD_BOX, (ctx) => { drawPart(ctx, 'head', c.look.skin); drawPart(ctx, 'face_' + c.look.face); if (c.look.hair !== 'none') drawPart(ctx, 'hair_' + (c.look.hair === 'long' ? 'long_front' : c.look.hair), c.look.hairColor); }, 72);
+      const t = partThumb(HEAD_BOX, (ctx) => { drawPart(ctx, 'head', c.look.skin); drawPart(ctx, 'face_' + c.look.face); if (c.look.hair !== 'none') { drawPart(ctx, 'hair_cap', c.look.hairColor); drawPart(ctx, 'hair_' + (c.look.hair === 'long' ? 'long_front' : c.look.hair), c.look.hairColor); } }, 72);
       return `<button class="hs-hero${c.id === current ? ' on' : ''}" data-hs-hero="${c.id}" aria-label="${CHARS[c.id].name}"><img src="${url(t)}" alt=""></button>`;
     }).join('');
   }
@@ -81,7 +81,7 @@ export function createHeroEditor({ root, store, actions, onChange }) {
         const t = partThumb(HEAD_BOX, (c) => {
           if (h === 'long') drawPart(c, 'hair_long_back', look.hairColor);
           drawPart(c, 'head', look.skin); drawPart(c, 'face_' + look.face);
-          if (h !== 'none') drawPart(c, 'hair_' + (h === 'long' ? 'long_front' : h), look.hairColor);
+          if (h !== 'none') { drawPart(c, 'hair_cap', look.hairColor); drawPart(c, 'hair_' + (h === 'long' ? 'long_front' : h), look.hairColor); }
         });
         return `<button class="hs-pick${h === look.hair ? ' on' : ''}" data-hs-hair="${h}" aria-label="${h}"><img src="${url(t)}" alt=""></button>`;
       }).join('')}</div>${swatches(HAIR_COLORS, look.hairColor, 'hs-haircolor')}`;
