@@ -10,7 +10,7 @@ import { createInteraction } from './input/interaction.js';
 import { createHud } from './ui/hud.js';
 import { loadSave, loadLegacyRoom, writeSave } from './save/storage.js';
 import { validate, fromLegacyRoom } from './save/migrate.js';
-import { loadLibrary } from './core/library.js';
+import { loadLibrary, loadBuiltinPacks } from './core/library.js';
 import { anims } from './render/anims.js';
 import { play } from './audio.js';
 import { surfacesOf } from './core/physics.js';
@@ -28,6 +28,7 @@ async function boot() {
   // Свои предметы — до чтения сохранения, чтобы их экземпляры узнались.
   let libraryNote = '';
   try { libraryNote = await loadLibrary(); } catch (e) { libraryNote = 'Свои предметы не загрузились: ' + e.message; }
+  await loadBuiltinPacks(); // паки, встроенные в игру (папка packs/)
 
   // Сохранение → прошлая версия 0.4.1 → новый дом.
   let state = null, startNote = '';

@@ -1,4 +1,4 @@
-// Собирает игру в ОДИН файл dist/sunny-home.html: код, стили и все картинки внутри.
+// Собирает игру в ОДИН файл dist/sunny-home.html (и студию dist/studio.html): код, стили, картинки и паки внутри.
 // Запуск: npm run build
 import { build } from 'esbuild';
 import { readFile, writeFile, mkdir, readdir } from 'node:fs/promises';
@@ -17,11 +17,6 @@ async function walk(dir) {
   return out;
 }
 
-const bundle = await build({
-  entryPoints: [join(root, 'src/main.js')],
-  bundle: true, format: 'iife', minify: true, write: false, target: ['es2020'],
-});
-const js = bundle.outputFiles[0].text;
 const css = await readFile(join(root, 'src/styles.css'), 'utf8');
 
 const assets = {};
@@ -30,11 +25,31 @@ for (const file of await walk(join(root, 'assets'))) {
   assets[key] = 'data:image/webp;base64,' + (await readFile(file)).toString('base64');
 }
 
-let html = await readFile(join(root, 'index.html'), 'utf8');
-html = html.replace('<link rel="stylesheet" href="src/styles.css">', () => `<style>${css}</style>`);
-html = html.replace('<script type="module" src="src/main.js"></script>', () =>
-  `<script>window.EMBEDDED_ASSETS=${JSON.stringify(assets)};</script>\n<script>${js}</script>`);
+// Встроенные паки: все *.json из папки packs/ (файлы, скачанные в студии во вкладке «Паки»).
+const packs = [];
+try {
+  for (const f of (await readdir(join(root, 'packs'))).filter((f) => f.endsWith('.json')).sort()) {
+    try { packs.push(JSON.parse(await readFile(join(root, 'packs', f), 'utf8'))); }
+    catch (e) { console.warn('Пак не прочитался, пропущен:', f, e.message); }
+  }
+} catch (e) { /* папки packs нет — паков нет */ }
 
+const template = await readFile(join(root, 'index.html'), 'utf8');
 await mkdir(join(root, 'dist'), { recursive: true });
-await writeFile(join(root, 'dist/sunny-home.html'), html);
-console.log(`dist/sunny-home.html  ${(html.length / 1024 / 1024).toFixed(2)} MB, картинок: ${Object.keys(assets).length}`);
+
+// Две сборки: игра (без админки) и студия (с админкой — делать паки).
+for (const [file, studio, title] of [['sunny-home.html', false, 'Солнечный дом'], ['studio.html', true, 'Солнечный дом — студия']]) {
+  const bundle = await build({
+    entryPoints: [join(root, 'src/main.js')],
+    bundle: true, format: 'iife', minify: true, write: false, target: ['es2020'],
+    define: { __STUDIO__: String(studio) },
+  });
+  const js = bundle.outputFiles[0].text;
+  let html = template.replace('<title>Солнечный дом</title>', `<title>${title}</title>`);
+  html = html.replace('<link rel="stylesheet" href="src/styles.css">', () => `<style>${css}</style>`);
+  html = html.replace(/<script>window.__STUDIO__[^<]*<\/script>\n/, '');
+  html = html.replace('<script type="module" src="src/main.js"></script>', () =>
+    `<script>window.EMBEDDED_ASSETS=${JSON.stringify(assets)};window.EMBEDDED_PACKS=${JSON.stringify(packs)};</script>\n<script>${js}</script>`);
+  await writeFile(join(root, 'dist', file), html);
+  console.log(`dist/${file}  ${(html.length / 1024 / 1024).toFixed(2)} MB, картинок: ${Object.keys(assets).length}, паков: ${packs.length}, код ${(js.length / 1024).toFixed(0)} КБ`);
+}

@@ -21,16 +21,56 @@ export function validateRecord(raw) {
   return { id: raw.id, name, group: GROUPS[raw.group] ? raw.group : 'decor', place: PLACES[raw.place] ? raw.place : 'floor', w: Math.round(raw.w), image: raw.image };
 }
 
-async function install(rec) {
+async function install(rec, { builtin = false } = {}) {
   const im = await loadImage(rec.image);
   if (!im.width || !im.height || im.width > 2048 || im.height > 2048) throw new Error('Картинка должна быть не больше 2048 × 2048');
   const def = toDef(rec);
   registerImage(def.art, im);
   putCustomDef(def);
-  records.set(rec.id, rec);
+  if (!builtin) records.set(rec.id, rec);
 }
 
 export const listRecords = () => [...records.values()];
+
+// ── Паки ──
+// Пак — один файл: { format:'sunny-home-pack', version:1, id, name, items:[записи предметов] }.
+// Встроенные паки игры лежат в папке packs/ и попадают в сборку (window.EMBEDDED_PACKS).
+// Предметы встроенных паков не сохраняются в библиотеку — они «зашиты» в игру.
+export const PACK_FORMAT = 'sunny-home-pack';
+const packs = new Map(); // id → { id, name, count }
+export const listPacks = () => [...packs.values()];
+
+export function makePack(name, ids) {
+  const clean = String(name || '').trim().slice(0, 40) || 'Новый пак';
+  const slug = clean.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '') || 'pack';
+  const items = ids.map((id) => records.get(id)).filter(Boolean);
+  if (!items.length) throw new Error('Выбери хотя бы один предмет');
+  return { format: PACK_FORMAT, version: 1, id: slug + '_' + Date.now().toString(36), name: clean, created: new Date().toISOString().slice(0, 10), items };
+}
+
+export function validatePack(raw) {
+  if (!raw || raw.format !== PACK_FORMAT) throw new Error('Это не пак «Солнечного дома»');
+  if (!/^[a-z0-9_]{1,80}$/.test(raw.id || '')) throw new Error('У пака неверный ID');
+  const items = (Array.isArray(raw.items) ? raw.items : []).map(validateRecord);
+  if (!items.length) throw new Error('В паке нет предметов');
+  return { format: PACK_FORMAT, version: 1, id: raw.id, name: String(raw.name || raw.id).slice(0, 40), items };
+}
+
+// Встроенные паки — при запуске (до чтения сохранения). Возвращает число установленных предметов.
+export async function loadBuiltinPacks() {
+  let n = 0;
+  for (const raw of window.EMBEDDED_PACKS || []) {
+    try {
+      const pack = validatePack(raw);
+      for (const rec of pack.items) {
+        if (records.has(rec.id)) continue; // свой предмет с тем же ID важнее
+        await install(rec, { builtin: true }); n++;
+      }
+      packs.set(pack.id, { id: pack.id, name: pack.name, count: pack.items.length });
+    } catch (e) { /* испорченный пак пропускаем — игра работает без него */ }
+  }
+  return n;
+}
 export const getRecord = (id) => records.get(id) || null;
 
 // При запуске. Возвращает текст предупреждения или ''.
@@ -80,6 +120,7 @@ export async function deleteRecord(id) {
 
 // Импорт пака: новый формат «sunny-home-items» v2 или пак старой Studio 0.3 (v1).
 export async function importPack(pack) {
+  if (pack?.format === PACK_FORMAT) pack = { format: 'sunny-home-items', version: 2, items: validatePack(pack).items };
   if (!pack || pack.format !== 'sunny-home-items') throw new Error('Это не пак предметов «Солнечного дома»');
   const incoming = pack.version === 2 ? pack.items.map(validateRecord) : fromStudioPack(pack.items).records;
   if (!incoming.length) throw new Error('В паке нет предметов с картинками');

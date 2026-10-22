@@ -1,6 +1,6 @@
 // Интерфейс поверх сцены: кнопки, кнопки комнат, панели «Вещи», «Отделка» и админка.
 // Кнопки задаются в обычных CSS-пикселях, поэтому на телефоне они не мельчают.
-import { VERSION } from '../config.js';
+import { VERSION, STUDIO } from '../config.js';
 import { itemDef, allItemDefs, GROUPS, ROOM_TYPES, WALL_PATTERNS, FLOOR_MATERIALS, WALL_SWATCHES, FLOOR_SWATCHES } from '../core/catalog.js';
 import { img } from '../assets.js';
 import { escapeHtml as esc } from '../util.js';
@@ -19,13 +19,13 @@ const DESIGN_TABS = [['furniture', '🛋️', 'Мебель'], ['appliances', '�
 
 export function createHud({ root, store, camera, actions, onChange }) {
   root.innerHTML = `
-    <div class="hud-top-left"><div class="brand"><span class="sun">✺</span>Солнечный дом<small>${VERSION}</small></div></div>
+    <div class="hud-top-left"><div class="brand"><span class="sun">✺</span>Солнечный дом${STUDIO ? ' · студия' : ''}<small>${VERSION}</small></div></div>
     <div class="hud-top-right">
       <button class="btn icon" data-act="undo" aria-label="Отменить" title="Отменить">↶</button>
       <button class="btn icon" data-act="night" aria-label="День или вечер" title="День / вечер">☾</button>
       <button class="btn icon" data-act="sound" aria-label="Звук" title="Звук">🔊</button>
       <button class="btn icon" data-act="full" aria-label="На весь экран" title="На весь экран">⛶</button>
-      <button class="btn admin" data-act="admin">✎ Админка</button>
+      ${STUDIO ? '<button class="btn admin" data-act="admin">✎ Админка</button>' : ''}
     </div>
     <nav class="rooms" aria-label="Комнаты"></nav>
     <div class="hud-bottom-right">
@@ -47,7 +47,8 @@ export function createHud({ root, store, camera, actions, onChange }) {
   const q = (s) => root.querySelector(s);
   const roomsNav = q('.rooms'), toastEl = q('.toast');
   let openPanel = null, toastTimer = 0, activeRoom = null, designTab = 'furniture', startDrag = null, toLocal = (x, y) => ({ x, y }), press = null, suppressUntil = 0;
-  const admin = createAdmin({ root, store, camera, actions, toast, onChange });
+  // В игре админки нет вовсе (код студии не попадает в сборку игры).
+  const admin = __STUDIO__ ? createAdmin({ root, store, camera, actions, toast, onChange }) : { open() {}, sync() {}, guides: null, setStorageNote() {} };
   const heroEditor = createHeroEditor({ root, store, actions, onChange });
 
   const last = {};

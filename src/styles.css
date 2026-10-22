@@ -209,3 +209,10 @@ button:disabled { opacity: .4; cursor: default; }
 #app.compact .hs-swatches .swatch { width: 38px; height: 38px; }
 #app.compact .hs-head { margin-bottom: 4px; }
 #app.rotated .hs-opts { touch-action: pan-x; }
+
+/* Студия: вкладка «Паки» */
+.pk-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); gap: 8px; margin: 10px 0; }
+.pk-item { display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 6px; border: 2px solid #ead6b4; border-radius: 14px; background: #fff; font-size: 13px; text-align: center; }
+.pk-item img { width: 56px; height: 56px; object-fit: contain; }
+.pk-item:has(input:checked) { border-color: #8fc07a; background: #f1fbe9; }
+.pk-list { margin: 6px 0 0 18px; padding: 0; font-size: 14px; }

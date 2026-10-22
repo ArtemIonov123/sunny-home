@@ -7,7 +7,9 @@ import { mkdirSync } from 'node:fs';
 const require = createRequire(import.meta.url);
 const { chromium } = require(process.env.PLAYWRIGHT_PATH || 'playwright');
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
-const URL = 'file://' + join(root, 'dist/sunny-home.html');
+// Полный сценарий — на студии (в ней всё, что в игре, плюс админка). Игру проверяем отдельно ниже.
+const URL = 'file://' + join(root, 'dist/studio.html');
+const GAME_URL = 'file://' + join(root, 'dist/sunny-home.html');
 const SHOTS = process.env.SHOTS || join(root, 'tests/shots');
 mkdirSync(SHOTS, { recursive: true });
 const exe = process.env.CHROME_PATH;
@@ -353,6 +355,19 @@ async function device(name, width, height, touch) {
 
   await p.screenshot({ path: `${SHOTS}/${name}_4_end.png` });
   check(errors.length === 0, 'нет ошибок за всё время ' + errors.join(' | '));
+  await ctx.close();
+}
+
+// Игра для детей: без админки, но со всем остальным; встроенные паки видны в «Вещах».
+{
+  const ctx = await browser.newContext({ viewport: { width: 844, height: 390 } });
+  const p = await ctx.newPage(); const errs = []; p.on('pageerror', (e) => errs.push(e.message));
+  await p.goto(GAME_URL); await p.waitForFunction(() => window.__sunny); await p.waitForTimeout(400);
+  const r = await p.evaluate(() => ({ admin: !!document.querySelector('[data-act=admin]'), sheet: !!document.querySelector('.admin-sheet'), things: !!document.querySelector('[data-act=things]'), heroes: !!document.querySelector('[data-act=heroes]'), packs: (window.EMBEDDED_PACKS || []).length }));
+  console.log('\nигра (sunny-home.html)');
+  check(!r.admin && !r.sheet, 'в игре нет админки');
+  check(r.things && r.heroes, 'в игре есть «Вещи» и «Герои»');
+  check(errs.length === 0, 'игра запускается без ошибок ' + errs.join(' | '));
   await ctx.close();
 }
 

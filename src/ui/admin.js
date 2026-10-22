@@ -7,6 +7,7 @@ import { escapeHtml as esc } from '../util.js';
 import { validate } from '../save/migrate.js';
 import { normalize } from '../core/actions.js';
 import { createItemEditor } from './itemEditor.js';
+import { listRecords, listPacks, makePack } from '../core/library.js';
 
 export function createAdmin({ root, store, camera, actions, toast, onChange }) {
   const el = document.createElement('section');
@@ -53,6 +54,20 @@ export function createAdmin({ root, store, camera, actions, toast, onChange }) {
       <p class="adm-help">Вещи и герои сами прижмутся к новым границам.</p>`;
   }
 
+  // «Паки»: собрать из своих предметов пак-файл. Файл пака кладётся в папку packs/ — и он в игре.
+  let packName = '', packPick = new Set();
+  function packsTab() {
+    const recs = listRecords(), built = listPacks();
+    const items = recs.length ? recs.map((r) => `<label class="pk-item"><input type="checkbox" data-pk="${esc(r.id)}"${packPick.has(r.id) ? ' checked' : ''}><img src="${r.image}" alt=""><span>${esc(r.name)}</span></label>`).join('')
+      : '<p class="adm-help">Своих предметов пока нет — создай их во вкладке «Предметы».</p>';
+    return `<p class="adm-help">Пак — набор предметов одним файлом. Отметь предметы, дай паку название и скачай файл. Чтобы пак появился в игре у игроков, файл кладётся в папку <b>packs/</b> игры (пришли его — встрою).</p>
+      <label class="adm-field">Название пака<input type="text" data-pkname maxlength="40" value="${esc(packName)}" placeholder="Например: Пляж"></label>
+      <div class="pk-grid">${items}</div>
+      <div class="adm-buttons"><button data-pkall>Отметить все</button><button data-pkexport class="primary"${packPick.size ? '' : ' disabled'}>↓ Скачать пак (${packPick.size})</button></div>
+      <h4>Паки внутри игры</h4>
+      ${built.length ? `<ul class="pk-list">${built.map((p) => `<li><b>${esc(p.name)}</b> · предметов: ${p.count}</li>`).join('')}</ul>` : '<p class="adm-help">Пока нет. Встроенные паки появятся здесь.</p>'}`;
+  }
+
   function dataTab() {
     const c = actions.counts();
     return `<p class="adm-help">${esc(storageNote || 'Дом сохраняется на этом устройстве автоматически.')}</p>
@@ -67,11 +82,11 @@ export function createAdmin({ root, store, camera, actions, toast, onChange }) {
 
   function render() {
     if (!isOpen) return;
-    const tabs = { rooms: 'Комнаты', markup: 'Разметка', items: 'Предметы', data: 'Данные' };
+    const tabs = { rooms: 'Комнаты', markup: 'Разметка', items: 'Предметы', packs: 'Паки', data: 'Данные' };
     el.innerHTML = `<header><b>Админка</b>
         <nav>${Object.entries(tabs).map(([k, n]) => `<button class="tab${tab === k ? ' on' : ''}" data-tab="${k}">${n}</button>`).join('')}</nav>
         <button class="close" data-x aria-label="Закрыть">×</button></header>
-      <div class="adm-body">${tab === 'rooms' ? roomsTab() : tab === 'markup' ? markupTab() : tab === 'items' ? '<div class="items-tab"></div>' : dataTab()}</div>`;
+      <div class="adm-body">${tab === 'rooms' ? roomsTab() : tab === 'markup' ? markupTab() : tab === 'items' ? '<div class="items-tab"></div>' : tab === 'packs' ? packsTab() : dataTab()}</div>`;
     if (tab === 'items') items.mount(el.querySelector('.items-tab'));
   }
 
@@ -92,6 +107,13 @@ export function createAdmin({ root, store, camera, actions, toast, onChange }) {
       const res = actions.addRoom(el.querySelector('.adm-type-new').value);
       if (!res.ok) toast(res.reason, true);
       else { const r = store.layout.byId.get(res.id); camera.flyTo(r.x0); toast('Комната добавлена в конец дома'); }
+    } else if (b.dataset.pkall !== undefined) { const all = listRecords().map((r) => r.id); packPick = packPick.size === all.length ? new Set() : new Set(all); }
+    else if (b.dataset.pkexport !== undefined) {
+      try {
+        const pack = makePack(packName, [...packPick]);
+        download(JSON.stringify(pack), `pack_${pack.id}.json`);
+        toast(`Пак «${pack.name}» скачан: ${pack.items.length} предм.`);
+      } catch (err) { toast(err.message, true); }
     } else if (b.dataset.export !== undefined) exportJson();
     else if (b.dataset.import !== undefined) el.querySelector('[data-file]').click();
     else if (b.dataset.reset !== undefined) {
@@ -106,6 +128,8 @@ export function createAdmin({ root, store, camera, actions, toast, onChange }) {
     if (e.target.matches('.adm-name')) actions.renameRoom(id, e.target.value);
     else if (e.target.matches('.adm-width')) actions.setWidth(id, Number(e.target.value));
     else if (e.target.matches('[data-file]')) return importJson(e.target);
+    else if (e.target.matches('[data-pk]')) { if (e.target.checked) packPick.add(e.target.dataset.pk); else packPick.delete(e.target.dataset.pk); }
+    else if (e.target.matches('[data-pkname]')) { packName = e.target.value; return; }
     else if (e.target.matches('[data-split],[data-walk]')) { render(); return; }
     else return;
     render(); onChange();
@@ -127,6 +151,14 @@ export function createAdmin({ root, store, camera, actions, toast, onChange }) {
     onChange();
   });
   el.addEventListener('change', (e) => { if (e.target.matches('[data-split],[data-walk]')) sliding = false; });
+
+  function download(text, name) {
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob([text], { type: 'application/json' }));
+    a.download = name;
+    document.body.append(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 30000);
+  }
 
   function exportJson() {
     const text = JSON.stringify({ format: 'sunny-home', ...store.state }, null, 1);
