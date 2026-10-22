@@ -4,18 +4,24 @@ import { itemDef, ROOM_TYPES } from './catalog.js';
 import { newRoom, uniqueRoomId, MAX_ROOMS, roomAtX } from './house.js';
 import { snapItem, snapChar } from './placement.js';
 import { landing, syncChildren, releaseChildren, freeSpot, isSmall } from './physics.js';
+import { toggleWear, WEAR } from './looks.js';
 import { defaultState } from './house.js';
 import { clamp } from '../util.js';
 
 export const MAX_ITEMS = 250;
 
 // Прижать все вещи и героев к допустимым местам (после загрузки, смены разметки и ширины).
+// Одежда из каталога → вещь на герое (и её цвет по картинке).
+export const CLOTHES_TO_WEAR = { tshirt: 'tshirt', pants: 'pants', dress: 'dress' };
+const WEAR_DEFAULT_COLOR = { tshirt: '#ff8fa8', pants: '#7fb1f0', dress: '#b49cf0' };
+
 export function normalize(s) {
   const rooms = new Map(s.rooms.map((r) => [r.id, r]));
   const indoor = s.rooms.find((r) => !ROOM_TYPES[r.type].outdoor) || s.rooms[0];
   for (const i of s.items) {
     if (i.inv) continue; // вещь в шкафчике — у неё нет места в доме
     if (i.on) continue;  // стоит на мебели — место считается от мебели (ниже)
+    if (i.held) continue; // в руке героя — место считается от героя (syncChildren)
     let room = rooms.get(i.room) || indoor;
     let p = snapItem(i.def, room, i.x, i.y);
     if (!p) { room = indoor; p = snapItem(i.def, room, room.width / 2, i.y) || { x: room.width / 2, y: i.y }; }
@@ -208,6 +214,47 @@ export function createActions(store, camera) {
         syncChildren(s);
       });
       return moved;
+    },
+
+    // Дать вещь герою. Одежда — надевается (вещь уходит «в шкаф»), остальное — в правую руку
+    // (то, что было в руке, падает рядом). Возвращает 'wear' | 'hold' | null.
+    give(itemId, charId, color = null) {
+      const item = store.state.items.find((i) => i.id === itemId), c = store.state.chars.find((c) => c.id === charId);
+      if (!item || !c?.look) return null;
+      const wear = CLOTHES_TO_WEAR[item.def];
+      if (wear) {
+        store.change((s) => {
+          const ch = s.chars.find((x) => x.id === charId), i = s.items.find((x) => x.id === itemId);
+          const look = { ...ch.look, wear: { ...ch.look.wear } };
+          delete look.wear[wear]; // надеть заново (с цветом этой вещи), а не снять
+          ch.look = toggleWear(look, wear, color || WEAR_DEFAULT_COLOR[wear]);
+          releaseChildren(s, itemId); delete i.room; delete i.x; delete i.y; delete i.on; delete i.held; delete i.bites; i.inv = true;
+        }, { undo: false });
+        return 'wear';
+      }
+      store.change((s) => {
+        const ch = s.chars.find((x) => x.id === charId), i = s.items.find((x) => x.id === itemId);
+        for (const o of s.items) if (o.held?.by === charId && o.id !== itemId) { // прежняя вещь — на пол рядом
+          delete o.held;
+          const room = s.rooms.find((r) => r.id === ch.room);
+          const pos = room && landing(s, o.def, room, ch.x + 90, ch.y, o.id);
+          if (pos) { o.x = pos.x; o.y = pos.y; if (pos.on) o.on = { ...pos.on }; } else { o.x = ch.x + 90; o.y = ch.y; }
+        }
+        releaseChildren(s, itemId);
+        delete i.inv; delete i.on; i.held = { by: charId }; i.room = ch.room;
+        syncChildren(s);
+      }, { undo: false });
+      return 'hold';
+    },
+    // Откусить (выпить глоток). После третьего раза вещь съедена — уходит «в шкаф», её можно взять снова.
+    bite(itemId) {
+      let eaten = false;
+      store.change((s) => {
+        const i = s.items.find((x) => x.id === itemId); if (!i) return;
+        i.bites = (i.bites || 0) + 1;
+        if (i.bites >= 3) { eaten = true; delete i.bites; delete i.held; delete i.room; delete i.x; delete i.y; i.inv = true; }
+      });
+      return eaten;
     },
 
     // Внешность героя (кожа, волосы, лицо, одежда) — с отменой и сохранением.

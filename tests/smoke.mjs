@@ -307,6 +307,29 @@ async function device(name, width, height, touch) {
     check(lk2.hair === 'bun' && lk2.wear.pants, 'после перезагрузки внешность та же');
   }
 
+  // 19. Еда в руке: герой берёт банан, три нажатия — съеден; футболка на героя — надета
+  {
+    const info = await p.evaluate(() => {
+      const S = window.__sunny, c = S.store.state.chars.find((c) => c.id === 'boy');
+      const id = S.actions.take('banana'); S.actions.give(id, 'boy');
+      const x0 = S.store.layout.byId.get(c.room).x0;
+      S.camera.holdAt(x0 + c.x - S.camera.viewW / 2); S.camera.mode = 'idle'; S.store.touch();
+      const it = S.store.state.items.find((i) => i.id === id);
+      return { id, held: it.held?.by, wx: x0 + c.x, wy: c.y - 230 };
+    });
+    check(info.held === 'boy', 'герой взял банан в руку');
+    await p.waitForTimeout(300);
+    for (let k = 0; k < 3; k++) {
+      const pt = await toClient(info.wx, info.wy);
+      if (touch) await p.touchscreen.tap(pt.x, pt.y); else await p.mouse.click(pt.x, pt.y);
+      await p.waitForTimeout(1000);
+    }
+    const gone = await p.evaluate((id) => { const i = window.__sunny.store.state.items.find((i) => i.id === id); return !!i?.inv && !i.held; }, info.id);
+    check(gone, 'три нажатия — банан съеден (ушёл в шкафчик, не удалён)');
+    const worn = await p.evaluate(() => { const S = window.__sunny, id = S.actions.take('tshirt'); S.actions.give(id, 'boy'); return S.store.state.chars.find((c) => c.id === 'boy').look.wear.tshirt; });
+    check(!!worn, 'футболку отдали герою — надета');
+  }
+
   // 17. Телевизор: нажатие включает (идёт мультик), повторное — выключает
   {
     const tv = await p.evaluate(() => {

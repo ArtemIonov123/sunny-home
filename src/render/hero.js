@@ -59,13 +59,13 @@ export function composeHero(look, opts = {}) {
 }
 
 // Обновить картинку героя в игре, если внешность изменилась. Возвращает true, если пересобрали.
-export function refreshHero(charId, look, face = null) {
+export function refreshHero(charId, look, face = null, grip = {}) {
   if (!look) return false;
-  const sig = JSON.stringify([look, face]);
+  const sig = JSON.stringify([look, face, grip]);
   if (built.get(charId) === sig) return false;
   built.set(charId, sig);
   registerImage('hero/' + charId, composeHero(look, { face })); // целиком: размеры и «хватание пальцем»
-  setRig(charId, buildRig(look, face)); // по частям: для движений
+  setRig(charId, buildRig(look, face, grip)); // по частям: для движений
   return true;
 }
 

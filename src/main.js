@@ -1,5 +1,5 @@
 // Точка входа: загружает картинки и сохранение, связывает модули, крутит кадры.
-import { loadAssets } from './assets.js';
+import { loadAssets, img } from './assets.js';
 import { defaultState } from './core/house.js';
 import { createStore } from './core/store.js';
 import { createActions, normalize } from './core/actions.js';
@@ -43,6 +43,7 @@ async function boot() {
   }
   if (!state) state = validate(defaultState());
   for (const c of state.chars) refreshHero(c.id, c.look); // картинки героев — до расстановки (нужны размеры)
+  const DRINKS = new Set(['milk', 'juice', 'smoothie_banana']);
   normalize(state);
 
   const store = createStore(state);
@@ -119,7 +120,7 @@ async function boot() {
       return res;
     });
   }
-  store.on('change', ({ save }) => { for (const c of store.state.chars) refreshHero(c.id, c.look, faceNow.get(c.id)); invalidate(); if (save) { clearTimeout(saveTimer); saveTimer = setTimeout(saveNow, 400); } });
+  store.on('change', ({ save }) => { for (const c of store.state.chars) heroUpdate(c.id); invalidate(); if (save) { clearTimeout(saveTimer); saveTimer = setTimeout(saveNow, 400); } });
   window.addEventListener('pagehide', () => { saveNow(); });
   document.addEventListener('visibilitychange', () => { if (document.hidden) saveNow(); });
 
@@ -131,20 +132,75 @@ async function boot() {
   interaction.on('stash', (on) => hud.hotStash(on));
   // Без текста: звук и движение говорят сами за себя.
   interaction.on('stashed', () => hud.refreshThings());
+  // Временное лицо героя (смех, «вкусно»), потом возвращается своё.
+  function heroUpdate(id) {
+    const c = store.state.chars.find((x) => x.id === id); if (!c?.look) return;
+    const grip = store.state.items.some((i) => i.held?.by === id) ? { right: true } : {};
+    refreshHero(id, c.look, faceNow.get(id), grip);
+  }
+  function setFace(id, face, ms) {
+    if (!store.state.chars.find((c) => c.id === id)?.look) return;
+    faceNow.set(id, face); heroUpdate(id);
+    clearTimeout(faceTimers.get(id));
+    faceTimers.set(id, setTimeout(() => { faceNow.delete(id); heroUpdate(id); invalidate(); }, ms));
+    invalidate();
+  }
+  // Еда в руке: ко рту — «ам!» — три укуса, и съедено (вещь уходит в шкафчик, её можно взять снова).
+  const eating = new Set();
+  function eat(charId) {
+    const food = store.state.items.find((i) => i.held?.by === charId);
+    if (!food || eating.has(charId)) return;
+    eating.add(charId);
+    rigAnims.eat(charId); setFace(charId, 'yum', 1000);
+    setTimeout(() => {
+      play(DRINKS.has(food.def) ? 'gulp' : 'chomp');
+      const eaten = actions.bite(food.id);
+      if (eaten) setTimeout(() => { anims.hop('char:' + charId); rigAnims.cheer(charId); setFace(charId, 'laugh', 900); play('yum'); hud.refreshThings(); invalidate(); }, 300);
+      eating.delete(charId);
+      invalidate();
+    }, 430);
+    invalidate();
+  }
+  // Цвет одежды — по картинке вещи (средний цвет), чтобы на герое была «та же» футболка.
+  const clothColors = new Map();
+  function colorOfItem(itemId) {
+    const it = store.state.items.find((i) => i.id === itemId), def = it && itemDef(it.def);
+    if (!def) return null;
+    if (clothColors.has(def.id)) return clothColors.get(def.id);
+    let hex = null;
+    try {
+      const im = img(def.art), cv = document.createElement('canvas'); cv.width = cv.height = 24;
+      const c = cv.getContext('2d', { willReadFrequently: true }); c.drawImage(im, 0, 0, 24, 24);
+      const d = c.getImageData(0, 0, 24, 24).data; let r = 0, g = 0, b = 0, n = 0;
+      for (let k = 0; k < d.length; k += 4) {
+        const mx = Math.max(d[k], d[k + 1], d[k + 2]), mn = Math.min(d[k], d[k + 1], d[k + 2]);
+        if (d[k + 3] > 200 && mx > 90 && mx - mn > 25) { r += d[k]; g += d[k + 1]; b += d[k + 2]; n++; } // цветные пиксели, без контура
+      }
+      if (n) { const f = (v) => Math.min(255, Math.round((v / n) * 1.12)).toString(16).padStart(2, '0'); hex = '#' + f(r) + f(g) + f(b); }
+    } catch (e) { hex = null; }
+    clothColors.set(def.id, hex);
+    return hex;
+  }
+  // Вещь поднесли к герою: одежду — надевает, остальное — берёт в руку.
+  interaction.on('give', ({ itemId, charId }) => {
+    const res = actions.give(itemId, charId, colorOfItem(itemId));
+    if (res === 'wear') { anims.hop('char:' + charId); rigAnims.cheer(charId); setFace(charId, 'laugh', 900); play('pop'); }
+    else if (res === 'hold') { anims.squash('char:' + charId); setFace(charId, 'happy', 600); play('pick'); }
+    else play('nope');
+    hud.refreshThings(); invalidate();
+  });
+
   interaction.on('tap', ({ kind, id }) => {
     if (kind === 'char') {
+      if (store.state.items.some((i) => i.held?.by === id && itemDef(i.def)?.group === 'food')) { eat(id); return; }
       const waves = (tapCount = (tapCount + 1) % 2) === 0;
       if (waves && store.state.chars.find((c) => c.id === id)?.look) { rigAnims.wave(id); play('pop'); } // машет рукой
       else { anims.hop('char:' + id); rigAnims.cheer(id); play(id === 'cat' ? 'meow' : 'boing'); } // прыгает, руки вверх
-      // Пощекотали — смеётся, потом возвращается обычное лицо.
-      const c = store.state.chars.find((c) => c.id === id);
-      if (c?.look) {
-        faceNow.set(id, 'laugh'); refreshHero(id, c.look, 'laugh');
-        clearTimeout(faceTimers.get(id));
-        faceTimers.set(id, setTimeout(() => { faceNow.delete(id); refreshHero(id, store.state.chars.find((x) => x.id === id)?.look); invalidate(); }, 1100));
-      }
+      setFace(id, 'laugh', 1100); // пощекотали — смеётся
     }
     else {
+      const it = store.state.items.find((i) => i.id === id);
+      if (it?.held && itemDef(it.def)?.group === 'food') { eat(it.held.by); return; } // нажал на еду в руке — откусывает
       const tapKind = itemDef(store.state.items.find((i) => i.id === id)?.def)?.tap;
       if (tapKind === 'ring') { anims.ring('item:' + id); play('ring'); invalidate(); return; }
       if (tapKind === 'squeak') { anims.squash('item:' + id); play('squeak'); invalidate(); return; }

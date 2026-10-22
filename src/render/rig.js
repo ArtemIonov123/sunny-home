@@ -159,7 +159,11 @@ export function buildRig(look, face = null, grip = {}) {
 }
 
 // Нарисовать героя по позе. b — рамка героя в мире (как у картинки), pose — углы костей.
-export function drawRig(ctx, rig, b, pose = {}) {
+const HAND = [412, 578], MOUTH = [256, 236]; // правая ладошка и рот на холсте героя
+let biteCv = null;
+
+// held — вещи в руке: [{ im, w, h (в мире), bites, drink }].
+export function drawRig(ctx, rig, b, pose = {}, held = []) {
   const k = b.h / rig.h;
   ctx.save();
   ctx.translate(b.x + b.w / 2, b.y + b.h);
@@ -173,11 +177,40 @@ export function drawRig(ctx, rig, b, pose = {}) {
     if (name === 'torso' && pose.bob) ctx.translate(0, pose.bob);
     if (a) { ctx.translate(px, py); ctx.rotate(a); ctx.translate(-px, -py); }
   };
+  let mHand = null, mHead = null;
   for (const name of ORDER) {
     const bn = rig.bones[name];
+    if (name === 'armLoR' && held.length) { ctx.save(); apply(name); mHand = ctx.getTransform(); ctx.restore(); }
+    if (name === 'head' && held.length) { ctx.save(); apply(name); mHead = ctx.getTransform(); ctx.restore(); }
     if (!bn.used) continue;
     ctx.save(); apply(name); ctx.drawImage(bn.cv, bn.x, bn.y); ctx.restore();
   }
+  ctx.restore();
+  if (mHand && mHead) for (const it of held) drawHeld(ctx, it, mHand, mHead, pose.toMouth || 0, k);
+}
+
+// Вещь в руке: у ладошки; во время еды — едет ко рту. Откусанные места вырезаны кружками.
+function drawHeld(ctx, it, mHand, mHead, toMouth, k) {
+  if (!it.im) return;
+  const ph = mHand.transformPoint(new DOMPoint(HAND[0], HAND[1])), pm = mHead.transformPoint(new DOMPoint(MOUTH[0], MOUTH[1]));
+  const x = ph.x + (pm.x - ph.x) * toMouth, y = ph.y + (pm.y - ph.y) * toMouth;
+  const w = it.w / k, h = it.h / k; // размер вещи в единицах холста героя
+  ctx.save();
+  ctx.setTransform(mHand.a, mHand.b, mHand.c, mHand.d, x, y);
+  if (it.drink) ctx.rotate(-0.7 * toMouth); // пьёт — наклоняет
+  let src = it.im;
+  if (it.bites && !it.drink) {
+    biteCv ||= document.createElement('canvas');
+    const bw = Math.max(1, Math.round(it.im.width)), bh = Math.max(1, Math.round(it.im.height));
+    biteCv.width = bw; biteCv.height = bh;
+    const c = biteCv.getContext('2d');
+    c.drawImage(it.im, 0, 0);
+    c.globalCompositeOperation = 'destination-out';
+    const R = bw * 0.26;
+    for (const [fx, fy] of [[0.86, 0.12], [0.5, -0.02], [0.14, 0.14]].slice(0, it.bites)) { c.beginPath(); c.arc(bw * fx, bh * fy, R, 0, Math.PI * 2); c.fill(); }
+    src = biteCv;
+  }
+  ctx.drawImage(src, -w / 2, -h / 2, w, h);
   ctx.restore();
 }
 
@@ -194,11 +227,12 @@ export const rigAnims = {
   play(id, type, dur) { motions.set(id, { type, t0: now(), dur }); },
   wave(id) { this.play(id, 'wave', 1.4); },
   cheer(id) { this.play(id, 'cheer', 0.8); },
+  eat(id) { this.play(id, 'eat', 0.9); },
   active() { const t = now(); for (const [k, m] of motions) if (t - m.t0 > m.dur) motions.delete(k); return motions.size > 0; },
 };
 
 // Поза героя сейчас. carried — герой в руке (скорость для болтания ногами).
-export function heroPose(id, { carried = false, tilt = 0 } = {}) {
+export function heroPose(id, { carried = false, tilt = 0, holding = false, reach = false } = {}) {
   const t = now(), ph = (id.charCodeAt(0) % 7) * 0.9; // у каждого героя своя фаза — не дышат хором
   const breathe = Math.sin(t * 2.2 + ph);
   const pose = {
@@ -207,6 +241,11 @@ export function heroPose(id, { carried = false, tilt = 0 } = {}) {
     armUpL: 0.03 + breathe * 0.02, armUpR: -0.03 - breathe * 0.02,
     armLoL: 0.02, armLoR: -0.02,
   };
+  if (holding) { pose.armUpR = -0.1; pose.armLoR = -0.45; } // держит вещь чуть перед собой
+  if (reach) { // к герою поднесли вещь — тянется навстречу
+    const w = Math.sin(t * 6) * 0.05;
+    pose.armUpL = 0.9 * AMP + w; pose.armUpR = -0.9 * AMP - w; pose.armLoL = 0.3 * AMP; pose.armLoR = -0.3 * AMP;
+  }
   if (carried) {
     // Ноги болтаются, руки чуть разведены, тело отстаёт от движения пальца.
     const sw = Math.sin(t * 9 + ph);
@@ -223,6 +262,10 @@ export function heroPose(id, { carried = false, tilt = 0 } = {}) {
       pose.armUpR = -0.03 - 2.3 * AMP * env;
       pose.armLoR = (-0.6 * env + Math.sin(t * 14) * 0.45 * env) * AMP;
       pose.head = 0.08 * env;
+    } else if (m.type === 'eat') {
+      pose.toMouth = env; // вещь — ко рту и обратно
+      pose.armUpR = -0.1 - 0.5 * AMP * env; pose.armLoR = -0.45 + 0.9 * env;
+      pose.head = -0.06 * env;
     } else if (m.type === 'cheer') {
       pose.armUpL = 0.03 + 2.2 * AMP * env; pose.armUpR = -0.03 - 2.2 * AMP * env;
       pose.armLoL = 0.5 * AMP * env; pose.armLoR = -0.5 * AMP * env;

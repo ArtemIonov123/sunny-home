@@ -3,7 +3,7 @@
 // Вещь на поверхности хранит ссылку на мебель: on = { id, s, dx } и едет вместе с ней.
 import { itemDef } from './catalog.js';
 import { sizeOf } from '../assets.js';
-import { itemBounds, floorTop, floorBottom, snapItem } from './placement.js';
+import { itemBounds, floorTop, floorBottom, snapItem, heldSpot } from './placement.js';
 import { clamp } from '../util.js';
 
 const SMALL = 230;          // вещи не больше этого размера можно ставить на мебель
@@ -63,6 +63,14 @@ export function landing(state, defId, room, lx, ly, selfId = null) {
 export function syncChildren(state) {
   const byId = new Map(state.items.map((i) => [i.id, i]));
   const rooms = new Map(state.rooms.map((r) => [r.id, r]));
+  // Вещи в руках героев — там, где ладошка; герой пропал — вещь падает на пол.
+  for (const i of state.items) {
+    if (!i.held) continue;
+    const c = state.chars?.find((c) => c.id === i.held.by);
+    if (!c || i.inv) { delete i.held; continue; }
+    const p = heldSpot(c, i.def);
+    i.room = c.room; i.x = p.x; i.y = p.y; delete i.on;
+  }
   for (const c of state.items) {
     if (!c.on) continue;
     const p = byId.get(c.on.id);

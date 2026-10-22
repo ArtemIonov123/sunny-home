@@ -8,6 +8,8 @@ import { itemBounds, charBounds, depthOf } from '../core/placement.js';
 import { backgroundFor, clearBackgrounds, prewarm } from './background.js';
 import { anims } from './anims.js';
 import { getRig, drawRig, heroPose } from './rig.js';
+import { sizeOf } from '../assets.js';
+const DRINKS = new Set(['milk', 'juice', 'smoothie_banana']);
 import { mode } from '../ui/mode.js';
 import { surfacesOf, isHidden, isSmall } from '../core/physics.js';
 
@@ -106,7 +108,11 @@ export function createRenderer(canvas, store, camera) {
     ctx.translate(b.x + b.w / 2 + (pose?.dx || 0), b.y + b.h + (pose?.dy || 0));
     if (pose?.rot) ctx.rotate(pose.rot);
     if (pose && (pose.sx !== 1 || pose.sy !== 1)) ctx.scale(pose.sx || 1, pose.sy || 1);
-    drawRig(ctx, getRig(id), { x: -b.w / 2, y: -b.h, w: b.w, h: b.h }, heroPose(id, opts));
+    const held = store.state.items.filter((i) => i.held?.by === id && !(curDrag?.kind === 'item' && curDrag.id === i.id)).map((i) => {
+      const def = itemDef(i.def), sz = sizeOf(def);
+      return { im: img(def.art), w: sz.w, h: sz.h, bites: i.bites || 0, drink: DRINKS.has(i.def) };
+    });
+    drawRig(ctx, getRig(id), { x: -b.w / 2, y: -b.h, w: b.w, h: b.h }, heroPose(id, { ...opts, holding: held.length > 0 }), held);
     ctx.restore();
   }
 
@@ -262,7 +268,9 @@ export function createRenderer(canvas, store, camera) {
     ctx.restore();
   }
 
+  let curDrag = null; // что сейчас в руке у игрока (для рисования героев)
   function draw(drag, nightLevel, guidesRoomId) {
+    curDrag = drag;
     const lay = store.layout;
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.fillStyle = '#f3dfbd';
@@ -306,14 +314,15 @@ export function createRenderer(canvas, store, camera) {
           if (power.screen) { const [a, b2, c, d] = power.screen; drawScreen(x + a * w, y + b2 * h, (c - a) * w, (d - b2) * h, litSince.get(e.obj.id)); animating = true; }
         };
       }
-      if (e.kind === 'char' && getRig(e.obj.id)) { drawHeroRig(e.obj.id, e.b, pose); idleHeroes = true; }
+      if (e.kind === 'item' && e.obj.held) continue; // в руке — рисуется вместе с героем
+      if (e.kind === 'char' && getRig(e.obj.id)) { drawHeroRig(e.obj.id, e.b, pose, { reach: drag?.hero === e.obj.id }); idleHeroes = true; }
       else drawSprite(e.art, e.b, { pose, after });
       if (chain.length) ctx.restore();
     }
     drawPartitions();
     if (guidesRoomId) drawGuides(guidesRoomId);
     if (drag && drag.kind !== 'pan') {
-      drawLanding(drag);
+      if (!drag.hero) drawLanding(drag); // над героем — не показываем, куда упадёт: герой возьмёт
       ctx.globalAlpha = drag.valid ? 1 : 0.6;
       ctx.fillStyle = 'rgba(70,45,20,.18)'; // тень под вещью в руке
       ctx.beginPath(); ctx.ellipse(drag.b.x + drag.b.w / 2, drag.b.y + drag.b.h + 18, drag.b.w * 0.32, 10, 0, 0, Math.PI * 2); ctx.fill();

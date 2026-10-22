@@ -6,7 +6,7 @@ import { defaultState, newRoom, MAX_ROOMS, NEW_IN_INVENTORY, BATH_START, BEDROOM
 import { clamp, isHex } from '../util.js';
 import { cleanLook } from '../core/looks.js';
 
-export const SCHEMA = 11;
+export const SCHEMA = 12;
 
 const MIGRATIONS = {
   // 1 → 2: появился шкафчик. Все вещи из версии 1 стоят в доме, формат вещи в доме не меняется.
@@ -103,6 +103,8 @@ const MIGRATIONS = {
   },
   // 10 → 11: у героев появилась внешность (look). Нет — значит по умолчанию (подставит validate).
   10: (s) => ({ ...s, schema: 11 }),
+  // 11 → 12: вещь может быть в руке героя (held) и надкушена (bites). Старые данные подходят.
+  11: (s) => ({ ...s, schema: 12 }),
 };
 
 const num = (v, a, b, d) => (Number.isFinite(v) ? clamp(v, a, b) : d);
@@ -165,6 +167,8 @@ export function validate(raw) {
     }
     if (!inInventory && i.open === true) item.open = true;
     if (!inInventory && i.lit === true) item.lit = true;
+    if (!inInventory && i.held && CHARS[i.held.by]) item.held = { by: i.held.by }; // место — от героя (syncChildren)
+    if (Number.isInteger(i.bites) && i.bites > 0 && i.bites < 3) item.bites = i.bites;
     (itemDef(item.def) ? items : missing).push(item); // неизвестный предмет откладываем, а не удаляем
   }
 

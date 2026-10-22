@@ -82,6 +82,9 @@ export function createInteraction({ canvas, viewport, camera, renderer, store, i
       const pos = landing(store.state, g.obj.def, r.room, lx, ay, g.id);
       g.target = { r, pos };
       g.valid = !!pos;
+      // Мелочь поднесли к герою — он её возьмёт (одежду — наденет).
+      g.hero = isSmall(itemDef(g.obj.def)) ? heroAt(ax, ay - sizeOf(itemDef(g.obj.def)).h / 2) : null;
+      if (g.hero) g.valid = true;
       // Вещь идёт за пальцем; на стене/проёме сразу показываем, куда она встанет.
       const show = pos && itemDef(g.obj.def).place !== 'floor' ? { x: r.x0 + pos.x, y: pos.y } : { x: ax, y: ay };
       g.b = itemBounds({ def: g.obj.def, x: show.x, y: show.y });
@@ -111,11 +114,13 @@ export function createInteraction({ canvas, viewport, camera, renderer, store, i
       store.change((s) => {
         releaseChildren(s, d.id); // вещи с мебели падают на пол, а не исчезают с ней
         const i = s.items.find((i) => i.id === d.id);
-        if (i) { delete i.room; delete i.x; delete i.y; delete i.on; i.inv = true; }
+        if (i) { delete i.room; delete i.x; delete i.y; delete i.on; delete i.held; delete i.bites; i.inv = true; }
       }, { undo: false });
       animateFallen(kids);
       play('stash');
       events.emit('stashed', itemDef(d.obj.def).name);
+    } else if (d.kind === 'item' && d.hero) {
+      events.emit('give', { itemId: d.id, charId: d.hero });
     } else if (!d.valid) {
       store.dropCheckpoint();
       anims.back('item:' + d.id, d.b.x - d.from.x, d.b.y - d.from.y); // некуда — возвращается на место
@@ -151,9 +156,22 @@ export function createInteraction({ canvas, viewport, camera, renderer, store, i
     return true;
   }
 
+  // Герой под точкой (только те, кого можно одевать и давать им вещи; кошка — нет).
+  function heroAt(wx, wy) {
+    if (mode.design) return null;
+    for (const c of store.state.chars) {
+      if (!c.look) continue;
+      const r = store.layout.byId.get(c.room); if (!r) continue;
+      const b = charBounds(c), x = b.x + r.x0;
+      if (wx >= x + b.w * 0.12 && wx <= x + b.w * 0.88 && wy >= b.y + b.h * 0.08 && wy <= b.y + b.h) return c.id;
+    }
+    return null;
+  }
+
   function finishFromInventory(d, cancel) {
     const name = itemDef(d.obj.def).name;
     if (cancel || isOverStash(d.clientX, d.clientY)) { store.dropCheckpoint(); return; }
+    if (d.hero) { events.emit('give', { itemId: d.id, charId: d.hero }); return; }
     if (!d.valid) { store.dropCheckpoint(); play('nope'); events.emit('invalid', name); return; }
     place(d);
   }
@@ -166,7 +184,8 @@ export function createInteraction({ canvas, viewport, camera, renderer, store, i
       const o = (isItem ? s.items : s.chars).find((o) => o.id === d.id);
       if (!o) return;
       delete o.inv; o.room = r.room.id; o.x = pos.x; o.y = pos.y;
-      if (isItem) { if (pos.on) o.on = { ...pos.on }; else delete o.on; syncChildren(s); }
+      if (isItem) { delete o.held; delete o.bites; if (pos.on) o.on = { ...pos.on }; else delete o.on; }
+      syncChildren(s); // и вещи в руках героя переезжают вместе с ним
     }, { undo: false });
     // Анимация: от того места, где отпустили, до места приземления.
     const fx = (d.ax ?? r.x0 + pos.x) - (r.x0 + pos.x);

@@ -27,6 +27,15 @@ export function charBounds(c) {
   return { x: c.x - w / 2, y: c.y - h, w, h };
 }
 
+// Вещь в руке героя: её место — у правой ладошки (точка кисти на холсте героя, см. render/rig.js).
+// Хранится как обычная вещь в комнате героя (room/x/y), плюс held: { by } — кто держит.
+export const HAND_R = [412, 578], HERO_CANVAS_H = 873;
+export function heldSpot(c, defId) {
+  const k = CHARS[c.id].h / HERO_CANVAS_H, def = itemDef(defId);
+  const { h } = def ? sizeOf(def) : { h: 60 };
+  return { x: c.x + (HAND_R[0] - 256) * k, y: c.y - (HERO_CANVAS_H - HAND_R[1]) * k + h / 2 };
+}
+
 export function snapItem(defId, room, x, y) {
   const def = itemDef(defId);
   if (!def || !room) return null;
@@ -52,6 +61,7 @@ export function snapChar(room, x, y) {
 // Слой отрисовки: стены и дверные проёмы позади, на полу — по нижней точке.
 export function depthOf(kind, obj, parentOf) {
   if (kind === 'item') {
+    if (obj.held) return obj.y + 140; // в руке — перед героем (и пальцем берётся раньше героя)
     const parent = obj.on && parentOf?.(obj.on.id);
     if (parent) return parent.y + 0.5 + obj.on.s * 0.01; // вещь на мебели — сразу перед мебелью
     const place = itemDef(obj.def)?.place;
