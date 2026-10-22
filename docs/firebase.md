@@ -9,3 +9,9 @@
 
 `apiKey` — не секрет (это адрес проекта, он лежит в игре). Данные защищают правила базы.
 Бесплатный тариф Spark: до 100 одновременных подключений, 1 ГБ данных, карта не нужна.
+
+## Друзья работают только с сайта (https), не из файла
+
+Открытая как файл (file://) игра не может нормально подключиться к Firebase: на телефоне не проходит вход, на компьютере не отвечает база.
+Игра выкладывается на GitHub Pages: https://artemionov123.github.io/sunny-home/ (workflow `.github/workflows/pages.yml`, только `dist/sunny-home.html`; студия на сайт не попадает).
+Один раз: GitHub → репозиторий → Settings → Pages → Source: **GitHub Actions**. В Firebase → Authentication → Settings → Authorized domains добавить `artemionov123.github.io`.
