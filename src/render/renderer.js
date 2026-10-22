@@ -336,7 +336,7 @@ export function createRenderer(canvas, store, camera) {
         };
       }
       if (e.kind === 'item' && e.obj.held) continue; // в руке — рисуется вместе с героем
-      if (e.kind === 'item' && itemDef(e.obj.def)?.animal && drawAnimalItem(e.obj, e.b, pose, { sleep: nightLevel > 0.5 && !e.obj.on, walk: pets?.walkOf(e.obj.id) })) { idleHeroes = true; if (chain.length) ctx.restore(); continue; }
+      if (e.kind === 'item' && itemDef(e.obj.def)?.animal && drawAnimalItem(e.obj, e.b, pose, { sleep: (nightLevel > 0.5 && !e.obj.on) || pets?.poseOf(e.obj.id) === 'nap', sniff: pets?.poseOf(e.obj.id) === 'sniff', walk: pets?.walkOf(e.obj.id) })) { idleHeroes = true; if (chain.length) ctx.restore(); continue; }
       if (e.kind === 'char' && getRig(e.obj.id)) {
         const seat = e.obj.seat ? (e.obj.seat.lie ? 'lie' : 'sit') : null;
         drawHeroRig(e.obj.id, e.b, pose, { reach: drag?.hero === e.obj.id, seat, covered: seat === 'lie' && !!itemDef(byId.get(e.obj.seat.id)?.obj.def)?.cover });

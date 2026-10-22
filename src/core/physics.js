@@ -42,7 +42,7 @@ function seatX(charId, sf, x) {
 }
 // Героя отпустили над диваном, креслом, кроватью — садится или ложится. Иначе null (встанет на пол).
 export function seatLanding(state, charId, room, lx, ly) {
-  if (!state.chars.find((c) => c.id === charId)?.look) return null; // кошка просто стоит
+  if (!state.chars.find((c) => c.id === charId)?.look) return null; // без внешности — не садится
   const drop = (CHARS[charId].h * (HERO_CANVAS_H - HIP_Y)) / HERO_CANVAS_H;
   let best = null;
   for (const p of state.items) {

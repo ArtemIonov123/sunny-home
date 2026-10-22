@@ -360,5 +360,5 @@ if __name__ == '__main__':
     # Из прототипа 0.4.1
     copy_webp('legacy/room_table.webp', 'items/table.webp')
     copy_webp('legacy/room_picture.webp', 'items/picture.webp')
-    for c in ('girl', 'boy', 'cat'):
+    for c in ('girl', 'boy'):
         copy_webp(f'legacy/{c}.webp', f'chars/{c}.webp')

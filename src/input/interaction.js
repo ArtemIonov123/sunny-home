@@ -187,7 +187,7 @@ export function createInteraction({ canvas, viewport, camera, renderer, store, i
     return true;
   }
 
-  // Герой под точкой (только те, кого можно одевать и давать им вещи; кошка — нет).
+  // Герой под точкой (только те, у кого есть внешность — их можно одевать и давать им вещи).
   function heroAt(wx, wy) {
     if (mode.design) return null;
     for (const c of store.state.chars) {

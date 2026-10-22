@@ -192,7 +192,7 @@ export function validate(raw) {
   const chars = Object.keys(CHARS).map((id, k) => {
     const c = (Array.isArray(s.chars) ? s.chars : []).find((c) => c?.id === id);
     const ok = c && roomIds.has(c.room) && Number.isFinite(c.x) && Number.isFinite(c.y);
-    const look = cleanLook(c?.look, id); // у кошки внешности нет
+    const look = cleanLook(c?.look, id); // внешность героя (Мила, Тим)
     const out = ok ? { id, room: c.room, x: c.x, y: c.y } : { id, room: fallbackRoom, x: 700 + k * 300, y: 800 };
     if (look) out.look = look;
     const st = c?.seat; // сидит на мебели: проверка, что мебель есть, — в syncChildren

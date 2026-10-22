@@ -155,7 +155,6 @@ export const CHARS = {
   // Мила и Тим собираются из частей (render/hero.js), их картинка — 'hero/<id>'.
   girl: { name: 'Мила',   art: 'hero/girl', h: 330 },
   boy:  { name: 'Тим',    art: 'hero/boy',  h: 330 },
-  cat:  { name: 'Персик', art: 'chars/cat',  h: 160 },
 };
 
 export const ROOM_TYPES = {

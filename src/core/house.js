@@ -89,7 +89,6 @@ export function defaultState() {
     chars: [
       { id: 'girl', room: 'living', x: 900, y: 770 },
       { id: 'boy', room: 'living', x: 1700, y: 800 },
-      { id: 'cat', room: 'living', x: 1250, y: 830 },
     ],
     night: false,
   };

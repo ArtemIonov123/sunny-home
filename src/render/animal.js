@@ -161,7 +161,7 @@ export const animalAnims = {
 };
 
 // Поза: id — вещь (своя фаза дыхания), walk — { phase, amp } (идёт), carried — в руке, sleep — ночь.
-export function animalPose(id, { walk = null, carried = false, tilt = 0, sleep = false, rig = null } = {}) {
+export function animalPose(id, { walk = null, carried = false, tilt = 0, sleep = false, sniff = false, rig = null } = {}) {
   const t = now(), ph = (Number(id) || 0) * 1.7;
   const breathe = Math.sin(t * 2.4 + ph);
   const pose = { bob: breathe * 2, head: Math.sin(t * 0.9 + ph) * 0.05, tail: Math.sin(t * 3 + ph) * 0.18 };
@@ -185,6 +185,10 @@ export function animalPose(id, { walk = null, carried = false, tilt = 0, sleep =
     pose.dy = (rig?.legLen || 0) * 0.72;                              // туловище опустилось на пол
     pose.legFN = -1.4; pose.legFF = -1.3; pose.legBN = -1.45; pose.legBF = -1.35; // все лапы поджаты вперёд, под себя
     pose.head = 0.18; pose.bob = slow * 1.5; pose.tail = 0.35;
+  }
+  if (sniff && !walk && !carried && !sleep) {
+    // Нюхает пол: голова вниз и чуть водит носом, хвост виляет.
+    pose.head = 0.42 + Math.sin(t * 7 + ph) * 0.06; pose.rot = 0.06; pose.tail = Math.sin(t * 8) * 0.3;
   }
   const m = motions.get(id);
   if (m && !sleep) {

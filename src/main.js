@@ -68,6 +68,13 @@ async function boot() {
   const pets = createPets({
     store, camera,
     isPaused: () => mode.design || store.state.night || !!interaction.drag,
+    onAct: (id, what) => { // сами решили: гавкнуть (слышно, только если на экране), запрыгнуть на диван
+      const i = store.state.items.find((x) => x.id === id), r = i && store.layout.byId.get(i.room);
+      const seen = r && r.x0 + i.x > camera.x - 50 && r.x0 + i.x < camera.x + camera.viewW + 50;
+      if (what === 'bark' && seen) { animalAnims.happy(id); anims.hop('item:' + id); play(itemDef(i.def)?.animal?.voice || 'pop'); }
+      if (what === 'hop') { anims.fall('item:' + id, -60); if (seen) play('boing'); }
+      invalidate();
+    },
     onArrive: (id, called) => { if (called) { anims.hop('item:' + id); animalAnims.happy(id); play(itemDef(store.state.items.find((i) => i.id === id)?.def)?.animal?.voice || 'pop'); } },
   });
   renderer.setPets(pets);
@@ -252,14 +259,14 @@ async function boot() {
       if (store.state.items.some((i) => i.held?.by === id && itemDef(i.def)?.group === 'food')) { eat(id); return; }
       const waves = (tapCount = (tapCount + 1) % 2) === 0;
       if (waves && store.state.chars.find((c) => c.id === id)?.look) { rigAnims.wave(id); play('pop'); } // машет рукой
-      else { anims.hop('char:' + id); rigAnims.cheer(id); play(id === 'cat' ? 'meow' : 'boing'); } // прыгает, руки вверх
+      else { anims.hop('char:' + id); rigAnims.cheer(id); play('boing'); } // прыгает, руки вверх
       setFace(id, 'laugh', 1100); // пощекотали — смеётся
     }
     else {
       const it = store.state.items.find((i) => i.id === id);
       if (it?.held && itemDef(it.def)?.group === 'food') { eat(it.held.by); return; } // нажал на еду в руке — откусывает
       const an = itemDef(it?.def)?.animal;
-      if (an && !it.held) { anims.hop('item:' + id); animalAnims.happy(id); play(an.voice || 'pop'); invalidate(); return; } // животное радуется: прыжок, хвост, голос
+      if (an && !it.held) { pets.stop(id); anims.hop('item:' + id); animalAnims.happy(id); play(an.voice || 'pop'); invalidate(); return; } // животное радуется: прыжок, хвост, голос
       if (tryCook(id)) return; // прибор с продуктами — готовит
       const tapKind = itemDef(store.state.items.find((i) => i.id === id)?.def)?.tap;
       if (tapKind === 'ring') { anims.ring('item:' + id); play('ring'); invalidate(); return; }
@@ -313,7 +320,7 @@ async function boot() {
   });
 
   // Для автотестов и отладки.
-  window.__sunny = { interaction, rig: { rigAnims, getRig, drawRig, LIE }, store, camera, renderer, actions, viewport, saveNow, physics: { surfacesOf, syncChildren }, mode, hud };
+  window.__sunny = { pets, interaction, rig: { rigAnims, getRig, drawRig, LIE }, store, camera, renderer, actions, viewport, saveNow, physics: { surfacesOf, syncChildren }, mode, hud };
 }
 
 boot().catch((e) => {
