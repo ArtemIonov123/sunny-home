@@ -21,7 +21,10 @@ const SH = HAS_PARTS ? [185, 336] : [176, 336], EL = HAS_PARTS ? [148, 442] : [1
 export const JOINTS = {
   neck: [256, 300], hipL: HAS_PARTS ? [211, 580] : [212, 584], hipR: HAS_PARTS ? [301, 580] : [300, 584],
   shoulderL: SH, elbowL: EL, shoulderR: mx(SH), elbowR: mx(EL),
+  kneeL: [207, 700], kneeR: [305, 700],
 };
+const KNEE_Y = 700, KNEE_LAP = 8, LAP_Y = 596; // LAP_Y — низ голого туловища: ниже — только подол // ногу делим на бедро и голень по колену (с небольшим нахлёстом — без щели)
+export const HIP_Y = 580;          // таз на холсте героя: сидя он — на сиденье, лёжа — вокруг него поворот
 // Кость: сустав, родитель, область на холсте (чтобы не держать лишние пиксели).
 export const BONES = {
   torso:   { at: [256, 584], parent: null, box: [0, 0, W, 900] },
@@ -29,6 +32,9 @@ export const BONES = {
   head:    { at: JOINTS.neck, parent: 'torso', box: [0, 0, W, 340] },
   legL:    { at: JOINTS.hipL, parent: 'torso', box: [120, 560, 140, 320] },
   legR:    { at: JOINTS.hipR, parent: 'torso', box: [252, 560, 140, 320] },
+  lap:     { at: [256, 580], parent: 'torso', box: [0, 560, W, 340] }, // подол ниже таза: сидя ложится на колени
+  shinL:   { at: JOINTS.kneeL, parent: 'legL', box: [120, 560, 140, 320] },
+  shinR:   { at: JOINTS.kneeR, parent: 'legR', box: [252, 560, 140, 320] },
   armUpL:  { at: JOINTS.shoulderL, parent: 'torso', box: [40, 270, 180, 210] },
   armLoL:  { at: JOINTS.elbowL, parent: 'armUpL', box: [40, 440, 140, 200] },
   armUpR:  { at: JOINTS.shoulderR, parent: 'torso', box: [W - 220, 270, 180, 210] },
@@ -36,7 +42,7 @@ export const BONES = {
 };
 // Порядок рисования: сзади вперёд. Руки — за туловищем: так в покое герой выглядит точно как цельная
 // картинка (платье и футболка поверх рук), а при подъёме руки плечо прячется под одеждой.
-export const ORDER = ['hairBack', 'legL', 'legR', 'armUpL', 'armLoL', 'armUpR', 'armLoR', 'torso', 'head'];
+export const ORDER = ['hairBack', 'shinL', 'shinR', 'legL', 'legR', 'armUpL', 'armLoL', 'armUpR', 'armLoR', 'torso', 'lap', 'head'];
 // Части пока вырезаны из цельного тела — большие повороты показали бы срезы, поэтому размах меньше.
 // Когда придут отдельные части от GPT (arm_upper_left…), размах станет полным.
 const FULL_PARTS = !!HERO_LAYERS['hero/arm_upper_left_t'] || !!HERO_LAYERS['hero/arm_upper_left_f'];
@@ -123,7 +129,7 @@ function partSources(look, grip) {
   return out;
 }
 
-const KIND_BONES = { all: ['torso', 'legL', 'legR', 'armUpL', 'armLoL', 'armUpR', 'armLoR'], sleeves: ['torso', 'armUpL', 'armUpR'], free: ['torso'], legs: ['legL', 'legR'] };
+const KIND_BONES = { all: ['torso', 'legL', 'legR', 'armUpL', 'armLoL', 'armUpR', 'armLoR'], sleeves: ['torso', 'armUpL', 'armUpR'], free: ['torso'], legs: ['shinL', 'shinR'] };
 const bonesOf = (kind) => (kind.startsWith('bone:') ? [kind.slice(5)] : KIND_BONES[kind]);
 
 // Собрать кости для внешности. face — временное лицо (смех и т. п.).
@@ -131,6 +137,9 @@ export function buildRig(look, face = null, grip = {}) {
   // Что в какую кость: [слой, цвет, способ обрезки].
   const plan = Object.fromEntries(ORDER.map((n) => [n, []]));
   for (const [layer, color, kind] of sources(look, grip)) for (const bone of bonesOf(kind)) plan[bone].push([layer, color, kind]);
+  // Нога → бедро (legL) и голень (shinL): та же картинка, разрезанная по колену. Так герой может сесть.
+  for (const [leg, shin] of [['legL', 'shinL'], ['legR', 'shinR']]) plan[shin].unshift(...plan[leg]);
+  plan.lap = plan.torso.slice(); // туловище ниже таза (юбка, подол платья) — отдельной костью
   if (look.hair === 'long') plan.hairBack.push(['hair_long_back', look.hairColor, 'bone:hairBack']);
   const hair = look.hair === 'long' ? 'long_front' : look.hair;
   plan.head.push(['head', look.skin, 'bone:head'], ['face_' + (face || look.face), null, 'bone:head']);
@@ -150,16 +159,27 @@ export function buildRig(look, face = null, grip = {}) {
     }
     const box = BONES[name].box; // не шире области кости (вырезанные части)
     if (!list.every(([, , k]) => k.startsWith('bone:'))) { x0 = Math.max(x0, box[0]); y0 = Math.max(y0, box[1]); x1 = Math.min(x1, box[0] + box[2]); y1 = Math.min(y1, box[1] + box[3]); }
+    const knee = KNEE_CUT[name];
+    if (knee) { y0 = Math.max(y0, knee[0]); y1 = Math.min(y1, knee[1]); }
     if (!(x1 > x0 && y1 > y0)) { bones[name] = { used: false }; continue; }
     const cv = document.createElement('canvas');
     cv.width = Math.ceil(x1 - x0); cv.height = Math.ceil(y1 - y0);
     const c = cv.getContext('2d');
     c.translate(-x0, -y0);
-    for (const [layer, color, kind] of list) { c.save(); if (!kind.startsWith('bone:')) clipFor(c, name, kind); drawPart(c, layer, color); c.restore(); }
+    for (const [layer, color, kind] of list) {
+      c.save();
+      const ck = kind.startsWith('bone:') ? null : kind === 'legs' ? (name === 'shinL' ? 'legL' : 'legR') : name.startsWith('shin') ? (name === 'shinL' ? 'legL' : 'legR') : name === 'lap' ? 'torso' : name;
+      if (ck) clipFor(c, ck, kind);
+      if (knee) { c.beginPath(); c.rect(0, knee[0], W, knee[1] - knee[0]); c.clip(); }
+      drawPart(c, layer, color); c.restore();
+    }
     bones[name] = { cv, x: x0, y: y0, used: true };
   }
   return { bones, h: HERO_LAYERS['hero/body_stand_f'][1] + (img('hero/body_stand_f')?.height || 600) };
 }
+
+// Где режется нога: бедро — выше колена, голень — ниже.
+const KNEE_CUT = { torso: [0, LAP_Y + 2], lap: [LAP_Y - 2, 2000], legL: [0, KNEE_Y + KNEE_LAP], legR: [0, KNEE_Y + KNEE_LAP], shinL: [KNEE_Y - KNEE_LAP, 2000], shinR: [KNEE_Y - KNEE_LAP, 2000] };
 
 // Нарисовать героя по позе. b — рамка героя в мире (как у картинки), pose — углы костей.
 const HAND = [412, 578], MOUTH = [256, 236]; // правая ладошка и рот на холсте героя
@@ -188,19 +208,29 @@ export function drawRig(ctx, rig, b, pose = {}, held = []) {
   ctx.translate(b.x + b.w / 2, b.y + b.h);
   ctx.scale(k, k);
   ctx.translate(-W / 2, -rig.h);
-  const apply = (name) => {
+  // Лёжа — весь герой повёрнут вокруг таза (головой влево, на подушку).
+  if (pose.lie) { ctx.translate(W / 2, HIP_Y); ctx.rotate(-Math.PI / 2); ctx.translate(-W / 2, -HIP_Y); }
+  // squash — кость «сплющена» вдоль себя (бедро, направленное на нас, когда герой сидит).
+  // Сама кость рисуется сплющенной, а дочерняя (голень) просто переезжает к новому колену.
+  const sq = pose.squash || {};
+  const apply = (name, self = true) => {
     const bone = BONES[name];
-    if (bone.parent) apply(bone.parent);
+    if (bone.parent) {
+      apply(bone.parent, false);
+      const s = sq[bone.parent];
+      if (s) ctx.translate(0, (bone.at[1] - BONES[bone.parent].at[1]) * (s - 1));
+    }
     const a = pose[name] || 0;
     const [px, py] = bone.at;
     if (name === 'torso' && pose.bob) ctx.translate(0, pose.bob);
     if (a) { ctx.translate(px, py); ctx.rotate(a); ctx.translate(-px, -py); }
+    if (self && sq[name]) { ctx.translate(px, py); ctx.scale(1, sq[name]); ctx.translate(-px, -py); }
   };
   let mHand = null, mHead = null;
   // Кости из pose.front рисуются сразу после туловища (перед ним), остальные — по порядку.
   const front = pose.front || [];
   const order = front.length ? ORDER.filter((n) => !front.includes(n)).flatMap((n) => (n === 'torso' ? ['torso', ...front] : [n])) : ORDER;
-  for (const name of order) {
+  for (const name of pose.only ? order.filter((n) => pose.only.includes(n)) : order) {
     const bn = rig.bones[name];
     if (name === 'armLoR' && held.length) { ctx.save(); apply(name); mHand = ctx.getTransform(); ctx.restore(); }
     if (name === 'head' && held.length) { ctx.save(); apply(name); mHead = ctx.getTransform(); ctx.restore(); }
@@ -254,7 +284,7 @@ export const rigAnims = {
 };
 
 // Поза героя сейчас. carried — герой в руке (скорость для болтания ногами).
-export function heroPose(id, { carried = false, tilt = 0, holding = false, reach = false } = {}) {
+export function heroPose(id, { carried = false, tilt = 0, holding = false, reach = false, seat = null, covered = false } = {}) {
   const t = now(), ph = (id.charCodeAt(0) % 7) * 0.9; // у каждого героя своя фаза — не дышат хором
   const breathe = Math.sin(t * 2.2 + ph);
   const pose = {
@@ -263,7 +293,22 @@ export function heroPose(id, { carried = false, tilt = 0, holding = false, reach
     armUpL: 0.03 + breathe * 0.02, armUpR: -0.03 - breathe * 0.02,
     armLoL: 0.02, armLoR: -0.02,
   };
-  if (holding) { pose.armUpR = -0.1; pose.armLoR = -0.45; } // держит вещь чуть перед собой
+  if (seat === 'sit' && FULL_PARTS) {
+    // Сидит: бёдра смотрят на нас (сплющены), голени свисают и болтаются, руки на коленях.
+    const sw = Math.sin(t * 2.6 + ph);
+    pose.squash = { legL: 0.22, legR: 0.22, lap: 0.3 };
+    pose.legL = 0.22; pose.legR = -0.22;                          // колени врозь
+    pose.shinL = -0.24 + sw * 0.16; pose.shinR = 0.24 + sw * 0.16; // а голени — вниз и болтаются
+    pose.armUpL = 0.1 + breathe * 0.015; pose.armUpR = -0.1 - breathe * 0.015;
+    pose.armLoL = -0.3; pose.armLoR = 0.3;
+  } else if (seat === 'lie') {
+    // Лежит и спит: дышит медленно, руки вдоль тела.
+    const slow = Math.sin(t * 1.3 + ph);
+    pose.lie = true; pose.bob = slow * 1.2; pose.head = 0.05;
+    if (covered) pose.only = ['hairBack', 'head']; // под одеялом — видна только голова на подушке
+    pose.armUpL = 0.04; pose.armUpR = -0.04; pose.armLoL = 0; pose.armLoR = 0;
+  }
+  if (holding && seat !== 'lie') { pose.armUpR = -0.1; pose.armLoR = -0.45; } // держит вещь чуть перед собой
   if (reach) { // к герою поднесли вещь — тянется навстречу
     const w = Math.sin(t * 6) * 0.05;
     pose.armUpL = 0.9 * AMP + w; pose.armUpR = -0.9 * AMP - w; pose.armLoL = 0.3 * AMP; pose.armLoR = -0.3 * AMP;

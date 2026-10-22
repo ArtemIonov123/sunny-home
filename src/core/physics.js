@@ -1,9 +1,9 @@
 // «Физика» в духе Toca Boca: вещь, отпущенная в воздухе, падает вниз —
 // на ближайшую поверхность мебели (столешница, сиденье, полка) или на пол.
 // Вещь на поверхности хранит ссылку на мебель: on = { id, s, dx } и едет вместе с ней.
-import { itemDef } from './catalog.js';
+import { itemDef, CHARS } from './catalog.js';
 import { sizeOf } from '../assets.js';
-import { itemBounds, floorTop, floorBottom, snapItem, heldSpot } from './placement.js';
+import { itemBounds, floorTop, floorBottom, snapItem, heldSpot, hipDrop, HIP_Y, HERO_CANVAS_H } from './placement.js';
 import { clamp } from '../util.js';
 
 const SMALL = 230;          // вещи не больше этого размера можно ставить на мебель
@@ -26,6 +26,40 @@ export function surfacesOf(parent) {
     s, x0: b.x + x0 * b.w, x1: b.x + x1 * b.w, y: b.y + y * b.h, bottom: b.y + b.h,
     inside: !!inside, open: !inside || !!parent.open, // внутренняя полка доступна, только если открыто
   }));
+}
+
+// Сиденья и кровати: seats у определения — [x0, x1, y, 1?] в долях картинки (y — где таз сидящего).
+export function seatsOf(parent) {
+  const def = itemDef(parent.def);
+  if (!def?.seats || parent.inv) return [];
+  const b = itemBounds(parent);
+  return def.seats.map(([x0, x1, y, kind], s) => ({ s, x0: b.x + x0 * b.w, x1: b.x + x1 * b.w, y: b.y + y * b.h, bottom: b.y + b.h, lie: !!kind }));
+}
+// Лёжа таз героя — на таком расстоянии от макушки (голова — на краю x0, на подушке).
+const headToHip = (charId) => (CHARS[charId].h * (HIP_Y - 40)) / HERO_CANVAS_H;
+function seatX(charId, sf, x) {
+  if (sf.lie) return sf.x0 + headToHip(charId);
+  const pad = Math.min(CHARS[charId].h * 0.12, (sf.x1 - sf.x0) / 2);
+  return clamp(x, sf.x0 + pad, sf.x1 - pad);
+}
+// Героя отпустили над диваном, креслом, кроватью — садится или ложится. Иначе null (встанет на пол).
+export function seatLanding(state, charId, room, lx, ly) {
+  if (!state.chars.find((c) => c.id === charId)?.look) return null; // кошка просто стоит
+  const drop = (CHARS[charId].h * (HERO_CANVAS_H - HIP_Y)) / HERO_CANVAS_H;
+  let best = null;
+  for (const p of state.items) {
+    if (p.inv || p.room !== room.id || p.on) continue;
+    for (const sf of seatsOf(p)) {
+      if (lx < sf.x0 - 10 || lx > sf.x1 + 10) continue;
+      const hip = ly - drop; // где окажется таз, если отпустить здесь
+      if (hip < sf.y - 150 || hip > sf.bottom + 30) continue;
+      if (!best || Math.abs(sf.y - hip) < Math.abs(best.y - hip)) {
+        const x = seatX(charId, sf, lx);
+        best = { x, y: sf.y, seat: { id: p.id, s: sf.s, dx: x - p.x, ...(sf.lie ? { lie: true } : {}) } };
+      }
+    }
+  }
+  return best;
 }
 
 // Куда приземлится вещь defId, отпущенная в точке (lx, ly) комнаты room.
@@ -66,6 +100,14 @@ export function landing(state, defId, room, lx, ly, selfId = null) {
 export function syncChildren(state) {
   const byId = new Map(state.items.map((i) => [i.id, i]));
   const rooms = new Map(state.rooms.map((r) => [r.id, r]));
+  // Герои на диване, в кресле, на кровати — едут вместе с мебелью; мебель убрали — встают на пол.
+  for (const c of state.chars || []) {
+    if (!c.seat) continue;
+    const p = byId.get(c.seat.id), sf = p && !p.inv && !p.on ? seatsOf(p)[c.seat.s] : null;
+    if (!sf || !c.look) { c.y = Math.min(floorBottom(), c.y + hipDrop(c) + 20); delete c.seat; continue; }
+    c.room = p.room; c.x = seatX(c.id, sf, p.x + c.seat.dx); c.y = sf.y;
+    if (sf.lie) c.seat.lie = true; else delete c.seat.lie;
+  }
   // Вещи в руках героев — там, где ладошка; герой пропал — вещь падает на пол.
   for (const i of state.items) {
     if (!i.held) continue;

@@ -280,6 +280,7 @@ button:disabled { opacity: .4; cursor: default; }
 .lv-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
 .lv-chip { display: inline-flex; align-items: center; gap: 4px; padding: 4px 4px 4px 10px; border-radius: 999px; background: #eef6e6; font-size: 13px; }
 .lv-chip button { width: 26px; height: 26px; border-radius: 50%; border: 0; background: #fff; }
+.lv-chip.seat { background: #efe6fb; }
 .pk-key { padding: 10px 12px; border-radius: 14px; background: #fff7e6; border: 2px solid #f0d9a8; margin-bottom: 8px; }
 button.link { border: 0; background: none; color: #a8794c; text-decoration: underline; padding: 0 4px; font-size: 13px; cursor: pointer; min-height: 0; }
 .pk-shoplist { display: flex; flex-direction: column; gap: 8px; }

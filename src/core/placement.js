@@ -21,10 +21,21 @@ export function itemBounds(item) {
     : { x: item.x - w / 2, y: item.y - h, w, h };
 }
 
+// Герой сидит или лежит (c.seat) — тогда c.y это высота сиденья (там таз), а не пол под ногами.
+export const HIP_Y = 580;
+export const hipDrop = (c) => (c.seat ? (CHARS[c.id].h * (HERO_CANVAS_H - HIP_Y)) / HERO_CANVAS_H : 0);
 export function charBounds(c) {
   const def = CHARS[c.id];
   const { w, h } = sizeOf(def);
-  return { x: c.x - w / 2, y: c.y - h, w, h };
+  return { x: c.x - w / 2, y: c.y + hipDrop(c) - h, w, h };
+}
+// Где героя можно взять пальцем (сидящий ниже ростом, лежащий — поперёк кровати).
+export function charHitBox(c) {
+  const b = charBounds(c);
+  if (!c.seat) return b;
+  const k = CHARS[c.id].h / HERO_CANVAS_H;
+  if (c.seat.lie) return { x: c.x - 560 * k, y: c.y - 130 * k, w: 380 * k, h: 260 * k }; // видна только голова на подушке
+  return { x: b.x, y: b.y, w: b.w, h: (HIP_Y + 210) * k };
 }
 
 // Вещь в руке героя: её место — у правой ладошки (точка кисти на холсте героя, см. render/rig.js).
@@ -33,7 +44,7 @@ export const HAND_R = [412, 578], HERO_CANVAS_H = 873;
 export function heldSpot(c, defId) {
   const k = CHARS[c.id].h / HERO_CANVAS_H, def = itemDef(defId);
   const { h } = def ? sizeOf(def) : { h: 60 };
-  return { x: c.x + (HAND_R[0] - 256) * k, y: c.y - (HERO_CANVAS_H - HAND_R[1]) * k + h / 2 };
+  return { x: c.x + (HAND_R[0] - 256) * k, y: c.y + hipDrop(c) - (HERO_CANVAS_H - HAND_R[1]) * k + h / 2 };
 }
 
 export function snapItem(defId, room, x, y) {
@@ -68,6 +79,10 @@ export function depthOf(kind, obj, parentOf) {
     if (place === 'wall') return -2000 + obj.y;
     if (place === 'doorway') return -1000;
     if (itemDef(obj.def)?.layer === 'under') return -500 + obj.y / 10; // ковёр под мебелью и героями
+  }
+  if (kind === 'char' && obj.seat) { // сидит/лежит — сразу перед мебелью (но позади вещей на ней)
+    const p = parentOf?.(obj.seat.id);
+    if (p) return p.y + 0.4;
   }
   return obj.y;
 }

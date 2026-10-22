@@ -4,14 +4,14 @@
 import { VIEW_H, MAX_DPR } from '../config.js';
 import { itemDef, CHARS } from '../core/catalog.js';
 import { img, maskOf } from '../assets.js';
-import { itemBounds, charBounds, depthOf } from '../core/placement.js';
+import { itemBounds, charBounds, charHitBox, depthOf } from '../core/placement.js';
 import { backgroundFor, clearBackgrounds, prewarm } from './background.js';
 import { anims } from './anims.js';
 import { drawWater, waterParams } from './water.js';
 import { getRig, drawRig, heroPose } from './rig.js';
 import { sizeOf } from '../assets.js';
 import { mode } from '../ui/mode.js';
-import { surfacesOf, isHidden, isSmall } from '../core/physics.js';
+import { surfacesOf, seatsOf, isHidden, isSmall } from '../core/physics.js';
 
 export function createRenderer(canvas, store, camera) {
   // alpha:false — непрозрачный холст дешевле передавать на экран.
@@ -64,6 +64,7 @@ export function createRenderer(canvas, store, camera) {
       if (drag && drag.kind === 'char' && drag.id === c.id) continue;
       const r = lay.byId.get(c.room); if (!r) continue;
       add('char', c, charBounds(c), CHARS[c.id].art, r.x0);
+      if (c.seat && list.at(-1)?.obj === c) { const h = charHitBox(c); list.at(-1).hb = { x: h.x + r.x0, y: h.y, w: h.w, h: h.h }; }
     }
     list.sort((a, b) => a.depth - b.depth);
     return list;
@@ -71,6 +72,7 @@ export function createRenderer(canvas, store, camera) {
 
   function hitTest(e, wx, wy) {
     const pad = e.kind === 'char' ? 6 : 10;
+    if (e.hb) return wx >= e.hb.x && wx <= e.hb.x + e.hb.w && wy >= e.hb.y && wy <= e.hb.y + e.hb.h; // сидит/лежит — по рамке
     const b = e.b;
     if (wx < b.x - pad || wx > b.x + b.w + pad || wy < b.y - pad || wy > b.y + b.h + pad) return false;
     const m = maskOf(e.art);
@@ -193,11 +195,35 @@ export function createRenderer(canvas, store, camera) {
   }
 
   // Подсказка без слов: светящаяся полоска там, куда приземлится вещь (полка, столешница, сиденье).
+  // Лежащего героя укрываем: часть картинки кровати (одеяло) — ещё раз поверх него.
+  function drawCover(pe) {
+    const def = pe && itemDef(pe.obj.def), im = def?.cover && img(pe.art);
+    if (!im) return;
+    const [a, b2, c, d] = def.cover, b = pe.b;
+    ctx.save(); // качание кровати уже применено (герой рисуется в её «цепочке»)
+    ctx.beginPath(); ctx.rect(b.x + a * b.w, b.y + b2 * b.h, (c - a) * b.w, (d - b2) * b.h); ctx.clip();
+    ctx.drawImage(im, b.x, b.y, b.w, b.h);
+    ctx.restore();
+  }
+  // Спит: над головой всплывают «z» (картинка, читать не нужно).
+  function drawZzz(e) {
+    const t = tnow(), k = e.b.h / 873, hx = e.b.x + e.b.w / 2 - 420 * k, hy = e.b.y + e.b.h - 293 * k - 120 * k;
+    ctx.save();
+    ctx.fillStyle = '#7f8fd9'; ctx.textAlign = 'center';
+    for (let j = 0; j < 3; j++) {
+      const q = (t * 0.45 + j / 3) % 1;
+      ctx.globalAlpha = Math.sin(q * Math.PI);
+      ctx.font = `bold ${Math.round(18 + q * 16)}px sans-serif`;
+      ctx.fillText('z', hx + q * 40 + Math.sin(q * 6 + j) * 6, hy - q * 70);
+    }
+    ctx.restore(); // кадры — редкие, как у дышащих героев (idleHeroes)
+  }
+
   function drawLanding(drag) {
-    const on = drag?.target?.pos?.on;
+    const on = drag?.target?.pos?.on || drag?.target?.pos?.seat;
     if (!on) return;
     const parent = store.state.items.find((i) => i.id === on.id);
-    const sf = parent && surfacesOf(parent)[on.s];
+    const sf = parent && (drag.target.pos.seat ? seatsOf : surfacesOf)(parent)[on.s];
     if (!sf) return;
     const x0 = drag.target.r.x0;
     ctx.save();
@@ -273,10 +299,10 @@ export function createRenderer(canvas, store, camera) {
     for (const e of list) {
       const pose = e.pose;
       if (!pose || pose.dy > -20) {
-        if (e.kind === 'char' || (itemDef(e.obj.def)?.place === 'floor' && !itemDef(e.obj.def)?.layer && !e.obj.on)) shadowUnder(e.b);
+        if ((e.kind === 'char' && !e.obj.seat) || (itemDef(e.obj.def)?.place === 'floor' && !itemDef(e.obj.def)?.layer && !e.obj.on)) shadowUnder(e.b);
       }
       const chain = [];
-      for (let p = e.kind === 'item' ? byId.get(e.obj.on?.id) : null, n = 0; p && n < 6; p = byId.get(p.obj.on?.id), n++) if (p.pose) chain.unshift(p);
+      for (let p = byId.get(e.kind === 'item' ? e.obj.on?.id : e.obj.seat?.id), n = 0; p && n < 6; p = byId.get(p.obj.on?.id), n++) if (p.pose) chain.unshift(p);
       if (chain.length) { ctx.save(); for (const p of chain) applyPose(p.b, p.pose); }
       const power = e.kind === 'item' && e.obj.lit ? itemDef(e.obj.def)?.power : null;
       let after = null;
@@ -290,7 +316,12 @@ export function createRenderer(canvas, store, camera) {
         };
       }
       if (e.kind === 'item' && e.obj.held) continue; // в руке — рисуется вместе с героем
-      if (e.kind === 'char' && getRig(e.obj.id)) { drawHeroRig(e.obj.id, e.b, pose, { reach: drag?.hero === e.obj.id }); idleHeroes = true; }
+      if (e.kind === 'char' && getRig(e.obj.id)) {
+        const seat = e.obj.seat ? (e.obj.seat.lie ? 'lie' : 'sit') : null;
+        drawHeroRig(e.obj.id, e.b, pose, { reach: drag?.hero === e.obj.id, seat, covered: seat === 'lie' && !!itemDef(byId.get(e.obj.seat.id)?.obj.def)?.cover });
+        if (seat === 'lie') { drawCover(byId.get(e.obj.seat.id)); drawZzz(e); } // одеяло поверх, «Zzz» над головой
+        idleHeroes = true;
+      }
       else drawSprite(e.art, e.b, { pose, after });
       if (chain.length) ctx.restore();
     }

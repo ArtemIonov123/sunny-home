@@ -139,7 +139,7 @@ async function boot() {
   function heroUpdate(id) {
     const c = store.state.chars.find((x) => x.id === id); if (!c?.look) return;
     const grip = store.state.items.some((i) => i.held?.by === id) ? { right: true } : {};
-    refreshHero(id, c.look, faceNow.get(id), grip);
+    refreshHero(id, c.look, faceNow.get(id) || (c.seat?.lie ? 'sleep' : null), grip); // в кровати — спит
   }
   function setFace(id, face, ms) {
     if (!store.state.chars.find((c) => c.id === id)?.look) return;
@@ -223,6 +223,9 @@ async function boot() {
 
   interaction.on('tap', ({ kind, id }) => {
     if (kind === 'char') {
+      if (store.state.chars.find((c) => c.id === id)?.seat?.lie) { // спит — на миг открывает глаза и потягивается
+        anims.squash('char:' + id); setFace(id, 'happy', 1300); play('pop'); return;
+      }
       if (store.state.items.some((i) => i.held?.by === id && itemDef(i.def)?.group === 'food')) { eat(id); return; }
       const waves = (tapCount = (tapCount + 1) % 2) === 0;
       if (waves && store.state.chars.find((c) => c.id === id)?.look) { rigAnims.wave(id); play('pop'); } // машет рукой

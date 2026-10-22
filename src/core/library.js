@@ -32,6 +32,12 @@ export function cleanLiving(raw) {
     const s = raw.surfaces.filter((a) => fracs(a, 3) && a[1] > a[0]).slice(0, 8).map((a) => (a[3] ? [a[0], a[1], a[2], 1] : [a[0], a[1], a[2]]).map((v) => Math.round(v * 1000) / 1000));
     if (s.length) out.surfaces = s;
   }
+  // Сиденья и кровати: [x0, x1, y] или [x0, x1, y, 1] — кровать (герой ложится головой к x0); cover — одеяло.
+  if (Array.isArray(raw.seats)) {
+    const s = raw.seats.filter((a) => fracs(a, 3) && a[1] > a[0]).slice(0, 6).map((a) => [a[0], a[1], a[2]].map((v) => Math.round(v * 1000) / 1000).concat(a[3] ? [1] : []));
+    if (s.length) out.seats = s;
+  }
+  if (out.seats?.some((a) => a[3]) && fracs(raw.cover, 4) && raw.cover[2] > raw.cover[0] && raw.cover[3] > raw.cover[1]) out.cover = raw.cover.slice(0, 4).map((v) => Math.round(v * 1000) / 1000);
   if (raw.open && typeof raw.open.image === 'string' && IMG_RE.test(raw.open.image) && raw.open.image.length < 2_000_000) {
     out.open = { image: raw.open.image, box: fracs(raw.open.box, 4) && raw.open.box[2] > 0 && raw.open.box[3] > 0 ? raw.open.box.slice(0, 4) : [0, 0, 1, 1] };
   }
@@ -83,6 +89,7 @@ export function validateOverride(raw) {
   // «Живые» правки встроенных: полки, включение (свет/экран/вода), отклик на нажатие.
   const lv = cleanLiving(raw);
   if (raw.surfaces !== undefined) o.surfaces = lv.surfaces || [];
+  if (raw.seats !== undefined) { o.seats = lv.seats || []; if (lv.cover) o.cover = lv.cover; }
   if (lv.power) o.power = lv.power;
   if (lv.tap) o.tap = lv.tap;
   if (typeof raw.image === 'string' && raw.image) {
@@ -95,7 +102,7 @@ export function validateOverride(raw) {
 async function applyOv(o) {
   let art = null;
   if (o.image) { const im = await loadImage(o.image); art = 'override/' + o.id; registerImage(art, im); }
-  applyOverride({ id: o.id, name: o.name, group: o.group, size: o.size, art, surfaces: o.surfaces, power: o.power, tap: o.tap });
+  applyOverride({ id: o.id, name: o.name, group: o.group, size: o.size, art, surfaces: o.surfaces, seats: o.seats, cover: o.cover, power: o.power, tap: o.tap });
 }
 
 // Сохранить правку встроенного предмета (null-поля — вернуть исходное).

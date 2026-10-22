@@ -82,7 +82,7 @@ export function defaultState() {
   const rest = [...NEW_IN_INVENTORY];
   for (const d of [...KITCHEN_START, 'tshirt', 'dress']) { const k = rest.indexOf(d); if (k >= 0) rest.splice(k, 1); }
   return {
-    schema: 12, // = SCHEMA в save/migrate.js
+    schema: 13, // = SCHEMA в save/migrate.js
     rooms, items: [...items, ...['picture', 'picture', 'table', 'window', 'door', ...rest].map((def) => ({ id: id++, def, inv: true }))], next: id,
     chars: [
       { id: 'girl', room: 'living', x: 900, y: 770 },

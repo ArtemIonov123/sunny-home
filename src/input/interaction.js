@@ -8,8 +8,8 @@
 import { EDGE_ZONE, EDGE_SPEED, PAN_THRESHOLD } from '../config.js';
 import { itemDef, CHARS } from '../core/catalog.js';
 import { roomAtX } from '../core/house.js';
-import { snapChar, itemBounds, charBounds } from '../core/placement.js';
-import { landing, syncChildren, releaseChildren, isSmall } from '../core/physics.js';
+import { snapChar, itemBounds, charBounds, charHitBox, hipDrop } from '../core/placement.js';
+import { landing, seatLanding, syncChildren, releaseChildren, isSmall } from '../core/physics.js';
 import { mode } from '../ui/mode.js';
 import { anims } from '../render/anims.js';
 import { play } from '../audio.js';
@@ -35,7 +35,7 @@ export function createInteraction({ canvas, viewport, camera, renderer, store, i
       g = {
         kind: hit.kind, id: hit.obj.id, obj: hit.obj, art: hit.art, pointer: e.pointerId,
         start: p, last: p, moved: false,
-        dx: r.x0 + hit.obj.x - w.x, dy: hit.obj.y - w.y,
+        dx: r.x0 + hit.obj.x - w.x, dy: hit.obj.y + (hit.kind === 'char' ? hipDrop(hit.obj) : 0) - w.y, // героя держим за то же место, сидит он или стоит
         clientX: e.clientX, clientY: e.clientY,
         from: { ...hit.b }, vx: 0, tilt: 0,
       };
@@ -89,9 +89,10 @@ export function createInteraction({ canvas, viewport, camera, renderer, store, i
       const show = pos && itemDef(g.obj.def).place !== 'floor' ? { x: r.x0 + pos.x, y: pos.y } : { x: ax, y: ay };
       g.b = itemBounds({ def: g.obj.def, x: show.x, y: show.y });
     } else {
-      const pos = snapChar(r.room, lx, ay);
+      // Над диваном, креслом, кроватью — сядет или ляжет; иначе встанет на пол.
+      const pos = seatLanding(store.state, g.obj.id, r.room, lx, ay) || snapChar(r.room, lx, ay);
       g.target = { r, pos }; g.valid = true;
-      g.b = charBounds({ id: g.obj.id, x: ax, y: Math.min(ay, pos.y + 40) });
+      g.b = charBounds({ id: g.obj.id, x: ax, y: Math.min(ay, pos.y + (pos.seat ? hipDrop({ id: g.obj.id, seat: pos.seat }) : 0) + 40) });
     }
   }
 
@@ -162,7 +163,7 @@ export function createInteraction({ canvas, viewport, camera, renderer, store, i
     for (const c of store.state.chars) {
       if (!c.look) continue;
       const r = store.layout.byId.get(c.room); if (!r) continue;
-      const b = charBounds(c), x = b.x + r.x0;
+      const b = charHitBox(c), x = b.x + r.x0;
       if (wx >= x + b.w * 0.12 && wx <= x + b.w * 0.88 && wy >= b.y + b.h * 0.08 && wy <= b.y + b.h) return c.id;
     }
     return null;
@@ -185,11 +186,13 @@ export function createInteraction({ canvas, viewport, camera, renderer, store, i
       if (!o) return;
       delete o.inv; o.room = r.room.id; o.x = pos.x; o.y = pos.y;
       if (isItem) { delete o.held; delete o.bites; if (pos.on) o.on = { ...pos.on }; else delete o.on; }
+      else if (pos.seat) o.seat = { ...pos.seat }; else delete o.seat;
       syncChildren(s); // и вещи в руках героя переезжают вместе с ним
     }, { undo: false });
     // Анимация: от того места, где отпустили, до места приземления.
     const fx = (d.ax ?? r.x0 + pos.x) - (r.x0 + pos.x);
-    const fy = isItem && itemDef(d.obj.def).place !== 'floor' ? 0 : Math.min(0, (d.kind === 'char' ? d.b.y + d.b.h : d.ay) - pos.y);
+    const landY = isItem ? pos.y : pos.y + (pos.seat ? hipDrop({ id: d.id, seat: pos.seat }) : 0); // низ героя после приземления
+    const fy = isItem && itemDef(d.obj.def).place !== 'floor' ? 0 : Math.min(0, (d.kind === 'char' ? d.b.y + d.b.h : d.ay) - landY);
     anims.fall((isItem ? 'item:' : 'char:') + d.id, fy, isItem ? fx : 0);
     if (fy < -12) setTimeout(() => play('land'), 120); else play('drop');
   }

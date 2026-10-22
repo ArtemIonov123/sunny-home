@@ -6,7 +6,7 @@ import { defaultState, newRoom, MAX_ROOMS, NEW_IN_INVENTORY, BATH_START, BEDROOM
 import { clamp, isHex } from '../util.js';
 import { cleanLook } from '../core/looks.js';
 
-export const SCHEMA = 12;
+export const SCHEMA = 13;
 
 const MIGRATIONS = {
   // 1 → 2: появился шкафчик. Все вещи из версии 1 стоят в доме, формат вещи в доме не меняется.
@@ -105,6 +105,8 @@ const MIGRATIONS = {
   10: (s) => ({ ...s, schema: 11 }),
   // 11 → 12: вещь может быть в руке героя (held) и надкушена (bites). Старые данные подходят.
   11: (s) => ({ ...s, schema: 12 }),
+  // 12 → 13: герой может сидеть или лежать на мебели (seat). Старые данные подходят.
+  12: (s) => ({ ...s, schema: 13 }),
 };
 
 const num = (v, a, b, d) => (Number.isFinite(v) ? clamp(v, a, b) : d);
@@ -178,6 +180,8 @@ export function validate(raw) {
     const look = cleanLook(c?.look, id); // у кошки внешности нет
     const out = ok ? { id, room: c.room, x: c.x, y: c.y } : { id, room: fallbackRoom, x: 700 + k * 300, y: 800 };
     if (look) out.look = look;
+    const st = c?.seat; // сидит на мебели: проверка, что мебель есть, — в syncChildren
+    if (ok && look && st && Number.isInteger(st.id) && Number.isInteger(st.s) && Number.isFinite(st.dx)) out.seat = { id: st.id, s: st.s, dx: st.dx, ...(st.lie === true ? { lie: true } : {}) };
     return out;
   });
 

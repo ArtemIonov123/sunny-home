@@ -75,7 +75,8 @@ export function createItemEditor({ store, actions, toast, onChange }) {
     const def = itemDef(id), base = originalDef(id), o = getOverride(id), key = sizeKey(id);
     const copy = (v) => (v === undefined ? undefined : JSON.parse(JSON.stringify(v)));
     return { builtin: true, id, name: def.name, group: def.group, place: def.place, sizeKey: key, size: def[key], baseSize: base[key], image: o?.image || '', origArt: base.art,
-      surfaces: copy(def.surfaces) || [], power: copy(def.power), tap: def.tap, openArt: def.openArt, baseLiving: JSON.stringify([base.surfaces || [], base.power || null, base.tap || null]) };
+      surfaces: copy(def.surfaces) || [], seats: copy(def.seats) || [], cover: copy(def.cover), power: copy(def.power), tap: def.tap, openArt: def.openArt,
+      baseLiving: JSON.stringify([base.surfaces || [], base.seats || [], base.cover || null, base.power || null, base.tap || null]) };
   }
   const imgSrc = (d) => d.image || (d.builtin ? img(d.origArt)?.src : '') || '';
 
@@ -136,7 +137,10 @@ export function createItemEditor({ store, actions, toast, onChange }) {
   function livingHtml() {
     const d = draft, pk = powerKind(d);
     const opt = (obj, cur) => Object.entries(obj).map(([k, n]) => `<option value="${k}"${k === cur ? ' selected' : ''}>${n}</option>`).join('');
-    const surf = (d.surfaces || []).map((s, k) => `<span class="lv-chip">${s[3] ? '🔒 внутри' : '▭ полка'} ${k + 1}<button data-lv-delsurf="${k}" aria-label="Убрать">×</button></span>`).join('');
+    const surf = (d.surfaces || []).map((s, k) => `<span class="lv-chip">${s[3] ? '🔒 внутри' : '▭ полка'} ${k + 1}<button data-lv-delsurf="${k}" aria-label="Убрать">×</button></span>`).join('')
+      + (d.seats || []).map((s, k) => `<span class="lv-chip seat">${s[3] ? '🛏 кровать' : '🪑 сиденье'} ${k + 1}<button data-lv-delseat="${k}" aria-label="Убрать">×</button></span>`).join('')
+      + (d.cover ? '<span class="lv-chip seat">🧸 одеяло<button data-lv-delcover aria-label="Убрать">×</button></span>' : '');
+    const isBed = (d.seats || []).some((s) => s[3]);
     const B = !!d.builtin, w = d.power?.water;
     const waterBox = pk === 'water' ? `<div class="lv-row lv-water">
         <label class="adm-field">Ширина струи · <b>${Math.round(w[3] * 100)}%</b><input type="range" data-lv-ww min="1" max="40" value="${Math.round(w[3] * 100)}"></label>
@@ -156,11 +160,17 @@ export function createItemEditor({ store, actions, toast, onChange }) {
       ${waterBox}
       <div class="lv-tools">
         <button data-lv-tool="surface" class="${tool === 'surface' ? 'on' : ''}">✏️ Полка</button>
+        ${d.place === 'wall' ? '' : `<button data-lv-tool="seat" class="${tool === 'seat' ? 'on' : ''}">🪑 Сиденье</button>
+        <button data-lv-tool="bed" class="${tool === 'bed' ? 'on' : ''}">🛏 Кровать</button>
+        ${isBed ? `<button data-lv-tool="cover" class="${tool === 'cover' ? 'on' : ''}">🧸 Одеяло</button>` : ''}`}
         ${pk ? `<button data-lv-tool="power" class="${tool === 'power' ? 'on' : ''}">${pk === 'glow' ? '💡 Где свет' : pk === 'screen' ? '📺 Где экран' : '🚿 Откуда и куда вода'}</button>` : ''}
         ${pk === 'water' ? `<button data-lv-tool="wend" class="${tool === 'wend' ? 'on' : ''}">📏 Докуда падает</button>` : ''}
         ${hasOpen(d) ? `<span class="lv-sep"></span><button data-lv-view="closed" class="lv-view ${view === 'closed' ? 'on' : ''}">Закрыто</button><button data-lv-view="open" class="lv-view ${view === 'open' ? 'on' : ''}">Открыто</button>` : ''}
       </div>
-      <p class="adm-help">${tool === 'surface' ? 'Проведи пальцем по картинке слева направо там, где вещи должны стоять (столешница, полка, сиденье).' + (d.open ? ' На картинке «Открыто» полка будет внутренней — видна только открытой.' : '')
+      <p class="adm-help">${tool === 'seat' ? 'Проведи пальцем слева направо по сиденью (на высоте, где герой сидит попой). Героя, отпущенного над ним, посадит.'
+        : tool === 'bed' ? 'Проведи по матрасу от подушки (там будет голова) к ногам. Героя уложит спать.'
+        : tool === 'cover' ? 'Обведи одеяло: из угла в угол. Под ним героя не видно — только голову на подушке (одеяло должно начинаться сразу за подушкой).'
+        : tool === 'surface' ? 'Проведи пальцем по картинке слева направо там, где вещи должны стоять (столешница, полка, сиденье).' + (d.open ? ' На картинке «Открыто» полка будет внутренней — видна только открытой.' : '')
         : tool === 'wend' ? 'Нажми на высоту, где вода разбивается брызгами (дно раковины, ванна) — ниже она не полетит.'
         : pk === 'glow' ? 'Нажми туда, откуда идёт свет (абажур).' : pk === 'screen' ? 'Обведи экран: проведи из угла в угол.' : 'Поставь палец на кран/лейку и проведи в сторону, куда бьёт вода: направление — куда ведёшь, напор — насколько далеко. Голубая дуга — как польётся.'}</p>
       <canvas class="lv-canvas" width="560" height="380" data-lv-canvas></canvas>
@@ -206,6 +216,13 @@ export function createItemEditor({ store, actions, toast, onChange }) {
       c.strokeStyle = s[3] ? '#e0864a' : '#3f9a5a';
       c.beginPath(); c.moveTo(F.R.x + s[0] * F.R.w, F.R.y + s[2] * F.R.h); c.lineTo(F.R.x + s[1] * F.R.w, F.R.y + s[2] * F.R.h); c.stroke();
     }
+    for (const s of draft.seats || []) { // сиденья — фиолетовые, кровать — синяя с подушкой у x0
+      const y = F.R.y + s[2] * F.R.h, x0 = F.R.x + s[0] * F.R.w, x1 = F.R.x + s[1] * F.R.w;
+      c.strokeStyle = s[3] ? '#4a7fe0' : '#9a5ad6'; c.setLineDash([10, 6]);
+      c.beginPath(); c.moveTo(x0, y); c.lineTo(x1, y); c.stroke(); c.setLineDash([]);
+      c.font = '20px sans-serif'; c.fillText(s[3] ? '😴' : '🪑', s[3] ? x0 - 4 : (x0 + x1) / 2 - 10, y - 8);
+    }
+    if (draft.cover) { const cv2 = draft.cover; c.fillStyle = '#4a7fe033'; c.fillRect(F.R.x + cv2[0] * F.R.w, F.R.y + cv2[1] * F.R.h, (cv2[2] - cv2[0]) * F.R.w, (cv2[3] - cv2[1]) * F.R.h); }
     const p = draft.power, at = (fx, fy) => [F.R.x + fx * F.R.w, F.R.y + fy * F.R.h];
     c.lineWidth = 3;
     if (p?.glow) { const [x, y] = at(p.glow[0], p.glow[1]); c.fillStyle = '#ffd34d99'; c.beginPath(); c.arc(x, y, 26, 0, Math.PI * 2); c.fill(); c.fillStyle = '#e8a400'; c.beginPath(); c.arc(x, y, 6, 0, Math.PI * 2); c.fill(); }
@@ -221,7 +238,8 @@ export function createItemEditor({ store, actions, toast, onChange }) {
       c.fillStyle = '#4aa8f0'; c.beginPath(); c.arc(x, y, 6, 0, Math.PI * 2); c.fill();
     }
     if (drawing && tool === 'power' && draft.power?.water) { c.strokeStyle = '#4aa8f0'; c.lineWidth = 3; c.beginPath(); c.moveTo(drawing.x0, drawing.y0); c.lineTo(drawing.x1, drawing.y1); c.stroke(); }
-    else if (drawing) { c.strokeStyle = '#3f9a5a'; c.setLineDash([4, 4]); c.beginPath(); c.moveTo(drawing.x0, drawing.y0); c.lineTo(drawing.x1, tool === 'surface' ? drawing.y0 : drawing.y1); c.stroke(); c.setLineDash([]); }
+    else if (drawing && tool === 'cover') { c.strokeStyle = '#4a7fe0'; c.setLineDash([4, 4]); c.strokeRect(drawing.x0, drawing.y0, drawing.x1 - drawing.x0, drawing.y1 - drawing.y0); c.setLineDash([]); }
+    else if (drawing) { c.strokeStyle = '#3f9a5a'; c.setLineDash([4, 4]); c.beginPath(); c.moveTo(drawing.x0, drawing.y0); c.lineTo(drawing.x1, ['surface', 'seat', 'bed'].includes(tool) ? drawing.y0 : drawing.y1); c.stroke(); c.setLineDash([]); }
   }
   // Точка на холсте → доли закрытой картинки.
   function toFrac(cv, e) {
@@ -246,7 +264,17 @@ export function createItemEditor({ store, actions, toast, onChange }) {
   function lvUp() {
     if (!drawing) return;
     const a = drawing.f0, b = drawing.f1 || a; drawing = null;
-    if (tool === 'surface') {
+    if (tool === 'seat' || tool === 'bed') {
+      const x0 = Math.min(a.fx, b.fx), x1 = Math.max(a.fx, b.fx);
+      if (x1 - x0 > 0.05) {
+        draft.seats ||= [];
+        if (tool === 'bed') { draft.seats = draft.seats.filter((s) => !s[3]); draft.seats.push([round(x0), round(x1), round(a.fy), 1]); } // кровать одна
+        else draft.seats.push([round(x0), round(x1), round(a.fy)]);
+        dirty = true;
+      }
+    } else if (tool === 'cover') {
+      if (Math.abs(b.fx - a.fx) > 0.05 && Math.abs(b.fy - a.fy) > 0.05) { draft.cover = [round(Math.min(a.fx, b.fx)), round(Math.min(a.fy, b.fy)), round(Math.max(a.fx, b.fx)), round(Math.max(a.fy, b.fy))]; dirty = true; }
+    } else if (tool === 'surface') {
       const x0 = Math.min(a.fx, b.fx), x1 = Math.max(a.fx, b.fx);
       if (x1 - x0 > 0.05) { (draft.surfaces ||= []).push(view === 'open' && hasOpen(draft) ? [round(x0), round(x1), round(a.fy), 1] : [round(x0), round(x1), round(a.fy)]); dirty = true; }
     } else if (draft.power?.screen) {
@@ -323,9 +351,9 @@ export function createItemEditor({ store, actions, toast, onChange }) {
     busy = true;
     try {
       const d = draft, base = originalDef(d.id);
-      const livingChanged = JSON.stringify([d.surfaces || [], d.power || null, d.tap || null]) !== d.baseLiving;
+      const livingChanged = JSON.stringify([d.surfaces || [], d.seats || [], d.cover || null, d.power || null, d.tap || null]) !== d.baseLiving;
       await saveOverride({ id: d.id, name: d.name !== base.name ? d.name : undefined, group: d.group !== base.group ? d.group : undefined, size: d.size !== d.baseSize ? d.size : undefined, image: d.image || undefined,
-        ...(livingChanged ? { surfaces: d.surfaces || [], power: d.power, tap: d.tap } : {}) });
+        ...(livingChanged ? { surfaces: d.surfaces || [], seats: d.seats || [], cover: d.cover, power: d.power, tap: d.tap } : {}) });
       dirty = false;
       store.change((s) => normalize(s), { undo: false }); // новый размер — вещи в доме перестраиваются
       if (put) { const id = actions.take(d.id); if (id) actions.placeFromInventory(id); }
@@ -344,6 +372,8 @@ export function createItemEditor({ store, actions, toast, onChange }) {
     else if (b.dataset.ieBuiltin) { draft = builtinDraft(b.dataset.ieBuiltin); dirty = false; }
     else if (b.dataset.lvTool) { tool = b.dataset.lvTool; }
     else if (b.dataset.lvView) { view = b.dataset.lvView; }
+    else if (b.dataset.lvDelseat !== undefined) { read(); draft.seats.splice(Number(b.dataset.lvDelseat), 1); if (!draft.seats.some((s) => s[3])) { delete draft.cover; if (tool === 'cover') tool = 'surface'; } dirty = true; }
+    else if (b.dataset.lvDelcover !== undefined) { read(); delete draft.cover; dirty = true; }
     else if (b.dataset.lvDelsurf !== undefined) { read(); draft.surfaces.splice(Number(b.dataset.lvDelsurf), 1); dirty = true; }
     else if (b.dataset.lvNoopen !== undefined) { read(); delete draft.open; draft.surfaces = (draft.surfaces || []).filter((s) => !s[3]); view = 'closed'; dirty = true; }
     else if (b.dataset.ieOrigimg !== undefined) { read(); draft.image = ''; dirty = true; }

@@ -8,6 +8,8 @@
 // anchor — точка привязки: 'bottom' (низ по центру) или 'center'.
 // w / h  — размер в игровых единицах (задаётся одно, второе считается по картинке).
 // layer  — 'under': лежит на полу под всем остальным (ковры).
+// seats — куда можно посадить героя: [x0, x1, y, 1?] (y — где таз; 1 — кровать, герой ложится головой к x0);
+// cover — одеяло: [x0, y0, x1, y1] в долях. Лежащий герой виден только левее x0 (голова на подушке), остальное — под одеялом.
 // surfaces — куда можно ставить мелкие вещи: [x0, x1, y] в долях картинки (столешница, сиденье, полка);
 //            четвёртое число 1 — поверхность ВНУТРИ: работает и видна, только когда вещь открыта.
 // openArt  — картинка открытого состояния; такая вещь открывается и закрывается нажатием.
@@ -27,8 +29,8 @@ export const ITEMS = {
   tree:      { name: 'Дерево', art: 'items/tree',      h: 640, anchor: 'bottom', place: 'floor', group: 'garden' },
   bush:      { name: 'Куст',   art: 'items/bush',      w: 260, anchor: 'bottom', place: 'floor', group: 'garden' },
   flowerbed: { name: 'Грядка', art: 'items/flowerbed', w: 330, anchor: 'bottom', place: 'floor', group: 'garden' },
-  sofa:       { name: 'Диван',     art: 'items/sofa',       w: 620, anchor: 'bottom', place: 'floor', group: 'furniture', surfaces: [[0.13, 0.87, 0.60]] },
-  armchair:   { name: 'Кресло',    art: 'items/armchair',   w: 300, anchor: 'bottom', place: 'floor', group: 'furniture', surfaces: [[0.22, 0.78, 0.575]] },
+  sofa:       { name: 'Диван',     art: 'items/sofa',       w: 620, anchor: 'bottom', place: 'floor', group: 'furniture', surfaces: [[0.13, 0.87, 0.60]], seats: [[0.14, 0.86, 0.6]] },
+  armchair:   { name: 'Кресло',    art: 'items/armchair',   w: 300, anchor: 'bottom', place: 'floor', group: 'furniture', surfaces: [[0.22, 0.78, 0.575]], seats: [[0.3, 0.7, 0.6]] },
   rug:        { name: 'Ковёр',     art: 'items/rug',        w: 560, anchor: 'bottom', place: 'floor', group: 'decor', layer: 'under' },
   floor_lamp: { name: 'Торшер',    art: 'items/floor_lamp', h: 470, power: { glow: [0.5, 0.2, 1.1] }, anchor: 'bottom', place: 'floor', group: 'decor' },
   tv_stand:   { name: 'Тумба с телевизором', art: 'items/tv_stand', w: 420, power: { screen: [0.135, 0.04, 0.865, 0.525] }, anchor: 'bottom', place: 'floor', group: 'furniture', surfaces: [[0.05, 0.27, 0.60], [0.73, 0.95, 0.60]] },
@@ -49,10 +51,10 @@ export const ITEMS = {
   dress:   { name: 'Платье',   art: 'items/dress',  wear: 'dress', h: 160, anchor: 'bottom', place: 'floor', group: 'clothes' },
   bathtub:     { name: 'Ванна с душем', art: 'items/bathtub',     w: 540, anchor: 'bottom', place: 'floor', group: 'furniture', power: { water: [0.775, 0.185, 0.5, 0.13, -18, 0.18] }, surfaces: [[0.06, 0.74, 0.5]] },
   bath_sink:   { name: 'Раковина',      art: 'items/bath_sink',   h: 280, anchor: 'bottom', place: 'floor', group: 'furniture', power: { water: [0.53, 0.095, 0.27, 0.02, 0, 0.05] }, surfaces: [[0.06, 0.94, 0.205]] },
-  toilet:      { name: 'Унитаз',        art: 'items/toilet', openArt: 'items/toilet_open', h: 240, anchor: 'bottom', place: 'floor', group: 'furniture', sounds: { open: 'lid', close: 'flush' } },
+  toilet:      { name: 'Унитаз',        art: 'items/toilet', openArt: 'items/toilet_open', h: 240, anchor: 'bottom', place: 'floor', group: 'furniture', sounds: { open: 'lid', close: 'flush' }, seats: [[0.3, 0.7, 0.5]] },
   wardrobe:     { name: 'Шкаф',        art: 'items/wardrobe', openArt: 'items/wardrobe_open', h: 440, anchor: 'bottom', place: 'floor', group: 'furniture',
                   surfaces: [[0.2, 0.8, 0.0], [0.27, 0.7, 0.5, 1], [0.27, 0.7, 0.715, 1], [0.27, 0.7, 0.87, 1]] },
-  bed:          { name: 'Кровать',     art: 'items/bed',          w: 560, anchor: 'bottom', place: 'floor', group: 'furniture', surfaces: [[0.3, 0.95, 0.42]] },
+  bed:          { name: 'Кровать',     art: 'items/bed',          w: 560, anchor: 'bottom', place: 'floor', group: 'furniture', surfaces: [[0.3, 0.95, 0.42]], seats: [[0.05, 0.93, 0.45, 1]], cover: [0.225, 0.25, 1, 0.75] },
   nightstand:   { name: 'Тумбочка',    art: 'items/nightstand',   w: 150, anchor: 'bottom', place: 'floor', group: 'furniture', surfaces: [[0.08, 0.92, 0.04]] },
   dresser:      { name: 'Комод',       art: 'items/dresser',      w: 330, anchor: 'bottom', place: 'floor', group: 'furniture', surfaces: [[0.05, 0.95, 0.04]] },
   bedside_lamp: { name: 'Лампа',       art: 'items/bedside_lamp', h: 140, anchor: 'bottom', place: 'floor', group: 'decor', power: { glow: [0.5, 0.33, 1.6] } },
@@ -103,6 +105,7 @@ export function toDef(rec) {
     art: 'custom/' + rec.id, image: rec.image,
     // «Живые» свойства (задаются в студии): полки, открывание, включение, отклик, еда/одежда.
     ...(rec.surfaces?.length ? { surfaces: rec.surfaces } : {}),
+    ...(rec.seats?.length ? { seats: rec.seats, ...(rec.cover ? { cover: rec.cover } : {}) } : {}),
     ...(rec.open ? { openArt: 'custom/' + rec.id + '_open', openBox: rec.open.box } : {}),
     ...(rec.power ? { power: rec.power } : {}),
     ...(rec.tap ? { tap: rec.tap } : {}),
@@ -127,6 +130,7 @@ export function applyOverride(o) {
   if (o.size) d[sizeKey(o.id)] = o.size;
   if (o.art) d.art = o.art;
   if (o.surfaces) d.surfaces = o.surfaces.length ? o.surfaces : undefined;
+  if (o.seats) { d.seats = o.seats.length ? o.seats : undefined; d.cover = o.cover || undefined; }
   if (o.power) d.power = o.power;
   if (o.tap) d.tap = o.tap;
   return true;
