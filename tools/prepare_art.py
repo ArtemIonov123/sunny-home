@@ -117,6 +117,15 @@ def union(a, b):
     return (min(a[0], b[0]), min(a[1], b[1]), max(a[2], b[2]), max(a[3], b[3]))
 
 
+def grid_texture(name, rel, height):
+    """Кафель: серая сетка повторяется сама (целое число плиток), края не смешиваем."""
+    im = ImageOps.grayscale(Image.open(os.path.join(SRC, name)))
+    im = ImageOps.autocontrast(im, cutoff=1)
+    im = im.point(lambda v: min(255, round(v * 1.08)))
+    im = im.resize((height, height), Image.LANCZOS)
+    save(im.convert('RGB'), rel)
+
+
 def copy_webp(name, rel):
     im = Image.open(os.path.join(SRC, name))
     save(im.convert('RGBA'), rel, quality=90)
@@ -150,6 +159,12 @@ if __name__ == '__main__':
     sprite_pair('kitchen/fridge_closed.png', 'kitchen/fridge_open.png', 'items/fridge.webp', 'items/fridge_open.webp', 760)
     for n, mw, mh in [('stove', None, 600), ('sink_counter', 760, None), ('kitchen_counter', 760, None), ('kitchen_shelf', 760, None), ('toaster', 320, None)]:
         sprite(f'kitchen/{n}.png', f'items/{n}.webp', max_w=mw, max_h=mh)
+    # Ванная.
+    grid_texture('bath/bath_wall_tile.png', 'rooms/bath/wall_tile.webp', 512)
+    sprite_pair('bath/toilet_closed.png', 'bath/toilet_open.png', 'items/toilet.webp', 'items/toilet_open.webp', 520)
+    for n, mw, mh in [('bathtub', 900, None), ('bath_sink', None, 560), ('bath_mirror', 360, None), ('towel_rack', 480, None),
+                      ('soap', 200, None), ('rubber_duck', 200, None), ('wall_clock', 300, None)]:
+        sprite(f'bath/{n}.png', f'items/{n}.webp', max_w=mw, max_h=mh)
     # Из прототипа 0.4.1
     copy_webp('legacy/room_table.webp', 'items/table.webp')
     copy_webp('legacy/room_picture.webp', 'items/picture.webp')

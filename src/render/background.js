@@ -76,7 +76,7 @@ function tile(c, key, y, h, width, mode = 'multiply') {
 }
 
 function drawPattern(c, pattern, width, wallH) {
-  if (pattern === 'plain') return;
+  if (pattern === 'plain' || pattern === 'tile') return;
   c.save();
   c.beginPath(); c.rect(0, 0, width, wallH); c.clip();
   c.fillStyle = 'rgba(255,255,255,.42)';
@@ -96,12 +96,29 @@ function drawPattern(c, pattern, width, wallH) {
   c.restore();
 }
 
+// Кафель: нижние ~2/3 стены — плитка (серая сетка × цвет стены, чуть светлее), сверху — бортик.
+function drawTiles(c, W, wallH) {
+  const top = Math.round(wallH * 0.36), im = img('rooms/bath/wall_tile');
+  c.save();
+  c.fillStyle = 'rgba(255,255,255,.35)'; c.fillRect(0, top, W, wallH - top); // плитка светлее штукатурки
+  if (im) {
+    const S = 480; // 8 плиток по 60
+    c.globalCompositeOperation = 'multiply'; c.globalAlpha = 0.55; // швы мягче
+    for (let y = top; y < wallH; y += S) for (let x = 0; x < W; x += S) c.drawImage(im, x, y, S + 0.5, S + 0.5);
+  }
+  c.globalCompositeOperation = 'source-over'; c.globalAlpha = 1;
+  c.fillStyle = 'rgba(255,255,255,.9)'; c.fillRect(0, top - 14, W, 14); // бортик
+  c.fillStyle = 'rgba(90,80,70,.18)'; c.fillRect(0, top, W, 3);
+  c.restore();
+}
+
 function drawIndoor(c, room) {
   const W = room.width, wallH = room.split * VIEW_H, floorH = VIEW_H - wallH;
   // Стена: цвет → узор → серая фактура умножением (тени и штукатурка).
   c.fillStyle = room.wall.color; c.fillRect(0, 0, W, wallH);
   drawPattern(c, room.wall.pattern, W, wallH);
   tile(c, 'rooms/living/wall', 0, wallH, W);
+  if (room.wall.pattern === 'tile') drawTiles(c, W, wallH);
 
   // Пол.
   c.fillStyle = room.floor.color; c.fillRect(0, wallH, W, floorH);

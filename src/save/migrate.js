@@ -2,10 +2,10 @@
 // Правило: новое поле или изменение формата → schema+1 и функция в MIGRATIONS.
 // Старые сохранения никогда не выбрасываются молча.
 import { ITEMS, itemDef, CHARS, ROOM_TYPES, WALL_PATTERNS, FLOOR_MATERIALS } from '../core/catalog.js';
-import { defaultState, newRoom, MAX_ROOMS, NEW_IN_INVENTORY } from '../core/house.js';
+import { defaultState, newRoom, MAX_ROOMS, NEW_IN_INVENTORY, BATH_START } from '../core/house.js';
 import { clamp, isHex } from '../util.js';
 
-export const SCHEMA = 7;
+export const SCHEMA = 8;
 
 const MIGRATIONS = {
   // 1 → 2: появился шкафчик. Все вещи из версии 1 стоят в доме, формат вещи в доме не меняется.
@@ -42,6 +42,31 @@ const MIGRATIONS = {
     let next = Math.max(Number(s.next) || 1, ...items.map((i) => (Number.isInteger(i?.id) ? i.id + 1 : 1)));
     for (const def of ['fridge', 'stove', 'sink_counter', 'kitchen_counter', 'kitchen_shelf', 'toaster']) items.push({ id: next++, def, inv: true });
     return { ...s, items, next, schema: 7 };
+  },
+  // 7 → 8: ванная обставлена (ванна, раковина, унитаз, зеркало, полотенце, часы, уточка, мыло), стены — кафель.
+  // Стиралку, корзину и картину из старой расстановки сдвигаем, только если игрок их не трогал.
+  7: (s) => {
+    const items = Array.isArray(s.items) ? s.items.map((i) => ({ ...i })) : [];
+    let next = Math.max(Number(s.next) || 1, ...items.map((i) => (Number.isInteger(i?.id) ? i.id + 1 : 1)));
+    const rooms = Array.isArray(s.rooms) ? s.rooms.map((r) => (r && typeof r === 'object' ? { ...r } : r)) : [];
+    const bath = rooms.find((r) => r?.type === 'bath');
+    if (bath && !items.some((i) => i?.def === 'bathtub')) {
+      if (!(bath.width >= 2000)) bath.width = 2000;
+      if (!bath.wall?.pattern || bath.wall.pattern === 'plain') bath.wall = { ...bath.wall, pattern: 'tile' };
+      const spot = Object.fromEntries(BATH_START.map(([d, x, y]) => [d, [x, y]]));
+      for (const [def, ox, oy] of [['washing_machine', 1150, 650], ['laundry_basket', 1400, 700], ['picture', 800, 240]]) {
+        const it = items.find((i) => i?.def === def && i.room === bath.id && i.x === ox && i.y === oy);
+        if (it) [it.x, it.y] = spot[def];
+      }
+      const ids = {};
+      for (const [def, x, y] of BATH_START) {
+        if (['washing_machine', 'laundry_basket', 'picture'].includes(def)) continue;
+        ids[def] = next; items.push({ id: next++, def, room: bath.id, x, y });
+      }
+      items.push({ id: next++, def: 'rubber_duck', room: bath.id, x: 0, y: 0, on: { id: ids.bathtub, s: 0, dx: -60 } });
+      items.push({ id: next++, def: 'soap', room: bath.id, x: 0, y: 0, on: { id: ids.bath_sink, s: 0, dx: -70 } });
+    }
+    return { ...s, rooms, items, next, schema: 8 };
   },
 };
 

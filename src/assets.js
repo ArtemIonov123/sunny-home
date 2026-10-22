@@ -12,6 +12,8 @@ export const ASSET_KEYS = [
   'items/blender', 'items/washing_machine', 'items/laundry_basket', 'items/smoothie_banana', 'items/tshirt', 'items/pants', 'items/dress',
   'items/banana', 'items/apple', 'items/milk', 'items/juice', 'items/cake', 'items/sandwich', 'items/tomato',
   'items/fridge', 'items/fridge_open', 'items/stove', 'items/sink_counter', 'items/kitchen_counter', 'items/kitchen_shelf', 'items/toaster',
+  'rooms/bath/wall_tile', 'items/bathtub', 'items/bath_sink', 'items/bath_mirror', 'items/toilet', 'items/toilet_open',
+  'items/towel_rack', 'items/soap', 'items/rubber_duck', 'items/wall_clock',
   'chars/girl', 'chars/boy', 'chars/cat',
 ];
 

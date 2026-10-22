@@ -41,6 +41,10 @@ const SOUNDS = {
   tvOff:  () => { tone({ f0: 900, f1: 120, dur: 0.18, type: 'sine', vol: 0.07 }); },
   lampOn: () => { tone({ f0: 1200, f1: 1000, dur: 0.04, type: 'triangle', vol: 0.06 }); tone({ f0: 520, f1: 780, dur: 0.16, type: 'sine', vol: 0.05, delay: 0.03 }); },
   lampOff:() => { tone({ f0: 1000, f1: 800, dur: 0.04, type: 'triangle', vol: 0.06 }); },
+  lid:    () => { tone({ f0: 500, f1: 380, dur: 0.07, type: 'triangle', vol: 0.08 }); },
+  flush:  () => { for (let k = 0; k < 6; k++) tone({ f0: 900 - k * 110, f1: 300 - k * 30, dur: 0.22, type: 'sine', vol: 0.05, delay: k * 0.08 }); tone({ f0: 160, f1: 90, dur: 0.5, type: 'triangle', vol: 0.05, delay: 0.05 }); },
+  waterOn: () => { for (let k = 0; k < 5; k++) tone({ f0: 700 + ((k * 37) % 5) * 90, f1: 1100 + k * 40, dur: 0.07, type: 'sine', vol: 0.04, delay: k * 0.05 }); },
+  waterOff: () => { tone({ f0: 900, f1: 600, dur: 0.06, type: 'sine', vol: 0.05 }); tone({ f0: 300, f1: 200, dur: 0.06, type: 'triangle', vol: 0.05, delay: 0.05 }); },
   click:  () => tone({ f0: 900, f1: 700, dur: 0.05, type: 'triangle', vol: 0.05 }),
   whoosh: () => tone({ f0: 200, f1: 500, dur: 0.2, type: 'sawtooth', vol: 0.02 }),
 };

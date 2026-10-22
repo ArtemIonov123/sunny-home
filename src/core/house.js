@@ -13,7 +13,7 @@ export function newRoom(type, id) {
     living:  { width: 2400, wall: '#f6e3c4', floor: { material: 'wood', color: '#e2b27c' } },
     kitchen: { width: 2000, wall: '#dfe8d0', floor: { material: 'wood', color: '#ecc99b' } },
     kids:    { width: 1600, wall: '#f6cfc8', floor: { material: 'wood', color: '#e2b27c' } },
-    bath:    { width: 1600, wall: '#cfe0ef', floor: { material: 'tile', color: '#e9e4dc' } },
+    bath:    { width: 2000, pattern: 'tile', wall: '#cfe0ef', floor: { material: 'tile', color: '#e9e4dc' } },
     bedroom: { width: 2000, wall: '#dfe8d0', floor: { material: 'wood', color: '#cf9a63' } },
   };
   const p = presets[type] || presets.living;
@@ -21,7 +21,7 @@ export function newRoom(type, id) {
     id, type, name: ROOM_TYPES[type]?.name || 'Комната', width: p.width,
     split: 0.60,    // граница стены и пола (доля высоты)
     walkTop: 0.70,  // верхняя граница, где ходят герои
-    wall: { color: p.wall, pattern: 'plain' },
+    wall: { color: p.wall, pattern: p.pattern || 'plain' },
     floor: { ...p.floor },
   };
 }
@@ -30,6 +30,12 @@ export function newRoom(type, id) {
 export const NEW_IN_INVENTORY = ['blender', 'smoothie_banana', 'banana', 'banana', 'apple', 'milk', 'juice', 'cake', 'sandwich', 'tomato', 'tshirt', 'pants', 'dress'];
 // В новом доме часть этого стоит на кухне (см. defaultState), остальное — в шкафчике.
 const KITCHEN_START = ['blender', 'banana', 'banana', 'apple', 'milk', 'juice', 'tomato', 'toaster'];
+
+// Ванная: ванна с душем, раковина с зеркалом, унитаз, стирка. Уточка — в ванне, мыло — на раковине (см. ниже).
+export const BATH_START = [
+  ['towel_rack', 190, 300], ['bathtub', 430, 660], ['bath_mirror', 900, 250], ['bath_sink', 900, 640], ['toilet', 1190, 640],
+  ['wall_clock', 1190, 200], ['washing_machine', 1520, 650], ['picture', 1640, 250], ['laundry_basket', 1830, 700],
+];
 
 export function defaultState() {
   const rooms = ['lawn', 'living', 'kitchen', 'kids', 'bath', 'bedroom'].map((t) => newRoom(t, t));
@@ -45,7 +51,7 @@ export function defaultState() {
     it('fridge', 'kitchen', 230, 640), it('stove', 'kitchen', 560, 640), it('sink_counter', 'kitchen', 900, 640),
     it('kitchen_counter', 'kitchen', 1290, 640), it('kitchen_shelf', 'kitchen', 1290, 300),
     it('window', 'kids', 800, 250), it('picture', 'kids', 330, 240),
-    it('picture', 'bath', 800, 240), it('washing_machine', 'bath', 1150, 650), it('laundry_basket', 'bath', 1400, 700),
+    ...BATH_START.map(([def, x, y]) => it(def, 'bath', x, y)),
     it('window', 'bedroom', 1300, 260), it('picture', 'bedroom', 560, 240),
   ];
   // Кухня обставлена: на тумбе тостер и блендер, в холодильнике еда, на полке сок.
@@ -57,6 +63,9 @@ export function defaultState() {
     onIt('banana', fridge, 2, -10), onIt('banana', fridge, 3, -10), onIt('apple', fridge, 2, -60), onIt('milk', fridge, 4, -50), onIt('tomato', fridge, 4, 0),
     onIt('juice', shelf, 0, -120),
   );
+  const tub = byDef('bathtub', 'bath'), sink = byDef('bath_sink', 'bath');
+  items.push({ id: id++, def: 'rubber_duck', room: 'bath', x: 0, y: 0, on: { id: tub, s: 0, dx: -60 } },
+    { id: id++, def: 'soap', room: 'bath', x: 0, y: 0, on: { id: sink, s: 0, dx: -70 } });
   const rest = [...NEW_IN_INVENTORY];
   for (const d of KITCHEN_START) { const k = rest.indexOf(d); if (k >= 0) rest.splice(k, 1); }
   return {

@@ -12,7 +12,9 @@
 //            четвёртое число 1 — поверхность ВНУТРИ: работает и видна, только когда вещь открыта.
 // openArt  — картинка открытого состояния; такая вещь открывается и закрывается нажатием.
 // power    — вещь включается нажатием (item.lit): screen [x0,y0,x1,y1] — экран с мультиком,
-//            glow [x,y,радиус] — тёплый свет вокруг точки (абажур). Всё в долях картинки.
+//            glow [x,y,радиус] — тёплый свет вокруг точки (абажур),
+//            water [x,y,yКонец,ширина] — льётся вода (душ, кран). Всё в долях картинки.
+// sounds   — свои звуки: { open, close } (унитаз: крышка и смыв).
 
 export const ITEMS = {
   table:   { name: 'Столик',        art: 'items/table',      w: 370, anchor: 'bottom', place: 'floor',   group: 'furniture', surfaces: [[0.08, 0.92, 0.21]] },
@@ -42,6 +44,14 @@ export const ITEMS = {
   tshirt:  { name: 'Футболка', art: 'items/tshirt', w: 140, anchor: 'bottom', place: 'floor', group: 'clothes' },
   pants:   { name: 'Штанишки', art: 'items/pants',  h: 160, anchor: 'bottom', place: 'floor', group: 'clothes' },
   dress:   { name: 'Платье',   art: 'items/dress',  h: 160, anchor: 'bottom', place: 'floor', group: 'clothes' },
+  bathtub:     { name: 'Ванна с душем', art: 'items/bathtub',     w: 540, anchor: 'bottom', place: 'floor', group: 'furniture', power: { water: [0.775, 0.185, 0.5, 0.13] }, surfaces: [[0.06, 0.74, 0.5]] },
+  bath_sink:   { name: 'Раковина',      art: 'items/bath_sink',   h: 280, anchor: 'bottom', place: 'floor', group: 'furniture', power: { water: [0.53, 0.095, 0.27, 0.02] }, surfaces: [[0.06, 0.94, 0.205]] },
+  toilet:      { name: 'Унитаз',        art: 'items/toilet', openArt: 'items/toilet_open', h: 240, anchor: 'bottom', place: 'floor', group: 'furniture', sounds: { open: 'lid', close: 'flush' } },
+  bath_mirror: { name: 'Зеркало',       art: 'items/bath_mirror', w: 170, anchor: 'center', place: 'wall',  group: 'decor' },
+  towel_rack:  { name: 'Полотенце',     art: 'items/towel_rack',  w: 230, anchor: 'center', place: 'wall',  group: 'decor' },
+  wall_clock:  { name: 'Часы',          art: 'items/wall_clock',  w: 130, anchor: 'center', place: 'wall',  group: 'decor' },
+  soap:        { name: 'Мыло',          art: 'items/soap',        w: 62,  anchor: 'bottom', place: 'floor', group: 'toys' },
+  rubber_duck: { name: 'Уточка',        art: 'items/rubber_duck', w: 64,  anchor: 'bottom', place: 'floor', group: 'toys' },
   smoothie_banana: { name: 'Банановый фреш', art: 'items/smoothie_banana', h: 105, anchor: 'bottom', place: 'floor', group: 'food' },
   banana:   { name: 'Банан',    art: 'items/banana',   w: 75, anchor: 'bottom', place: 'floor', group: 'food' },
   apple:    { name: 'Яблоко',   art: 'items/apple',    w: 57, anchor: 'bottom', place: 'floor', group: 'food' },
@@ -99,7 +109,7 @@ export const ROOM_TYPES = {
   bedroom: { name: 'Спальня' },
 };
 
-export const WALL_PATTERNS = { plain: 'Однотонные', stripes: 'Полоски', dots: 'Горошек', flowers: 'Ромашки' };
+export const WALL_PATTERNS = { plain: 'Однотонные', stripes: 'Полоски', dots: 'Горошек', flowers: 'Ромашки', tile: 'Кафель' };
 export const FLOOR_MATERIALS = { wood: 'Деревянный пол', tile: 'Плитка' };
 
 // Палитры для быстрого выбора в «Отделке».

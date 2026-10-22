@@ -126,15 +126,17 @@ async function boot() {
       const lit = actions.togglePower(id); // телевизор, торшер включаются нажатием
       if (lit !== null) {
         anims.squash('item:' + id);
-        const glow = !!itemDef(store.state.items.find((i) => i.id === id)?.def)?.power?.glow;
-        play(glow ? (lit ? 'lampOn' : 'lampOff') : (lit ? 'tvOn' : 'tvOff'));
+        const pw = itemDef(store.state.items.find((i) => i.id === id)?.def)?.power || {};
+        const kind = pw.glow ? 'lamp' : pw.water ? 'water' : 'tv';
+        play(kind + (lit ? 'On' : 'Off'));
         invalidate();
         return;
       }
       const opened = actions.toggleOpen(id); // холодильник и т. п. открываются нажатием
       if (opened === null) { anims.wobble('item:' + id); play('pop'); }
       else {
-        anims.squash('item:' + id); play(opened ? 'open' : 'close');
+        const snd = itemDef(store.state.items.find((i) => i.id === id)?.def)?.sounds || {};
+        anims.squash('item:' + id); play(opened ? snd.open || 'open' : snd.close || 'close');
         // Еда внутри: при открытии покачивается по очереди сверху вниз (как от касания).
         // При закрытии — сразу за дверью, сквозь дверь ничего не видно.
         if (opened) {
