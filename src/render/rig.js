@@ -290,7 +290,7 @@ export const rigAnims = {
 };
 
 // Поза героя сейчас. carried — герой в руке (скорость для болтания ногами).
-export function heroPose(id, { carried = false, tilt = 0, holding = false, reach = false, seat = null, covered = false, arms = false } = {}) {
+export function heroPose(id, { carried = false, tilt = 0, holding = false, reach = false, seat = null, covered = false, arms = false, walk = null } = {}) {
   const t = now(), ph = (id.charCodeAt(0) % 7) * 0.9; // у каждого героя своя фаза — не дышат хором
   const breathe = Math.sin(t * 2.2 + ph);
   const pose = {
@@ -316,6 +316,19 @@ export function heroPose(id, { carried = false, tilt = 0, holding = false, reach
       pose.only = arms ? ['armUpL', 'armLoL', 'armUpR', 'armLoR'] : ['hairBack', 'torso', 'head']; pose.lieHead = true; pose.head = Math.sin(t * 0.7 + ph) * 0.03;
       pose.armUpL = LIE.arm + slow * 0.02; pose.armUpR = -LIE.arm - slow * 0.02; pose.armLoL = LIE.fore; pose.armLoR = -LIE.fore; // руки на одеяле
     } // под одеялом: голова на подушке, плечи уходят под одеяло, руки — поверх одеяла (ноги не рисуем)
+  }
+  if (walk) {
+    // Идёт (вид спереди): ноги по очереди поднимаются — бедро «к нам» (сплющено), колено сгибается;
+    // тело покачивается и чуть наклоняется туда, куда идёт; руки машут в такт.
+    const sn = Math.sin(walk.phase), a = walk.amp ?? 1, upL = Math.max(0, sn) * a, upR = Math.max(0, -sn) * a;
+    pose.squash = { legL: 1 - 0.6 * upL, legR: 1 - 0.6 * upR };
+    pose.shinL = -0.12 * upL; pose.shinR = 0.12 * upR;
+    pose.legL = 0.05 * upL; pose.legR = -0.05 * upR;
+    pose.bob = -Math.abs(sn) * 9 * a;
+    pose.torso = (walk.dir || 1) * 0.05 * a + sn * 0.03 * a;
+    pose.armUpL = 0.03 + sn * 0.14 * a; pose.armUpR = -0.03 + sn * 0.14 * a;
+    pose.armLoL = -0.05 - upL * 0.25; pose.armLoR = 0.05 + upR * 0.25;
+    pose.head = -sn * 0.04 * a;
   }
   if (holding && seat !== 'lie') { pose.armUpR = -0.1; pose.armLoR = -0.45; } // держит вещь чуть перед собой
   if (reach) { // к герою поднесли вещь — тянется навстречу

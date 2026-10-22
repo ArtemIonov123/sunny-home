@@ -55,6 +55,7 @@ const SOUNDS = {
   bubble: () => { tone({ f0: 300, f1: 700, dur: 0.08, type: 'sine', vol: 0.05 }); },
   tick:   () => { tone({ f0: 2000, f1: 1900, dur: 0.02, type: 'square', vol: 0.03 }); },
   ding:   () => { tone({ f0: 1568, f1: 1568, dur: 0.5, type: 'sine', vol: 0.08 }); tone({ f0: 2093, f1: 2093, dur: 0.6, type: 'sine', vol: 0.05, delay: 0.08 }); },
+  step:   () => tone({ f0: 190 + Math.random() * 40, f1: 120, dur: 0.05, type: 'sine', vol: 0.05 }), // мягкий шаг
   click:  () => tone({ f0: 900, f1: 700, dur: 0.05, type: 'triangle', vol: 0.05 }),
   whoosh: () => tone({ f0: 200, f1: 500, dur: 0.2, type: 'sawtooth', vol: 0.02 }),
 };

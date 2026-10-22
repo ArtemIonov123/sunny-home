@@ -339,8 +339,10 @@ export function createRenderer(canvas, store, camera) {
       if (!drag.hero) drawLanding(drag); // над героем — не показываем, куда упадёт: герой возьмёт
       ctx.globalAlpha = drag.valid ? 1 : 0.6;
       ctx.fillStyle = 'rgba(70,45,20,.18)'; // тень под вещью в руке
-      ctx.beginPath(); ctx.ellipse(drag.b.x + drag.b.w / 2, drag.b.y + drag.b.h + 18, drag.b.w * 0.32, 10, 0, 0, Math.PI * 2); ctx.fill();
-      if (drag.kind === 'char' && getRig(drag.id)) drawHeroRig(drag.id, drag.b, { dx: 0, dy: 0, rot: drag.tilt || 0, sx: 1.06, sy: 1.06 }, { carried: true, tilt: drag.tilt || 0 });
+      if (drag.walk) shadowUnder(drag.b); // идёт — тень прямо под ногами
+      else { ctx.beginPath(); ctx.ellipse(drag.b.x + drag.b.w / 2, drag.b.y + drag.b.h + 18, drag.b.w * 0.32, 10, 0, 0, Math.PI * 2); ctx.fill(); }
+      if (drag.kind === 'char' && getRig(drag.id) && drag.walk) drawHeroRig(drag.id, drag.b, null, { walk: drag.walk }); // идёт сам по полу
+      else if (drag.kind === 'char' && getRig(drag.id)) drawHeroRig(drag.id, drag.b, { dx: 0, dy: 0, rot: drag.tilt || 0, sx: 1.06, sy: 1.06 }, { carried: true, tilt: drag.tilt || 0 });
       else drawSprite(drag.art, drag.b, { glow: true, tilt: drag.tilt || 0 });
       // Вещи с полок и столешницы едут вместе с мебелью.
       if (carried.length && drag.from) {

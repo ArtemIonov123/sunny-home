@@ -288,7 +288,7 @@ async function boot() {
   });
 
   // Для автотестов и отладки.
-  window.__sunny = { rig: { rigAnims, getRig, drawRig, LIE }, store, camera, renderer, actions, viewport, saveNow, physics: { surfacesOf, syncChildren }, mode, hud };
+  window.__sunny = { interaction, rig: { rigAnims, getRig, drawRig, LIE }, store, camera, renderer, actions, viewport, saveNow, physics: { surfacesOf, syncChildren }, mode, hud };
 }
 
 boot().catch((e) => {

@@ -74,7 +74,11 @@ export function createInteraction({ canvas, viewport, camera, renderer, store, i
     const r = roomAtX(store.layout, ax);
     const lx = ax - r.x0;
     // Наклон при переноске — вещь «болтается» в сторону движения.
-    if (g.prevAx !== undefined) g.vx = g.vx * 0.75 + (ax - g.prevAx) * 0.25;
+    const now = performance.now(), dt = Math.min(0.1, Math.max(0.004, (now - (g.prevT || now - 16)) / 1000));
+    const step = g.prevAx !== undefined ? ax - g.prevAx : 0;
+    g.speed = (g.speed || 0) * 0.92 + (step / dt) * 0.08; // скорость пальца по горизонтали, единиц мира в секунду
+    g.prevT = now;
+    if (g.prevAx !== undefined) g.vx = g.vx * 0.75 + step * 0.25;
     g.prevAx = ax;
     g.tilt = clamp((g.vx || 0) * 0.012, -0.32, 0.32);
     g.ax = ax; g.ay = ay;
@@ -92,6 +96,21 @@ export function createInteraction({ canvas, viewport, camera, renderer, store, i
       // Над диваном, креслом, кроватью — сядет или ляжет; иначе встанет на пол.
       const pos = seatLanding(store.state, g.obj.id, r.room, lx, ay) || snapChar(r.room, lx, ay);
       g.target = { r, pos }; g.valid = true;
+      // Медленно ведёшь у пола — герой идёт сам (ноги шагают по полу); быстро или поднял выше — болтается в руке.
+      const ground = !pos.seat && Math.abs(ay - pos.y) < 110 && !!g.obj.look;
+      const sp = Math.abs(g.speed);
+      if (g.walk) { if (!ground || sp > 1100) g.walk = null; }
+      else if (ground && sp < 650) g.walk = { phase: 0, dir: 1 };
+      if (g.walk) {
+        const ph0 = g.walk.phase;
+        g.walk.phase += Math.abs(step) * 0.05;  // шаги — по пройденному пути: медленнее ведёшь — медленнее шагает
+        if (Math.floor(g.walk.phase / Math.PI) !== Math.floor(ph0 / Math.PI) && g.walk.amp > 0.3) play('step'); // топ-топ
+        if (sp > 20) g.walk.dir = Math.sign(g.speed);
+        g.walk.amp = g.walk.amp === undefined ? 0 : g.walk.amp * 0.85 + Math.min(1, sp / 70) * 0.15; // плавно начинает и заканчивает шагать   // стоит на месте — не шагает
+        g.tilt = 0;
+        g.b = charBounds({ id: g.obj.id, x: ax, y: pos.y });
+        return;
+      }
       g.b = charBounds({ id: g.obj.id, x: ax, y: Math.min(ay, pos.y + (pos.seat ? hipDrop({ id: g.obj.id, seat: pos.seat }) : 0) + 40) });
     }
   }
