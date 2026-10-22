@@ -12,7 +12,8 @@ export const MAX_ITEMS = 250;
 
 // Прижать все вещи и героев к допустимым местам (после загрузки, смены разметки и ширины).
 // Одежда из каталога → вещь на герое (и её цвет по картинке).
-export const CLOTHES_TO_WEAR = { tshirt: 'tshirt', pants: 'pants', dress: 'dress' };
+// Одежда из каталога → вещь на герое: поле wear у определения (футболка, штанишки, платье, свои предметы).
+export const wearOf = (defId) => itemDef(defId)?.wear || null;
 const WEAR_DEFAULT_COLOR = { tshirt: '#ff8fa8', pants: '#7fb1f0', dress: '#b49cf0' };
 
 export function normalize(s) {
@@ -221,7 +222,7 @@ export function createActions(store, camera) {
     give(itemId, charId, color = null) {
       const item = store.state.items.find((i) => i.id === itemId), c = store.state.chars.find((c) => c.id === charId);
       if (!item || !c?.look) return null;
-      const wear = CLOTHES_TO_WEAR[item.def];
+      const wear = wearOf(item.def);
       if (wear) {
         store.change((s) => {
           const ch = s.chars.find((x) => x.id === charId), i = s.items.find((x) => x.id === itemId);

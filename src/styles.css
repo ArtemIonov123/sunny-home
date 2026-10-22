@@ -266,3 +266,24 @@ button:disabled { opacity: .4; cursor: default; }
 #app.compact .sh-act { height: 50px; font-size: 22px; min-width: 96px; }
 #app.compact .gate-btn { width: 104px; height: 104px; }
 #app.rotated .shop-grid, #app.rotated .shop-detail { touch-action: pan-x; }
+
+/* Студия → Предметы → «Оживить» */
+.lv { margin-top: 14px; padding: 12px; border: 2px dashed #ead6b4; border-radius: 18px; background: #fffdf7; }
+.lv h4 { margin: 0 0 8px; }
+.lv-row { display: flex; flex-wrap: wrap; gap: 10px; align-items: flex-end; margin-bottom: 8px; }
+.lv-row .adm-field { flex: 1; min-width: 150px; }
+.ie-upload.small { min-height: 0; padding: 8px 12px; flex-direction: row; }
+.lv-tools { display: flex; flex-wrap: wrap; gap: 6px; margin: 6px 0; }
+.lv-tools button { min-height: 40px; padding: 0 12px; border-radius: 12px; border: 2px solid #ead6b4; background: #fff; }
+.lv-tools button.on { background: #ffd98c; border-color: #c9a477; }
+.lv-canvas { width: 100%; max-width: 560px; aspect-ratio: 560 / 380; border-radius: 14px; border: 2px solid #ead6b4; touch-action: none; display: block; }
+.lv-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+.lv-chip { display: inline-flex; align-items: center; gap: 4px; padding: 4px 4px 4px 10px; border-radius: 999px; background: #eef6e6; font-size: 13px; }
+.lv-chip button { width: 26px; height: 26px; border-radius: 50%; border: 0; background: #fff; }
+.pk-key { padding: 10px 12px; border-radius: 14px; background: #fff7e6; border: 2px solid #f0d9a8; margin-bottom: 8px; }
+button.link { border: 0; background: none; color: #a8794c; text-decoration: underline; padding: 0 4px; font-size: 13px; cursor: pointer; min-height: 0; }
+.pk-shoplist { display: flex; flex-direction: column; gap: 8px; }
+.pk-shop { display: flex; align-items: center; gap: 10px; padding: 6px; border: 2px solid #ead6b4; border-radius: 14px; background: #fff; }
+.pk-shop img { width: 96px; border-radius: 10px; }
+.pk-shop div { flex: 1; display: flex; flex-direction: column; gap: 2px; }
+.pk-shop small { color: #9a7a58; }

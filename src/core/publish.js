@@ -1,0 +1,138 @@
+// Публикация паков в магазин прямо из студии — через GitHub (файлы в папке store/ репозитория игры).
+// Нужен «ключ доступа» GitHub (fine-grained token: только этот репозиторий, право Contents: Read and write).
+// Ключ хранится только в браузере, где открыта студия. В игру этот модуль не попадает.
+import { validatePack } from './library.js';
+import { loadImage } from '../assets.js';
+
+const KEY = 'sunny-studio-github';
+const API = 'https://api.github.com';
+
+export function getSettings() {
+  try { return { repo: 'ArtemIonov123/sunny-home', branch: 'main', token: '', ...JSON.parse(localStorage.getItem(KEY) || '{}') }; }
+  catch (e) { return { repo: 'ArtemIonov123/sunny-home', branch: 'main', token: '' }; }
+}
+export function saveSettings(s) { localStorage.setItem(KEY, JSON.stringify({ repo: s.repo.trim(), branch: (s.branch || 'main').trim(), token: s.token.trim() })); }
+export const hasToken = () => !!getSettings().token;
+
+// UTF-8 ⇄ base64 (большие строки — кусками)
+function toB64(str) {
+  const bytes = new TextEncoder().encode(str); let bin = '';
+  for (let i = 0; i < bytes.length; i += 0x8000) bin += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000));
+  return btoa(bin);
+}
+function fromB64(b64) {
+  const bin = atob(b64.replace(/\n/g, '')), bytes = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+  return new TextDecoder().decode(bytes);
+}
+
+async function gh(path, { method = 'GET', body, raw = false } = {}) {
+  const s = getSettings();
+  if (!s.token) throw new Error('Сначала вставь ключ GitHub (настройки публикации)');
+  const r = await fetch(`${API}/repos/${s.repo}/${path}`, {
+    method,
+    headers: { Authorization: 'Bearer ' + s.token, Accept: raw ? 'application/vnd.github.raw+json' : 'application/vnd.github+json', 'X-GitHub-Api-Version': '2022-11-28', ...(body ? { 'Content-Type': 'application/json' } : {}) },
+    body: body ? JSON.stringify(body) : undefined,
+  });
+  if (r.status === 404 && method === 'GET') return null;
+  if (r.status === 401) throw new Error('GitHub не принял ключ — проверь, что он вставлен целиком и не просрочен');
+  if (r.status === 403) throw new Error('У ключа нет права менять файлы (нужно Contents: Read and write для этого репозитория)');
+  if (r.status === 409) throw new Error('Файл на GitHub успел измениться — нажми ещё раз');
+  if (!r.ok) throw new Error('GitHub ответил: ' + r.status);
+  return raw ? r.text() : r.json();
+}
+
+async function getFile(path) {
+  const { branch } = getSettings();
+  const meta = await gh(`contents/${path}?ref=${encodeURIComponent(branch)}`);
+  if (!meta) return null;
+  const text = meta.content ? fromB64(meta.content) : await gh(`contents/${path}?ref=${encodeURIComponent(branch)}`, { raw: true }); // больше 1 МБ — отдельным запросом
+  return { sha: meta.sha, text };
+}
+async function putFile(path, text, message, sha) {
+  const { branch } = getSettings();
+  return gh(`contents/${path}`, { method: 'PUT', body: { message, content: toB64(text), branch, ...(sha ? { sha } : {}) } });
+}
+async function deleteFile(path, message, sha) {
+  const { branch } = getSettings();
+  return gh(`contents/${path}`, { method: 'DELETE', body: { message, sha, branch } });
+}
+
+// Проверка ключа: читаем репозиторий.
+export async function testToken() {
+  const s = getSettings();
+  const r = await fetch(`${API}/repos/${s.repo}`, { headers: { Authorization: 'Bearer ' + s.token, Accept: 'application/vnd.github+json' } });
+  if (!r.ok) throw new Error(r.status === 401 ? 'Ключ не подходит' : r.status === 404 ? 'Репозиторий не найден или ключ к нему не допущен' : 'GitHub ответил: ' + r.status);
+  const j = await r.json();
+  if (j.permissions && !j.permissions.push) throw new Error('Ключ только для чтения — нужно право записи (Contents: Read and write)');
+  return j.full_name;
+}
+
+// ── Обложка и маленькие картинки для карточки магазина (как tools/store.py) ──
+const COLORS = ['#ffd68c', '#bae2ff', '#ffc4d6', '#c8ecbe', '#e1cdff'];
+async function fit(src, size) {
+  const im = await loadImage(src), cv = document.createElement('canvas');
+  cv.width = cv.height = size;
+  const s = Math.min(size / im.width, size / im.height);
+  cv.getContext('2d').drawImage(im, (size - im.width * s) / 2, (size - im.height * s) / 2, im.width * s, im.height * s);
+  return cv;
+}
+async function makeCover(items, k) {
+  const W = 480, H = 300, cv = document.createElement('canvas'); cv.width = W; cv.height = H;
+  const c = cv.getContext('2d');
+  c.beginPath(); c.roundRect ? c.roundRect(0, 0, W, H, 36) : c.rect(0, 0, W, H); c.clip();
+  c.fillStyle = COLORS[k % COLORS.length]; c.fillRect(0, 0, W, H);
+  c.fillStyle = 'rgba(255,255,255,.35)';
+  for (const [x, y, r] of [[60, 50, 70], [420, 260, 110], [400, 40, 40], [90, 270, 50]]) { c.beginPath(); c.arc(x, y, r, 0, Math.PI * 2); c.fill(); }
+  const pics = items.slice(0, 4), n = pics.length, size = n <= 2 ? 170 : 140;
+  for (let i = 0; i < n; i++) {
+    const t = await fit(pics[i].image, size);
+    c.drawImage(t, W * (i + 1) / (n + 1) - size / 2, H - size - 30 - (i % 2 ? 18 : 0));
+  }
+  return cv.toDataURL('image/webp', 0.85);
+}
+
+export async function readCatalog() {
+  const f = await getFile('store/catalog.json');
+  const cat = f ? JSON.parse(f.text) : { format: 'sunny-home-store', version: 1, packs: [] };
+  return { cat, sha: f?.sha };
+}
+
+// Опубликовать (или обновить) пак: файл пака + запись в каталоге. Возвращает запись каталога.
+export async function publishPack(raw, onStep = () => {}) {
+  const pack = { ...validatePack(raw), price: Math.max(0, Number(raw.price) || 0) };
+  onStep('Читаю магазин…');
+  const { cat, sha } = await readCatalog();
+  const old = cat.packs.find((p) => p.id === pack.id), k = old ? cat.packs.indexOf(old) : cat.packs.length;
+  onStep('Рисую обложку…');
+  const entry = {
+    id: pack.id, name: pack.name, version: (old?.version || 0) + 1,
+    price: pack.price, currency: 'PLN', priceLabel: pack.price ? pack.price.toFixed(2).replace('.', ',') + ' zł' : '',
+    product: 'pack_' + pack.id, file: 'packs/' + pack.id + '.json', items: pack.items.length,
+    cover: pack.items.length ? await makeCover(pack.items, k) : old?.cover || '',
+    preview: await Promise.all(pack.items.slice(0, 8).map(async (it) => (await fit(it.image, 96)).toDataURL('image/webp', 0.8))),
+  };
+  onStep('Загружаю пак…');
+  const prev = await gh(`contents/store/packs/${pack.id}.json?ref=${encodeURIComponent(getSettings().branch)}`);
+  await putFile(`store/packs/${pack.id}.json`, JSON.stringify(pack), `Магазин: пак «${pack.name}» (из студии)`, prev?.sha);
+  onStep('Обновляю список магазина…');
+  if (old) cat.packs[k] = entry; else cat.packs.push(entry);
+  await putFile('store/catalog.json', JSON.stringify(cat, null, 1), `Магазин: «${pack.name}» в каталоге, версия ${entry.version}`, sha);
+  return entry;
+}
+
+export async function removePack(id) {
+  const { cat, sha } = await readCatalog();
+  const entry = cat.packs.find((p) => p.id === id);
+  cat.packs = cat.packs.filter((p) => p.id !== id);
+  await putFile('store/catalog.json', JSON.stringify(cat, null, 1), `Магазин: убран пак «${entry?.name || id}»`, sha);
+  const f = await gh(`contents/store/packs/${id}.json?ref=${encodeURIComponent(getSettings().branch)}`);
+  if (f?.sha) await deleteFile(`store/packs/${id}.json`, `Магазин: удалён файл пака ${id}`, f.sha);
+}
+
+// Пак из магазина — в студию (чтобы поправить и опубликовать заново).
+export async function fetchStorePack(id) {
+  const f = await getFile(`store/packs/${id}.json`);
+  if (!f) throw new Error('Файл пака не найден');
+  return JSON.parse(f.text);
+}

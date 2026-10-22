@@ -8,7 +8,11 @@ import { validate } from '../save/migrate.js';
 import { normalize } from '../core/actions.js';
 import { createItemEditor } from './itemEditor.js';
 import { listRecords, listPacks, makePack, listOverrides } from '../core/library.js';
-import { resetShop } from '../core/shop.js';
+import { resetShop, loadCatalog } from '../core/shop.js';
+import { getSettings, saveSettings, hasToken, testToken, readCatalog, publishPack, removePack, fetchStorePack } from '../core/publish.js';
+import { importPack } from '../core/library.js';
+
+const STORE_RAW = 'https://raw.githubusercontent.com/ArtemIonov123/sunny-home/main/store/';
 
 export function createAdmin({ root, store, camera, actions, toast, onChange }) {
   const el = document.createElement('section');
@@ -57,20 +61,46 @@ export function createAdmin({ root, store, camera, actions, toast, onChange }) {
 
   // «Паки»: собрать из своих предметов пак-файл. Файл пака кладётся в папку packs/ — и он в игре.
   let packName = '', packPick = new Set(), packPrice = 0;
+  // Магазин в студии: ключ GitHub, собрать пак, опубликовать, список паков в магазине.
+  let storeCat = null, storeNote = '', storeBusy = '', target = '', showKey = !hasToken();
+  async function refreshStore() {
+    storeNote = '';
+    try { storeCat = hasToken() ? (await readCatalog()).cat : await loadCatalog(); }
+    catch (e) { storeCat = null; storeNote = e.message; }
+    if (tab === 'packs') render();
+  }
   function packsTab() {
-    const recs = listRecords(), built = listPacks();
+    if (storeCat === null && !storeNote) refreshStore();
+    const recs = listRecords(), built = listPacks(), gs = getSettings(), ovs = listOverrides().length;
     const items = recs.length ? recs.map((r) => `<label class="pk-item"><input type="checkbox" data-pk="${esc(r.id)}"${packPick.has(r.id) ? ' checked' : ''}><img src="${r.image}" alt=""><span>${esc(r.name)}</span></label>`).join('')
       : '<p class="adm-help">Своих предметов пока нет — создай их во вкладке «Предметы».</p>';
-    return `<p class="adm-help">Пак — набор предметов одним файлом. Отметь предметы, дай паку название и скачай файл. Чтобы пак появился в игре у игроков, файл кладётся в папку <b>packs/</b> игры (пришли его — встрою).</p>
+    const keyBox = showKey ? `<div class="pk-key">
+        <p class="adm-help"><b>Ключ GitHub для публикации.</b> Создаётся один раз: GitHub → Settings → Developer settings → Personal access tokens → <b>Fine-grained tokens</b> → Generate new token. Repository access: <b>Only select repositories</b> → ${esc(gs.repo.split('/')[1] || 'sunny-home')}. Permissions → Repository permissions → <b>Contents: Read and write</b>. Скопируй ключ (начинается с github_pat_) и вставь сюда. Ключ хранится только в этом браузере — не выкладывай studio.html в интернет.</p>
+        <label class="adm-field">Репозиторий<input type="text" data-gh-repo value="${esc(gs.repo)}"></label>
+        <label class="adm-field">Ключ<input type="password" data-gh-token value="${esc(gs.token)}" placeholder="github_pat_…" autocomplete="off"></label>
+        <div class="adm-buttons"><button data-gh-save class="primary">Проверить и сохранить</button>${gs.token ? '<button data-gh-cancel>Отмена</button>' : ''}</div></div>`
+      : `<p class="adm-help">Публикация: ✓ ключ подключён (${esc(gs.repo)}). <button class="link" data-gh-change>Сменить ключ</button></p>`;
+    const targets = (storeCat?.packs || []).map((p) => `<option value="${esc(p.id)}"${p.id === target ? ' selected' : ''}>Обновить: ${esc(p.name)}</option>`).join('');
+    const shopList = storeCat?.packs?.length ? storeCat.packs.map((p) => `<div class="pk-shop" data-sid="${esc(p.id)}"><img src="${p.cover}" alt=""><div><b>${esc(p.name)}</b><small>${p.priceLabel || 'бесплатно'} · вещей: ${p.items} · версия ${p.version}${p.price ? ` · ID в Google Play: ${esc(p.product)}` : ''}</small></div>
+        <button data-sp-load title="Загрузить вещи пака в студию">↓ В студию</button>${hasToken() ? '<button data-sp-del class="danger" title="Убрать из магазина">Убрать</button>' : ''}</div>`).join('')
+      : `<p class="adm-help">${storeNote ? esc(storeNote) : storeCat ? 'В магазине пока пусто.' : 'Загружаю…'}</p>`;
+    return `<h4>Магазин</h4>${keyBox}
+      <h4>Собрать пак</h4>
+      <label class="adm-field">Пак<select data-pktarget><option value="">＋ Новый пак</option>${targets}</select></label>
       <label class="adm-field">Название пака<input type="text" data-pkname maxlength="40" value="${esc(packName)}" placeholder="Например: Пляж"></label>
       <label class="adm-field">Цена, zł (0 — бесплатно)<input type="number" data-pkprice min="0" max="500" step="0.01" value="${packPrice}"></label>
       <div class="pk-grid">${items}</div>
-      ${listOverrides().length ? `<p class="adm-help">Правки встроенных предметов (${listOverrides().length}) тоже войдут в пак.</p>` : ''}
-      <div class="adm-buttons"><button data-pkall>Отметить все</button><button data-pkexport class="primary"${packPick.size || listOverrides().length ? '' : ' disabled'}>↓ Скачать пак (${packPick.size}${listOverrides().length ? ' + правки' : ''})</button></div>
-      <p class="adm-help">Как пак попадает в магазин игры: пришли скачанный файл — я добавлю его в магазин (store/ на GitHub), обложка соберётся из картинок вещей. Покупки сейчас тестовые (без денег).</p>
+      ${ovs ? `<p class="adm-help">Правки встроенных предметов (${ovs}) тоже войдут в пак.</p>` : ''}
+      <div class="adm-buttons"><button data-pkall>Отметить все</button>
+        <button data-pkpublish class="primary"${(packPick.size || ovs) && hasToken() && !storeBusy ? '' : ' disabled'}>🚀 ${target ? 'Обновить в магазине' : 'Опубликовать в магазин'}</button>
+        <button data-pkexport${packPick.size || ovs ? '' : ' disabled'}>↓ Скачать файл</button></div>
+      ${storeBusy ? `<p class="adm-help"><b>⏳ ${esc(storeBusy)}</b></p>` : ''}
+      <p class="adm-help">После публикации пак появится в магазине у всех игроков через 1–5 минут (GitHub обновляет файлы не сразу). Платный пак: в Google Play Console создать товар с ID <b>pack_&lt;id пака&gt;</b> (видно ниже) — понадобится, когда будет APK. Покупки сейчас тестовые.</p>
+      <h4>В магазине сейчас <button class="link" data-sp-refresh>обновить</button></h4>
+      <div class="pk-shoplist">${shopList}</div>
       <div class="adm-buttons"><button data-shopreset>Сбросить тестовые покупки</button></div>
       <h4>Паки внутри игры</h4>
-      ${built.length ? `<ul class="pk-list">${built.map((p) => `<li><b>${esc(p.name)}</b> · предметов: ${p.count}${p.fixes ? ` · правок: ${p.fixes}` : ''}</li>`).join('')}</ul>` : '<p class="adm-help">Пока нет. Встроенные паки появятся здесь.</p>'}`;
+      ${built.length ? `<ul class="pk-list">${built.map((p) => `<li><b>${esc(p.name)}</b> · предметов: ${p.count}${p.fixes ? ` · правок: ${p.fixes}` : ''}</li>`).join('')}</ul>` : '<p class="adm-help">Пока нет.</p>'}`;
   }
 
   function dataTab() {
@@ -113,10 +143,45 @@ export function createAdmin({ root, store, camera, actions, toast, onChange }) {
       if (!res.ok) toast(res.reason, true);
       else { const r = store.layout.byId.get(res.id); camera.flyTo(r.x0); toast('Комната добавлена в конец дома'); }
     } else if (b.dataset.pkall !== undefined) { const all = listRecords().map((r) => r.id); packPick = packPick.size === all.length ? new Set() : new Set(all); }
+    else if (b.dataset.ghSave !== undefined) {
+      saveSettings({ repo: el.querySelector('[data-gh-repo]').value, token: el.querySelector('[data-gh-token]').value });
+      try { const name = await testToken(); showKey = false; toast('Ключ подходит: ' + name); storeCat = null; }
+      catch (err) { toast(err.message, true); }
+    }
+    else if (b.dataset.ghCancel !== undefined) showKey = false;
+    else if (b.dataset.ghChange !== undefined) showKey = true;
+    else if (b.dataset.spRefresh !== undefined) { storeCat = null; storeNote = ''; }
+    else if (b.dataset.pkpublish !== undefined) {
+      try {
+        const pack = makePack(packName, [...packPick], true, packPrice, target);
+        storeBusy = 'Публикую…'; render();
+        const entry = await publishPack(pack, (step) => { storeBusy = step; render(); });
+        storeBusy = ''; target = entry.id; storeCat = null;
+        toast(`«${entry.name}» в магазине (версия ${entry.version}). У игроков — через 1–5 минут.`);
+      } catch (err) { storeBusy = ''; toast(err.message, true); }
+    }
+    else if (b.dataset.spLoad !== undefined) {
+      const id = b.closest('[data-sid]').dataset.sid;
+      try {
+        const raw = hasToken() ? await fetchStorePack(id) : await (await fetch(STORE_RAW + 'packs/' + id + '.json?t=' + Date.now())).json();
+        const n = await importPack(raw);
+        actions.restoreMissing();
+        const entry = storeCat?.packs.find((p) => p.id === id);
+        target = id; packName = entry?.name || ''; packPrice = entry?.price || 0;
+        packPick = new Set((raw.items || []).map((i) => i.id));
+        toast(`Вещи пака загружены в студию: ${n}. Поправь и нажми «Обновить в магазине».`);
+      } catch (err) { toast('Не удалось: ' + err.message, true); }
+    }
+    else if (b.dataset.spDel !== undefined) {
+      const id = b.closest('[data-sid]').dataset.sid, entry = storeCat?.packs.find((p) => p.id === id);
+      if (!confirm(`Убрать «${entry?.name || id}» из магазина? У тех, кто уже скачал, пак останется.`)) return;
+      try { await removePack(id); storeCat = null; if (target === id) target = ''; toast('Пак убран из магазина'); }
+      catch (err) { toast(err.message, true); }
+    }
     else if (b.dataset.shopreset !== undefined) { await resetShop(); toast('Тестовые покупки сброшены — перезапусти игру'); }
     else if (b.dataset.pkexport !== undefined) {
       try {
-        const pack = makePack(packName, [...packPick], true, packPrice);
+        const pack = makePack(packName, [...packPick], true, packPrice, target);
         download(JSON.stringify(pack), `pack_${pack.id}.json`);
         toast(`Пак «${pack.name}» скачан: ${pack.items.length} предм.` + (pack.overrides.length ? `, правок: ${pack.overrides.length}` : ''));
       } catch (err) { toast(err.message, true); }
@@ -137,6 +202,11 @@ export function createAdmin({ root, store, camera, actions, toast, onChange }) {
     else if (e.target.matches('[data-pk]')) { if (e.target.checked) packPick.add(e.target.dataset.pk); else packPick.delete(e.target.dataset.pk); }
     else if (e.target.matches('[data-pkname]')) { packName = e.target.value; return; }
     else if (e.target.matches('[data-pkprice]')) { packPrice = Number(e.target.value) || 0; return; }
+    else if (e.target.matches('[data-pktarget]')) {
+      target = e.target.value;
+      const entry = storeCat?.packs.find((p) => p.id === target);
+      if (entry) { packName = entry.name; packPrice = entry.price || 0; }
+    }
     else if (e.target.matches('[data-split],[data-walk]')) { render(); return; }
     else return;
     render(); onChange();

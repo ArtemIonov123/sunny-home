@@ -34,7 +34,16 @@ export async function prepareImage(file) {
   out.getContext('2d').drawImage(cv, minX, minY, w, h, 0, 0, out.width, out.height);
   const src = out.toDataURL('image/webp', 0.88);
   if (src.length > 2_000_000) throw new Error('Картинка слишком тяжёлая — попробуй файл поменьше');
-  return src;
+  // crop — где вещь была на исходной картинке (для совмещения «закрыто» и «открыто» от GPT)
+  return { src, crop: [minX / s0, minY / s0, w / s0, h / s0, im.width, im.height].map(Math.round) };
+}
+
+// Где «открытая» картинка относительно закрытой: по положению на исходных картинках GPT
+// (одинакового размера); если размеры разные — по низу и центру.
+function openBoxOf(c, o) {
+  if (c && o && Math.abs(c[4] - o[4]) < 3 && Math.abs(c[5] - o[5]) < 3) return [(o[0] - c[0]) / c[2], (o[1] - c[1]) / c[3], o[2] / c[2], o[3] / c[3]].map((v) => Math.round(v * 1000) / 1000);
+  const ow = c && o ? (o[2] / o[3]) / (c[2] / c[3]) : 1;
+  return [(1 - ow) / 2, 0, ow, 1];
 }
 
 export function createItemEditor({ store, actions, toast, onChange }) {
@@ -107,6 +116,7 @@ export function createItemEditor({ store, actions, toast, onChange }) {
         </div>
         <div class="ie-preview"><canvas width="520" height="420" data-ie-canvas aria-label="Сравнение размера с Милой"></canvas><small>Размер рядом с Милой</small></div>
       </div>
+      ${d.image ? livingHtml() : ''}
       <div class="ie-actions">
         <button data-ie-save class="primary">Сохранить</button>
         <button data-ie-save-put>Сохранить и поставить в дом</button>
@@ -114,10 +124,109 @@ export function createItemEditor({ store, actions, toast, onChange }) {
       </div>`;
   }
 
+  // ── «Оживить» предмет: полки, открывание, включение, отклик, еда/одежда ──
+  let tool = 'surface', view = 'closed', drawing = null;
+  const KINDS = { thing: 'Обычная вещь', food: 'Еда (можно съесть)', drink: 'Напиток (можно выпить)', wear_tshirt: 'Одежда: футболка', wear_pants: 'Одежда: штанишки', wear_dress: 'Одежда: платье' };
+  const kindOf = (d) => (d.wear ? 'wear_' + d.wear : d.drink ? 'drink' : d.group === 'food' ? 'food' : 'thing');
+  const powerKind = (d) => (d.power?.glow ? 'glow' : d.power?.screen ? 'screen' : d.power?.water ? 'water' : '');
+  function livingHtml() {
+    const d = draft, pk = powerKind(d);
+    const opt = (obj, cur) => Object.entries(obj).map(([k, n]) => `<option value="${k}"${k === cur ? ' selected' : ''}>${n}</option>`).join('');
+    const surf = (d.surfaces || []).map((s, k) => `<span class="lv-chip">${s[3] ? '🔒 внутри' : '▭ полка'} ${k + 1}<button data-lv-delsurf="${k}" aria-label="Убрать">×</button></span>`).join('');
+    return `<div class="lv"><h4>Оживить предмет</h4>
+      <div class="lv-row">
+        <label class="adm-field">Что это<select data-lv-kind>${opt(KINDS, kindOf(d))}</select></label>
+        <label class="adm-field">Нажатие<select data-lv-tap>${opt({ '': 'Покачивается', ring: 'Звенит и трясётся', squeak: 'Пищит' }, d.tap || '')}</select></label>
+        <label class="adm-field">Включается<select data-lv-power>${opt({ '': 'Нет', glow: 'Свет (лампа)', screen: 'Экран с мультиком', water: 'Вода (душ, кран)' }, pk)}</select></label>
+      </div>
+      <div class="lv-row">
+        <label class="ie-upload small"><em>${d.open ? 'Заменить картинку «открыто»' : '＋ Картинка «открыто» (шкаф, холодильник)'}</em><input type="file" accept="image/png,image/webp,image/jpeg" data-ie-openfile></label>
+        ${d.open ? '<button data-lv-noopen>Убрать «открыто»</button>' : ''}
+      </div>
+      <div class="lv-tools">
+        <button data-lv-tool="surface" class="${tool === 'surface' ? 'on' : ''}">✏️ Полка</button>
+        ${pk ? `<button data-lv-tool="power" class="${tool === 'power' ? 'on' : ''}">${pk === 'glow' ? '💡 Где свет' : pk === 'screen' ? '📺 Где экран' : '🚿 Откуда вода'}</button>` : ''}
+        ${d.open ? `<button data-lv-view="closed" class="${view === 'closed' ? 'on' : ''}">Закрыто</button><button data-lv-view="open" class="${view === 'open' ? 'on' : ''}">Открыто</button>` : ''}
+      </div>
+      <p class="adm-help">${tool === 'surface' ? 'Проведи пальцем по картинке слева направо там, где вещи должны стоять (столешница, полка, сиденье).' + (d.open ? ' На картинке «Открыто» полка будет внутренней — видна только открытой.' : '')
+        : pk === 'glow' ? 'Нажми туда, откуда идёт свет (абажур).' : pk === 'screen' ? 'Обведи экран: проведи из угла в угол.' : 'Проведи от крана/лейки вниз — туда, куда льётся вода.'}</p>
+      <canvas class="lv-canvas" width="560" height="380" data-lv-canvas></canvas>
+      <div class="lv-chips">${surf}</div></div>`;
+  }
+
+  // Рамка закрытой картинки на холсте редактора и рамка «открытой» внутри неё.
+  let lvIm = null, lvOpenIm = null;
+  function lvFrames(cv) {
+    const im = lvIm; if (!im) return null;
+    const box = draft.open?.box || [0, 0, 1, 1];
+    const minX = Math.min(0, box[0]), minY = Math.min(0, box[1]), maxX = Math.max(1, box[0] + box[2]), maxY = Math.max(1, box[1] + box[3]);
+    const ar = im.height / im.width, spanW = maxX - minX, spanH = (maxY - minY) * ar;
+    const s = Math.min((cv.width - 40) / spanW, (cv.height - 40) / spanH);
+    const R = { x: (cv.width - spanW * s) / 2 - minX * s, y: (cv.height - spanH * s) / 2 - minY * s * ar, w: s, h: s * ar };
+    const O = { x: R.x + box[0] * R.w, y: R.y + box[1] * R.h, w: box[2] * R.w, h: box[3] * R.h };
+    return { R, O };
+  }
+  async function drawLiving() {
+    const cv = host?.querySelector('[data-lv-canvas]'); if (!cv || !draft?.image) return;
+    if (!lvIm || lvIm.src !== draft.image) lvIm = await loadImage(draft.image);
+    if (draft.open && (!lvOpenIm || lvOpenIm.src !== draft.open.image)) lvOpenIm = await loadImage(draft.open.image);
+    const c = cv.getContext('2d'), F = lvFrames(cv); if (!F) return;
+    c.clearRect(0, 0, cv.width, cv.height);
+    c.fillStyle = '#f7efe0'; c.fillRect(0, 0, cv.width, cv.height);
+    const open = view === 'open' && draft.open;
+    const r = open ? F.O : F.R;
+    c.drawImage(open ? lvOpenIm : lvIm, r.x, r.y, r.w, r.h);
+    c.setLineDash([6, 5]); c.strokeStyle = '#c9a47788'; c.strokeRect(F.R.x, F.R.y, F.R.w, F.R.h); c.setLineDash([]);
+    c.lineWidth = 5; c.lineCap = 'round';
+    for (const s of draft.surfaces || []) {
+      if (!!s[3] !== !!open && s[3]) continue; // внутренние полки — только на «открыто»
+      c.strokeStyle = s[3] ? '#e0864a' : '#3f9a5a';
+      c.beginPath(); c.moveTo(F.R.x + s[0] * F.R.w, F.R.y + s[2] * F.R.h); c.lineTo(F.R.x + s[1] * F.R.w, F.R.y + s[2] * F.R.h); c.stroke();
+    }
+    const p = draft.power, at = (fx, fy) => [F.R.x + fx * F.R.w, F.R.y + fy * F.R.h];
+    c.lineWidth = 3;
+    if (p?.glow) { const [x, y] = at(p.glow[0], p.glow[1]); c.fillStyle = '#ffd34d99'; c.beginPath(); c.arc(x, y, 26, 0, Math.PI * 2); c.fill(); c.fillStyle = '#e8a400'; c.beginPath(); c.arc(x, y, 6, 0, Math.PI * 2); c.fill(); }
+    if (p?.screen) { const [x0, y0] = at(p.screen[0], p.screen[1]), [x1, y1] = at(p.screen[2], p.screen[3]); c.fillStyle = '#7fd3ff88'; c.fillRect(x0, y0, x1 - x0, y1 - y0); }
+    if (p?.water) { const [x, y] = at(p.water[0], p.water[1]), [, y1] = at(p.water[0], p.water[2]); c.strokeStyle = '#4aa8f0'; c.beginPath(); c.moveTo(x, y); c.lineTo(x, y1); c.stroke(); }
+    if (drawing) { c.strokeStyle = '#3f9a5a'; c.setLineDash([4, 4]); c.beginPath(); c.moveTo(drawing.x0, drawing.y0); c.lineTo(drawing.x1, tool === 'surface' ? drawing.y0 : drawing.y1); c.stroke(); c.setLineDash([]); }
+  }
+  // Точка на холсте → доли закрытой картинки.
+  function toFrac(cv, e) {
+    const b = cv.getBoundingClientRect(), F = lvFrames(cv);
+    const x = (e.clientX - b.left) * cv.width / b.width, y = (e.clientY - b.top) * cv.height / b.height;
+    return { x, y, fx: (x - F.R.x) / F.R.w, fy: (y - F.R.y) / F.R.h };
+  }
+  function lvDown(e) {
+    const cv = e.target.closest('[data-lv-canvas]'); if (!cv || !lvIm) return;
+    e.preventDefault(); cv.setPointerCapture?.(e.pointerId);
+    const p = toFrac(cv, e);
+    drawing = { x0: p.x, y0: p.y, x1: p.x, y1: p.y, f0: p };
+    if (tool === 'power' && draft.power?.glow) { draft.power = { glow: [round(p.fx), round(p.fy), 1.2] }; dirty = true; drawing = null; drawLiving(); }
+  }
+  function lvMove(e) {
+    if (!drawing) return;
+    const cv = host.querySelector('[data-lv-canvas]'), p = toFrac(cv, e);
+    drawing.x1 = p.x; drawing.y1 = p.y; drawing.f1 = p; drawLiving();
+  }
+  const round = (v) => Math.round(Math.max(-0.5, Math.min(1.5, v)) * 1000) / 1000;
+  function lvUp() {
+    if (!drawing) return;
+    const a = drawing.f0, b = drawing.f1 || a; drawing = null;
+    if (tool === 'surface') {
+      const x0 = Math.min(a.fx, b.fx), x1 = Math.max(a.fx, b.fx);
+      if (x1 - x0 > 0.05) { (draft.surfaces ||= []).push(view === 'open' && draft.open ? [round(x0), round(x1), round(a.fy), 1] : [round(x0), round(x1), round(a.fy)]); dirty = true; }
+    } else if (draft.power?.screen) {
+      if (Math.abs(b.fx - a.fx) > 0.05 && Math.abs(b.fy - a.fy) > 0.05) { draft.power = { screen: [round(Math.min(a.fx, b.fx)), round(Math.min(a.fy, b.fy)), round(Math.max(a.fx, b.fx)), round(Math.max(a.fy, b.fy))] }; dirty = true; }
+    } else if (draft.power?.water) {
+      if (b.fy - a.fy > 0.05) { draft.power = { water: [round(a.fx), round(a.fy), round(b.fy), 0.12] }; dirty = true; }
+    }
+    render();
+  }
+
   function render() {
     if (!host) return;
     host.innerHTML = draft ? form() : list();
-    if (draft) drawPreview();
+    if (draft) { drawPreview(); drawLiving(); }
   }
 
   async function drawPreview() {
@@ -189,9 +298,13 @@ export function createItemEditor({ store, actions, toast, onChange }) {
   host = null;
   const onClick = async (e) => {
     const b = e.target.closest('button, .ie-card'); if (!b || !host?.contains(b)) return;
-    if (b.dataset.ieNew !== undefined) { draft = fresh(); dirty = false; }
-    else if (b.dataset.ieEdit) { draft = { ...getRecord(b.dataset.ieEdit) }; dirty = false; }
+    if (b.dataset.ieNew !== undefined) { draft = fresh(); dirty = false; view = 'closed'; tool = 'surface'; }
+    else if (b.dataset.ieEdit) { draft = JSON.parse(JSON.stringify(getRecord(b.dataset.ieEdit))); dirty = false; view = 'closed'; tool = 'surface'; }
     else if (b.dataset.ieBuiltin) { draft = builtinDraft(b.dataset.ieBuiltin); dirty = false; }
+    else if (b.dataset.lvTool) { tool = b.dataset.lvTool; }
+    else if (b.dataset.lvView) { view = b.dataset.lvView; }
+    else if (b.dataset.lvDelsurf !== undefined) { read(); draft.surfaces.splice(Number(b.dataset.lvDelsurf), 1); dirty = true; }
+    else if (b.dataset.lvNoopen !== undefined) { read(); delete draft.open; draft.surfaces = (draft.surfaces || []).filter((s) => !s[3]); view = 'closed'; dirty = true; }
     else if (b.dataset.ieOrigimg !== undefined) { read(); draft.image = ''; dirty = true; }
     else if (b.dataset.ieReset !== undefined) {
       if (!confirm(`Вернуть «${originalDef(draft.id).name}» как было?`)) return;
@@ -220,13 +333,15 @@ export function createItemEditor({ store, actions, toast, onChange }) {
 
   const onChangeEv = async (e) => {
     if (!host?.contains(e.target)) return;
-    if (e.target.matches('[data-ie-file]')) {
+    if (e.target.matches('[data-ie-file],[data-ie-openfile]')) {
       const file = e.target.files?.[0]; e.target.value = '';
       if (!file) return;
       read();
       try {
         toast('Готовлю картинку…');
-        draft.image = await prepareImage(file);
+        const res = await prepareImage(file);
+        if (e.target.matches('[data-ie-openfile]')) { draft.open = { image: res.src, box: openBoxOf(draft.crop, res.crop) }; view = 'open'; }
+        else { draft.image = res.src; draft.crop = res.crop; if (draft.open) draft.open.box = openBoxOf(res.crop, null); }
         if (!draft.name) draft.name = file.name.replace(/\.[^.]+$/, '').replace(/[_-]+/g, ' ').slice(0, 40);
         dirty = true; render();
         toast('Картинка готова. Проверь размер рядом с Милой.');
@@ -242,6 +357,19 @@ export function createItemEditor({ store, actions, toast, onChange }) {
         render(); onChange();
       } catch (err) { toast('Не удалось загрузить пак: ' + (err instanceof SyntaxError ? 'файл повреждён' : err.message), true); }
     } else if (e.target.matches('[data-ie-group],[data-ie-place]')) { read(); dirty = true; render(); }
+    else if (e.target.matches('[data-lv-kind]')) {
+      read(); const k = e.target.value;
+      delete draft.drink; delete draft.wear;
+      if (k === 'food' || k === 'drink') { draft.group = 'food'; if (k === 'drink') draft.drink = true; }
+      else if (k.startsWith('wear_')) { draft.wear = k.slice(5); draft.group = 'clothes'; }
+      dirty = true; render();
+    } else if (e.target.matches('[data-lv-tap]')) { read(); if (e.target.value) draft.tap = e.target.value; else delete draft.tap; dirty = true; }
+    else if (e.target.matches('[data-lv-power]')) {
+      read(); const v = e.target.value;
+      draft.power = v === 'glow' ? { glow: [0.5, 0.25, 1.2] } : v === 'screen' ? { screen: [0.15, 0.1, 0.85, 0.6] } : v === 'water' ? { water: [0.5, 0.15, 0.6, 0.12] } : undefined;
+      if (!draft.power) delete draft.power; else tool = 'power';
+      dirty = true; render();
+    }
   };
 
   const onInput = (e) => {
@@ -253,7 +381,11 @@ export function createItemEditor({ store, actions, toast, onChange }) {
 
   return {
     mount,
-    bind(root) { root.addEventListener('click', onClick); root.addEventListener('change', onChangeEv); root.addEventListener('input', onInput); },
+    bind(root) {
+      root.addEventListener('click', onClick); root.addEventListener('change', onChangeEv); root.addEventListener('input', onInput);
+      root.addEventListener('pointerdown', lvDown); root.addEventListener('pointermove', lvMove);
+      root.addEventListener('pointerup', lvUp); root.addEventListener('pointercancel', () => { drawing = null; });
+    },
     get dirty() { return dirty; },
     has: (id) => !!itemDef(id),
   };

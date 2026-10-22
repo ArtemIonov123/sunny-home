@@ -9,7 +9,6 @@ import { backgroundFor, clearBackgrounds, prewarm } from './background.js';
 import { anims } from './anims.js';
 import { getRig, drawRig, heroPose } from './rig.js';
 import { sizeOf } from '../assets.js';
-const DRINKS = new Set(['milk', 'juice', 'smoothie_banana']);
 import { mode } from '../ui/mode.js';
 import { surfacesOf, isHidden, isSmall } from '../core/physics.js';
 
@@ -55,7 +54,9 @@ export function createRenderer(canvas, store, camera) {
       if (i.inv) continue; // в шкафчике — не в доме
       if (isHidden(i, parentOf)) continue; // внутри закрытого холодильника — за дверью не видно
       const def = itemDef(i.def), r = lay.byId.get(i.room); if (!r || !def) continue;
-      add('item', i, itemBounds(i), i.open && def.openArt ? def.openArt : def.art, r.x0);
+      let b = itemBounds(i);
+      if (i.open && def.openBox) { const [ox, oy, ow, oh] = def.openBox; b = { x: b.x + ox * b.w, y: b.y + oy * b.h, w: ow * b.w, h: oh * b.h }; } // своя «открытая» картинка другого размера
+      add('item', i, b, i.open && def.openArt ? def.openArt : def.art, r.x0);
     }
     for (const c of s.chars) {
       if (mode.design) break; // в редакторе героев не видно — не мешают расставлять мебель
@@ -110,7 +111,7 @@ export function createRenderer(canvas, store, camera) {
     if (pose && (pose.sx !== 1 || pose.sy !== 1)) ctx.scale(pose.sx || 1, pose.sy || 1);
     const held = store.state.items.filter((i) => i.held?.by === id && !(curDrag?.kind === 'item' && curDrag.id === i.id)).map((i) => {
       const def = itemDef(i.def), sz = sizeOf(def);
-      return { im: img(def.art), w: sz.w, h: sz.h, bites: i.bites || 0, drink: DRINKS.has(i.def) };
+      return { im: img(def.art), w: sz.w, h: sz.h, bites: i.bites || 0, drink: !!def.drink };
     });
     drawRig(ctx, getRig(id), { x: -b.w / 2, y: -b.h, w: b.w, h: b.h }, heroPose(id, { ...opts, holding: held.length > 0 }), held);
     ctx.restore();

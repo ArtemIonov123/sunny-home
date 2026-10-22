@@ -11,6 +11,8 @@
 // surfaces — куда можно ставить мелкие вещи: [x0, x1, y] в долях картинки (столешница, сиденье, полка);
 //            четвёртое число 1 — поверхность ВНУТРИ: работает и видна, только когда вещь открыта.
 // openArt  — картинка открытого состояния; такая вещь открывается и закрывается нажатием.
+//            openBox [x,y,w,h] — где «открытая» картинка относительно закрытой (свои предметы; у встроенных — та же рамка).
+// drink    — напиток (пьют, а не кусают); wear — одежда, которая надевается на героя (tshirt/pants/dress).
 // power    — вещь включается нажатием (item.lit): screen [x0,y0,x1,y1] — экран с мультиком,
 //            glow [x,y,радиус] — тёплый свет вокруг точки (абажур),
 //            water [x,y,yКонец,ширина] — льётся вода (душ, кран). Всё в долях картинки.
@@ -42,9 +44,9 @@ export const ITEMS = {
   kitchen_counter: { name: 'Кухонная тумба', art: 'items/kitchen_counter', w: 380, anchor: 'bottom', place: 'floor', group: 'furniture', surfaces: [[0.03, 0.97, 0.04]] },
   kitchen_shelf:   { name: 'Полка',        art: 'items/kitchen_shelf',   w: 420, anchor: 'center', place: 'wall', group: 'furniture', indoorOnly: true, surfaces: [[0.03, 0.97, 0.08]] },
   toaster:         { name: 'Тостер',       art: 'items/toaster',         w: 110, anchor: 'bottom', place: 'floor', group: 'appliances' },
-  tshirt:  { name: 'Футболка', art: 'items/tshirt', w: 140, anchor: 'bottom', place: 'floor', group: 'clothes' },
-  pants:   { name: 'Штанишки', art: 'items/pants',  h: 160, anchor: 'bottom', place: 'floor', group: 'clothes' },
-  dress:   { name: 'Платье',   art: 'items/dress',  h: 160, anchor: 'bottom', place: 'floor', group: 'clothes' },
+  tshirt:  { name: 'Футболка', art: 'items/tshirt', wear: 'tshirt', w: 140, anchor: 'bottom', place: 'floor', group: 'clothes' },
+  pants:   { name: 'Штанишки', art: 'items/pants',  wear: 'pants', h: 160, anchor: 'bottom', place: 'floor', group: 'clothes' },
+  dress:   { name: 'Платье',   art: 'items/dress',  wear: 'dress', h: 160, anchor: 'bottom', place: 'floor', group: 'clothes' },
   bathtub:     { name: 'Ванна с душем', art: 'items/bathtub',     w: 540, anchor: 'bottom', place: 'floor', group: 'furniture', power: { water: [0.775, 0.185, 0.5, 0.13] }, surfaces: [[0.06, 0.74, 0.5]] },
   bath_sink:   { name: 'Раковина',      art: 'items/bath_sink',   h: 280, anchor: 'bottom', place: 'floor', group: 'furniture', power: { water: [0.53, 0.095, 0.27, 0.02] }, surfaces: [[0.06, 0.94, 0.205]] },
   toilet:      { name: 'Унитаз',        art: 'items/toilet', openArt: 'items/toilet_open', h: 240, anchor: 'bottom', place: 'floor', group: 'furniture', sounds: { open: 'lid', close: 'flush' } },
@@ -63,11 +65,11 @@ export const ITEMS = {
   wall_clock:  { name: 'Часы',          art: 'items/wall_clock',  w: 130, anchor: 'center', place: 'wall',  group: 'decor' },
   soap:        { name: 'Мыло',          art: 'items/soap',        w: 62,  anchor: 'bottom', place: 'floor', group: 'toys' },
   rubber_duck: { name: 'Уточка',        art: 'items/rubber_duck', w: 64,  anchor: 'bottom', place: 'floor', group: 'toys' },
-  smoothie_banana: { name: 'Банановый фреш', art: 'items/smoothie_banana', h: 105, anchor: 'bottom', place: 'floor', group: 'food' },
+  smoothie_banana: { name: 'Банановый фреш', art: 'items/smoothie_banana', drink: true, h: 105, anchor: 'bottom', place: 'floor', group: 'food' },
   banana:   { name: 'Банан',    art: 'items/banana',   w: 75, anchor: 'bottom', place: 'floor', group: 'food' },
   apple:    { name: 'Яблоко',   art: 'items/apple',    w: 57, anchor: 'bottom', place: 'floor', group: 'food' },
-  milk:     { name: 'Молоко',   art: 'items/milk',     w: 54, anchor: 'bottom', place: 'floor', group: 'food' },
-  juice:    { name: 'Сок',      art: 'items/juice',    w: 47, anchor: 'bottom', place: 'floor', group: 'food' },
+  milk:     { name: 'Молоко',   art: 'items/milk', drink: true,     w: 54, anchor: 'bottom', place: 'floor', group: 'food' },
+  juice:    { name: 'Сок',      art: 'items/juice', drink: true,    w: 47, anchor: 'bottom', place: 'floor', group: 'food' },
   cake:     { name: 'Кекс',     art: 'items/cake',     w: 65, anchor: 'bottom', place: 'floor', group: 'food' },
   sandwich: { name: 'Бутерброд', art: 'items/sandwich', w: 90, anchor: 'bottom', place: 'floor', group: 'food' },
   tomato:   { name: 'Помидор',  art: 'items/tomato',   w: 55, anchor: 'bottom', place: 'floor', group: 'food' },
@@ -99,6 +101,13 @@ export function toDef(rec) {
     id: rec.id, name: rec.name, group: GROUPS[rec.group] ? rec.group : 'decor', place,
     w: rec.w, anchor: place === 'wall' ? 'center' : 'bottom', indoorOnly: place !== 'floor',
     art: 'custom/' + rec.id, image: rec.image,
+    // «Живые» свойства (задаются в студии): полки, открывание, включение, отклик, еда/одежда.
+    ...(rec.surfaces?.length ? { surfaces: rec.surfaces } : {}),
+    ...(rec.open ? { openArt: 'custom/' + rec.id + '_open', openBox: rec.open.box } : {}),
+    ...(rec.power ? { power: rec.power } : {}),
+    ...(rec.tap ? { tap: rec.tap } : {}),
+    ...(rec.drink ? { drink: true } : {}),
+    ...(rec.wear ? { wear: rec.wear } : {}),
   };
 }
 

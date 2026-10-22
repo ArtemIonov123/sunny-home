@@ -46,7 +46,6 @@ async function boot() {
   }
   if (!state) state = validate(defaultState());
   for (const c of state.chars) refreshHero(c.id, c.look); // картинки героев — до расстановки (нужны размеры)
-  const DRINKS = new Set(['milk', 'juice', 'smoothie_banana']);
   normalize(state);
 
   const store = createStore(state);
@@ -156,7 +155,7 @@ async function boot() {
     eating.add(charId);
     rigAnims.eat(charId); setFace(charId, 'yum', 1000);
     setTimeout(() => {
-      play(DRINKS.has(food.def) ? 'gulp' : 'chomp');
+      play(itemDef(food.def)?.drink ? 'gulp' : 'chomp');
       const eaten = actions.bite(food.id);
       if (eaten) setTimeout(() => { anims.hop('char:' + charId); rigAnims.cheer(charId); setFace(charId, 'laugh', 900); play('yum'); hud.refreshThings(); invalidate(); }, 300);
       eating.delete(charId);

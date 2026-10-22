@@ -11,6 +11,32 @@ const records = new Map();
 
 export function newId() { return CUSTOM_PREFIX + Date.now().toString(36) + Math.random().toString(36).slice(2, 7); }
 
+// «Живые» свойства своего предмета. Всё в долях картинки (0..1), неверное просто отбрасывается.
+const frac = (v) => Number.isFinite(v) && v >= -0.5 && v <= 1.5;
+const fracs = (a, n) => Array.isArray(a) && a.length >= n && a.slice(0, n).every(frac);
+const IMG_RE = /^data:image\/(webp|png|jpeg);base64,[A-Za-z0-9+/]+=*$/;
+export const TAPS = { ring: 'Звенит и трясётся', squeak: 'Пищит' };
+export const WEARS = { tshirt: 'Футболка', pants: 'Штанишки', dress: 'Платье' };
+function cleanLiving(raw) {
+  const out = {};
+  if (Array.isArray(raw.crop) && raw.crop.length === 6 && raw.crop.every(Number.isFinite)) out.crop = raw.crop.map(Math.round);
+  if (Array.isArray(raw.surfaces)) {
+    const s = raw.surfaces.filter((a) => fracs(a, 3) && a[1] > a[0]).slice(0, 8).map((a) => (a[3] ? [a[0], a[1], a[2], 1] : [a[0], a[1], a[2]]).map((v) => Math.round(v * 1000) / 1000));
+    if (s.length) out.surfaces = s;
+  }
+  if (raw.open && typeof raw.open.image === 'string' && IMG_RE.test(raw.open.image) && raw.open.image.length < 2_000_000) {
+    out.open = { image: raw.open.image, box: fracs(raw.open.box, 4) && raw.open.box[2] > 0 && raw.open.box[3] > 0 ? raw.open.box.slice(0, 4) : [0, 0, 1, 1] };
+  }
+  const p = raw.power;
+  if (p && fracs(p.glow, 3)) out.power = { glow: p.glow.slice(0, 3) };
+  else if (p && fracs(p.screen, 4)) out.power = { screen: p.screen.slice(0, 4) };
+  else if (p && fracs(p.water, 4)) out.power = { water: p.water.slice(0, 4) };
+  if (TAPS[raw.tap]) out.tap = raw.tap;
+  if (raw.drink === true) out.drink = true;
+  if (WEARS[raw.wear]) out.wear = raw.wear;
+  return out;
+}
+
 export function validateRecord(raw) {
   if (!raw || typeof raw !== 'object' || !/^custom_[a-z0-9_]{3,64}$/.test(raw.id || '')) throw new Error('У предмета неверный ID');
   const name = typeof raw.name === 'string' ? raw.name.trim() : '';
@@ -18,7 +44,8 @@ export function validateRecord(raw) {
   if (!Number.isFinite(raw.w) || raw.w < MIN_W || raw.w > MAX_W) throw new Error(`Размер — от ${MIN_W} до ${MAX_W}`);
   if (typeof raw.image !== 'string' || !/^data:image\/(webp|png|jpeg);base64,[A-Za-z0-9+/]+=*$/.test(raw.image)) throw new Error('Нужна картинка PNG, WebP или JPG');
   if (raw.image.length > 2_000_000) throw new Error('Картинка слишком тяжёлая');
-  return { id: raw.id, name, group: GROUPS[raw.group] ? raw.group : 'decor', place: PLACES[raw.place] ? raw.place : 'floor', w: Math.round(raw.w), image: raw.image };
+  const rec = { id: raw.id, name, group: GROUPS[raw.group] ? raw.group : 'decor', place: PLACES[raw.place] ? raw.place : 'floor', w: Math.round(raw.w), image: raw.image };
+  return Object.assign(rec, cleanLiving(raw));
 }
 
 async function install(rec, { builtin = false } = {}) {
@@ -26,6 +53,7 @@ async function install(rec, { builtin = false } = {}) {
   if (!im.width || !im.height || im.width > 2048 || im.height > 2048) throw new Error('Картинка должна быть не больше 2048 × 2048');
   const def = toDef(rec);
   registerImage(def.art, im);
+  if (rec.open) registerImage(def.openArt, await loadImage(rec.open.image));
   putCustomDef(def);
   if (!builtin) records.set(rec.id, rec);
 }
@@ -87,13 +115,17 @@ export const PACK_FORMAT = 'sunny-home-pack';
 const packs = new Map(); // id → { id, name, count }
 export const listPacks = () => [...packs.values()];
 
-export function makePack(name, ids, withOverrides = true, price = 0) {
+// Латиницей для ID пака («Пляж» → plyazh): ID виден в Google Play.
+const TR = { а: 'a', б: 'b', в: 'v', г: 'g', д: 'd', е: 'e', ё: 'e', ж: 'zh', з: 'z', и: 'i', й: 'y', к: 'k', л: 'l', м: 'm', н: 'n', о: 'o', п: 'p', р: 'r', с: 's', т: 't', у: 'u', ф: 'f', х: 'h', ц: 'c', ч: 'ch', ш: 'sh', щ: 'sch', ъ: '', ы: 'y', ь: '', э: 'e', ю: 'yu', я: 'ya', ą: 'a', ć: 'c', ę: 'e', ł: 'l', ń: 'n', ó: 'o', ś: 's', ź: 'z', ż: 'z' };
+const translit = (s) => [...s].map((ch) => TR[ch] ?? ch).join('');
+
+export function makePack(name, ids, withOverrides = true, price = 0, keepId = '') {
   const clean = String(name || '').trim().slice(0, 40) || 'Новый пак';
-  const slug = clean.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '') || 'pack';
+  const slug = translit(clean.toLowerCase()).replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '') || 'pack';
   const items = ids.map((id) => records.get(id)).filter(Boolean);
   const ovs = withOverrides ? listOverrides() : [];
   if (!items.length && !ovs.length) throw new Error('Выбери хотя бы один предмет');
-  return { format: PACK_FORMAT, version: 1, id: slug + '_' + Date.now().toString(36), name: clean, created: new Date().toISOString().slice(0, 10), price: Math.max(0, Math.round(Number(price) * 100) / 100) || 0, items, overrides: ovs };
+  return { format: PACK_FORMAT, version: 1, id: /^[a-z0-9_]{1,80}$/.test(keepId) ? keepId : slug + '_' + Date.now().toString(36), name: clean, created: new Date().toISOString().slice(0, 10), price: Math.max(0, Math.round(Number(price) * 100) / 100) || 0, items, overrides: ovs };
 }
 
 export function validatePack(raw) {
@@ -172,7 +204,7 @@ export async function deleteRecord(id) {
   await persist(next);
   records.delete(id);
   removeCustomDef(id);
-  forgetImage('custom/' + id);
+  forgetImage('custom/' + id); forgetImage('custom/' + id + '_open');
 }
 
 // Импорт пака: новый формат «sunny-home-items» v2 или пак старой Studio 0.3 (v1).
