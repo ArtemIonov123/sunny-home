@@ -4,7 +4,7 @@
 // apiKey — не секрет (это адрес проекта); данные защищают правила базы (docs/firebase-rules.json).
 import { initializeApp } from 'firebase/app';
 import { initializeAuth, indexedDBLocalPersistence, browserLocalPersistence, inMemoryPersistence, signInAnonymously } from 'firebase/auth';
-import { getDatabase, ref, get, set, update, remove, onValue, onDisconnect, serverTimestamp, runTransaction } from 'firebase/database';
+import { getDatabase, ref, get, set, update, remove, push, onValue, onDisconnect, serverTimestamp, runTransaction } from 'firebase/database';
 
 export const FIREBASE = {
   apiKey: 'AIzaSyD5Ly897l1Nm9yji-23iGX8oKIBHmo8sdU',
@@ -51,6 +51,11 @@ function firebaseBackend() {
       await step('в сети', set(r(path), { on: true, at: serverTimestamp() }));
     },
     offline: (path) => set(r(path), { on: false, at: serverTimestamp() }),
+    // Добавить в список (новый ключ по времени) — действия гостя в доме хозяина.
+    push: (path, val) => step('база', push(r(path), val)),
+    // Запись, которая сама пропадёт, когда приложение закроется или пропадёт связь (гость в доме).
+    async presence(path, val) { await step('в гостях', onDisconnect(r(path)).remove()); await step('в гостях', set(r(path), val)); },
+    cancelPresence: (path) => onDisconnect(r(path)).cancel(),
   };
 }
 

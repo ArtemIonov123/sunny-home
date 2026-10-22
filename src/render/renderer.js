@@ -20,6 +20,7 @@ export function createRenderer(canvas, store, camera) {
   const ctx = canvas.getContext('2d', { alpha: false });
   let k = 1;
   let pets = null; // «ум» животных (core/pets.js): где животное, пока идёт само
+  let visit = null; // гости (net/visit.js)
 
   let quality = 1, lastCss = [0, 0]; // quality < 1 — игра сама снизила чёткость на медленном телефоне
   function resize(cssW, cssH) {
@@ -69,6 +70,12 @@ export function createRenderer(canvas, store, camera) {
       const r = lay.byId.get(c.room); if (!r) continue;
       add('char', c, charBounds(c), CHARS[c.id].art, r.x0);
       if (c.seat && list.at(-1)?.obj === c) { const h = charHitBox(c); list.at(-1).hb = { x: h.x + r.x0, y: h.y, w: h.w, h: h.h }; }
+    }
+    // Гости (друзья в моём доме или я сам у друга) — такие же герои.
+    if (!mode.design) for (const v of visit?.visitors() || []) {
+      if (drag && drag.kind === 'char' && drag.id === v.id) continue;
+      const r = lay.byId.get(v.room); if (!r || !CHARS[v.id]) continue;
+      add('char', v, charBounds(v), CHARS[v.id].art, r.x0);
     }
     list.sort((a, b) => a.depth - b.depth);
     return list;
@@ -244,6 +251,18 @@ export function createRenderer(canvas, store, camera) {
     ctx.restore();
   }
   // Спит: над головой всплывают «z» (картинка, читать не нужно).
+  // Имя гостя над головой (белая плашка).
+  function drawNameTag(e) {
+    const name = e.obj.nick || ''; if (!name) return;
+    const cx = e.b.x + e.b.w / 2, y = e.b.y + 4;
+    ctx.save();
+    ctx.font = 'bold 22px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    const w = ctx.measureText(name).width + 22;
+    ctx.fillStyle = e.obj.own ? '#fff3c8' : '#ffffffe8'; ctx.strokeStyle = '#c9a477'; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.roundRect ? ctx.roundRect(cx - w / 2, y - 16, w, 32, 16) : ctx.rect(cx - w / 2, y - 16, w, 32); ctx.fill(); ctx.stroke();
+    ctx.fillStyle = '#5a3b1f'; ctx.fillText(name, cx, y + 1);
+    ctx.restore();
+  }
   function drawZzz(e) {
     const t = tnow(), k = e.b.h / 873, hx = e.b.x + e.b.w / 2 - 60 * k, hy = e.b.y + e.b.h - 293 * k - 230 * k;
     ctx.save();
@@ -382,6 +401,7 @@ export function createRenderer(canvas, store, camera) {
           if (itemDef(bed?.obj.def)?.cover) drawHeroRig(e.obj.id, e.b, pose, { seat, covered: true, arms: true }); // а руки — поверх одеяла
           drawZzz(e);
         }
+        if (e.obj.visitor) drawNameTag(e); // гость — с именем над головой
         idleHeroes = true;
       }
       else drawSprite(e.art, e.b, { pose, after });
@@ -450,5 +470,5 @@ export function createRenderer(canvas, store, camera) {
     return true;
   }
 
-  return { setPets(p) { pets = p; }, sway, get animating() { return animating; }, get idleHeroes() { return idleHeroes; }, resize, draw, hit, warmup, lowerQuality, get quality() { return quality; }, get scale() { return k; } };
+  return { setPets(p) { pets = p; }, setVisit(v) { visit = v; }, sway, get animating() { return animating; }, get idleHeroes() { return idleHeroes; }, resize, draw, hit, warmup, lowerQuality, get quality() { return quality; }, get scale() { return k; } };
 }

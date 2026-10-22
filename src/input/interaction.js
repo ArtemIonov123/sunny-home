@@ -19,6 +19,7 @@ import { emitter, clamp } from '../util.js';
 export function createInteraction({ canvas, viewport, camera, renderer, store, isOverStash }) {
   const events = emitter();
   let g = null; // текущий жест
+  let visit = null; // в гостях (net/visit.js)
 
   const world = (p) => ({ x: camera.x + p.x, y: p.y });
 
@@ -28,7 +29,8 @@ export function createInteraction({ canvas, viewport, camera, renderer, store, i
     const p = viewport.toScreen(e.clientX, e.clientY), w = world(p);
     const hit = renderer.hit(w.x, w.y);
     // В игре мебель не двигается: касание мебели — это нажатие или листание дома.
-    const movable = hit && (mode.design ? hit.kind === 'item' : hit.kind === 'char' || isSmall(itemDef(hit.obj.def)));
+    // Чужого героя-гостя не утащить (его ведёт свой игрок); своего — можно.
+    const movable = hit && (mode.design ? hit.kind === 'item' : (hit.kind === 'char' && (!hit.obj.visitor || hit.obj.own)) || (hit.kind === 'item' && isSmall(itemDef(hit.obj.def))));
     if (hit && movable) {
       const r = store.layout.byId.get(hit.obj.room);
       store.checkpoint();
@@ -211,6 +213,13 @@ export function createInteraction({ canvas, viewport, camera, renderer, store, i
   function place(d) {
     const { r, pos } = d.target;
     const isItem = d.kind === 'item';
+    if (d.obj?.visitor) { // свой герой в гостях: место знает «в гости», а не дом
+      store.dropCheckpoint();
+      visit?.moveSelf(r.room.id, pos.x, pos.y);
+      const fy0 = Math.min(0, d.b.y + d.b.h - pos.y);
+      anims.fall('char:' + d.id, fy0, 0); play(fy0 < -12 ? 'land' : 'drop');
+      return;
+    }
     store.change((s) => {
       const o = (isItem ? s.items : s.chars).find((o) => o.id === d.id);
       if (!o) return;
@@ -256,6 +265,7 @@ export function createInteraction({ canvas, viewport, camera, renderer, store, i
 
   return {
     on: events.on, frame, startFromInventory,
+    setVisit(v) { visit = v; },
     get drag() { return g && g.kind !== 'pending' && g.kind !== 'pan' ? g : null; },
     get active() { return !!g; },
     name: (kind, id) => (kind === 'char' ? CHARS[id].name : itemDef(store.state.items.find((i) => i.id === id)?.def)?.name),

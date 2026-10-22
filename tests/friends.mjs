@@ -20,6 +20,8 @@ async function player(name) {
     if (op === 'update') { for (const [k, v] of Object.entries(a)) setP(k, v); notify(); return; }
     if (op === 'remove') { setP(a, null); notify(); return; }
     if (op === 'claim') { if (getP(a) !== null) return false; setP(a, c); notify(); return true; }
+    if (op === 'push') { setP(a + '/k' + Date.now() + Math.random().toString(36).slice(2, 6), c); notify(); return; }
+    if (op === 'presence') { setP(a, c); notify(); return; }
     if (op === 'online') { setP(a, { on: true, at: Date.now() }); notify(); return; }
     if (op === 'on') { const l = { page: p, path: a, id: c, last: undefined }; listeners.push(l); setTimeout(notify, 10); return; }
     if (op === 'off') { const k = listeners.findIndex((l) => l.id === a && l.page === p); if (k >= 0) listeners.splice(k, 1); return; }
@@ -31,6 +33,7 @@ async function player(name) {
       init: () => window.__fakeNet('init'), get: (x) => window.__fakeNet('get', x), set: (x, v) => window.__fakeNet('set', x, v),
       update: (m) => window.__fakeNet('update', m), remove: (x) => window.__fakeNet('remove', x), claim: (x, v) => window.__fakeNet('claim', x, v),
       online: (x) => window.__fakeNet('online', x), offline: (x) => window.__fakeNet('set', x, { on: false }),
+      push: (x, v) => window.__fakeNet('push', x, v), presence: (x, v) => window.__fakeNet('presence', x, v), cancelPresence: () => {},
       on(x, cb) { const id = 'l' + (++n); cbs[id] = cb; window.__fakeNet('on', x, id); return () => { delete cbs[id]; window.__fakeNet('off', id); }; },
     };
   });
@@ -51,6 +54,29 @@ await B.p.screenshot({ path: SH + 'fr_B_req.png' });
 await B.p.click('[data-fr-accept]'); await B.p.waitForTimeout(200); await hold(B); await B.p.waitForTimeout(600);
 await B.p.screenshot({ path: SH + 'fr_B_friends.png' });
 await A.p.waitForTimeout(300); await A.p.screenshot({ path: SH + 'fr_A_friends.png' });
+// ── В гости: B идёт к A ──
+await A.p.click('[data-st-close]').catch(() => {}); await B.p.waitForTimeout(200);
+const homeB = await B.p.evaluate(() => window.__sunny.store.state.items.length);
+await A.p.evaluate(() => { const S = window.__sunny; S.store.change((s) => { s.rooms.find((r) => r.id === 'living').wall.color = '#ff9999'; }); }); // примета дома A
+await B.p.click('[data-fr-visit]'); await B.p.waitForTimeout(2500);
+const bSees = await B.p.evaluate(() => ({ wall: window.__sunny.store.state.rooms.find((r) => r.id === 'living').wall.color, visiting: document.getElementById('app').classList.contains('visiting') }));
+await B.p.screenshot({ path: SH + 'visit_B.png' });
+await A.p.waitForTimeout(500);
+const aSeesGuest = await A.p.evaluate(() => window.__sunny.renderer && document.querySelector('.toast')?.textContent);
+// гость переносит банан на кухне (как будто пальцем) → у хозяина тоже
+await B.p.evaluate(() => { const S = window.__sunny; S.store.change((s) => { const b = s.items.find((i) => i.def === 'banana'); delete b.on; b.room = 'lawn'; b.x = 500; b.y = 800; }, { undo: false }); });
+await A.p.waitForTimeout(800);
+const aBanana = await A.p.evaluate(() => { const b = window.__sunny.store.state.items.find((i) => i.def === 'banana' && i.room === 'lawn'); return b && [b.room, b.x]; });
+// хозяин переносит щенка → гость видит
+await A.p.evaluate(() => { const S = window.__sunny; S.store.change((s) => { const d = s.items.find((i) => i.def === 'dog'); d.room = 'lawn'; d.x = 900; d.y = 820; delete d.on; }, { undo: false }); });
+await B.p.waitForTimeout(800);
+const bDog = await B.p.evaluate(() => { const d = window.__sunny.store.state.items.find((i) => i.def === 'dog'); return [d.room, d.x]; });
+await A.p.evaluate(() => { const S = window.__sunny; const r = S.store.layout.byId.get('lawn'); S.camera.holdAt(r.x0 + 200); S.camera.mode = 'idle'; S.store.touch(); });
+await A.p.waitForTimeout(500); await A.p.screenshot({ path: SH + 'visit_A.png' });
+// домой
+await B.p.click('[data-act=home]'); await B.p.waitForTimeout(800);
+const bHome = await B.p.evaluate(() => ({ wall: window.__sunny.store.state.rooms.find((r) => r.id === 'living').wall.color, n: window.__sunny.store.state.items.length, visiting: document.getElementById('app').classList.contains('visiting') }));
+console.log(JSON.stringify({ homeB, bSees, aSeesGuest, aBanana, bDog, bHome, guestsLeft: db.live?.[Object.keys(db.live)[0]]?.guests || null }));
 const res = { codeB, badge, dbFriends: db.friends, req: db.requests || null, users: Object.values(db.users || {}).map((u) => [u.code, u.nick, !!u.look]) };
 console.log(JSON.stringify(res), A.errs, B.errs);
 await b.close();

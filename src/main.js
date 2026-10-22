@@ -23,6 +23,7 @@ import { refreshHero } from './render/hero.js';
 import { rigAnims, getRig, drawRig, LIE } from './render/rig.js';
 import { animalAnims, setupAnimal } from './render/animal.js';
 import { createPets } from './core/pets.js';
+import { createVisit } from './net/visit.js';
 
 const $ = (id) => document.getElementById(id);
 
@@ -67,7 +68,7 @@ async function boot() {
   // Животные гуляют сами; в редакторе комнаты, ночью и пока что-то тянут пальцем — отдыхают.
   const pets = createPets({
     store, camera,
-    isPaused: () => mode.design || store.state.night || !!interaction.drag,
+    isPaused: () => mode.design || store.state.night || !!interaction.drag || visit?.mode === 'guest', // в гостях животными управляет хозяин
     onAct: (id, what) => { // сами решили: гавкнуть (слышно, только если на экране), запрыгнуть на диван
       const i = store.state.items.find((x) => x.id === id), r = i && store.layout.byId.get(i.room);
       const seen = r && r.x0 + i.x > camera.x - 50 && r.x0 + i.x < camera.x + camera.viewW + 50;
@@ -78,6 +79,15 @@ async function boot() {
     onArrive: (id, called) => { if (called) { anims.hop('item:' + id); animalAnims.happy(id); play(itemDef(store.state.items.find((i) => i.id === id)?.def)?.animal?.voice || 'pop'); } },
   });
   renderer.setPets(pets);
+  // В гости к друзьям и гости у меня (net/visit.js).
+  const visit = createVisit({
+    friends: hud.friends, store, getMe: hud.getMe, camera, toast: hud.toast,
+    isDragging: () => !!interaction.drag,
+    onMode: (m) => { hud.setVisiting(m === 'guest'); play(m === 'guest' ? 'ding' : 'whoosh'); invalidate(); },
+    onArrive: (uid, g) => { play('ding'); hud.toast('👋 ' + (g.nick || 'Друг') + ' пришёл в гости'); invalidate(); },
+  });
+  renderer.setVisit(visit); interaction.setVisit(visit); hud.setVisit(visit);
+  interaction.on('dragend', () => visit.dragEnded());
   hud.setPets(pets, (id) => { if (pets.call(id)) { play('whoosh'); invalidate(); } });
   setInterval(() => { if (!running && !document.hidden && pets.wantsFrame()) invalidate(); }, 600); // кадров нет, а кому-то пора гулять
   // Подарки игрокам из магазина (свои животные с «выдать игроку») — ставятся сами, без кнопок.
@@ -144,6 +154,7 @@ async function boot() {
   let saveTimer = 0, savedNoteShown = false;
   function saveNow() {
     clearTimeout(saveTimer);
+    if (visit?.mode === 'guest') return Promise.resolve({ saved: true, backend: 'guest' }); // в гостях свой дом не трогаем
     return writeSave(store.state).then((res) => {
       if (!res.saved && !savedNoteShown) {
         savedNoteShown = true;

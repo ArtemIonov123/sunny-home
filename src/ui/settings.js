@@ -43,7 +43,7 @@ export function avatarSrc(face, bg, size = 120) {
 }
 
 export function createSettings({ root, onChange, friends = null, toast = () => {} }) {
-  let gate = null, adding = false, addMsg = '', naming = false, nickMsg = '';
+  let gate = null, adding = false, addMsg = '', naming = false, nickMsg = '', visit = null;
   const el = document.createElement('div');
   el.className = 'settings-sheet';
   el.hidden = true;
@@ -110,7 +110,7 @@ export function createSettings({ root, onChange, friends = null, toast = () => {
       if (d.frAccept) return askGate(async () => { await friends.accept(d.frAccept); play('yum'); });
       if (d.frDecline) { await friends.decline(d.frDecline); play('click'); return; }
       if (d.frRemove) return askGate(async () => { await friends.remove(d.frRemove); play('stash'); });
-      if (d.frVisit) { toast('В гости — уже скоро!'); play('pop'); }
+      if (d.frVisit) { if (!visit) return; toast('Идём в гости…'); play('whoosh'); close(); await visit.join(d.frVisit); }
     } catch (e) { toast('Не получилось: ' + (e?.message || e), true); }
   }
 
@@ -140,5 +140,5 @@ export function createSettings({ root, onChange, friends = null, toast = () => {
   function close() { el.hidden = true; gate = null; adding = false; naming = false; play('click'); }
   // Друзья обновились (пришёл запрос, друг вышел в сеть) — перерисовать, если открыто и не идёт ввод кода.
   function refresh() { if (!el.hidden && !gate && !naming && !(adding && document.activeElement?.matches?.('[data-fr-code]'))) render(); }
-  return { open, close, refresh, get isOpen() { return !el.hidden; } };
+  return { open, close, refresh, setVisit(v) { visit = v; }, get isOpen() { return !el.hidden; } };
 }

@@ -37,6 +37,24 @@
         ".read": "auth != null",
         ".write": "auth != null && auth.uid === $uid"
       }
+    },
+    "live": {
+      "$host": {
+        ".read": "auth != null && (auth.uid === $host || root.child('friends').child($host).child(auth.uid).exists())",
+        "state": {
+          ".write": "auth != null && auth.uid === $host"
+        },
+        "guests": {
+          "$g": {
+            ".write": "auth != null && (auth.uid === $host || (auth.uid === $g && root.child('friends').child($host).child($g).exists()))"
+          }
+        },
+        "ops": {
+          "$op": {
+            ".write": "auth != null && (auth.uid === $host || (newData.child('by').val() === auth.uid && root.child('friends').child($host).child(auth.uid).exists()))"
+          }
+        }
+      }
     }
   }
 }

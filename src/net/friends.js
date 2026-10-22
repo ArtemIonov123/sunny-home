@@ -14,6 +14,7 @@ export const normCode = (raw) => { const s = String(raw || '').toUpperCase().rep
 
 export function createFriends({ getMe, onUpdate }) {
   const net = createBackend();
+  const onReady = [];
   const state = { status: 'off', uid: null, code: null, friends: [], requests: [], error: '' }; // status: off | connecting | on | error
   const profiles = new Map(), online = new Map(), subs = new Map();
   let friendIds = [], requestIds = [];
@@ -54,13 +55,14 @@ export function createFriends({ getMe, onUpdate }) {
         emit();
       });
       state.status = 'on'; state.error = ''; emit();
+      for (const f of onReady) f(me);
     } catch (e) {
       state.status = 'error'; state.error = e?.message || String(e); emit();
     }
   }
 
   return {
-    state, start,
+    state, start, net, ready(f) { onReady.push(f); if (state.status === 'on') f(state.uid); }, // net — для «в гости» (net/visit.js)
     // Своё имя/аватарка поменялись — обновить у друзей.
     async updateProfile() { if (state.status === 'on') try { await net.set('users/' + state.uid, myProfile()); } catch (e) { /* в другой раз */ } },
     // Добавить по коду. Ответ: 'sent' | 'friends' (он уже звал нас — сразу дружим) | 'already' | 'self' | 'nocode' | 'bad'.

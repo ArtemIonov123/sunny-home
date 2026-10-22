@@ -26,7 +26,7 @@ const DESIGN_TABS = [['furniture', '🛋️', 'Мебель'], ['appliances', '�
 
 export function createHud({ root, store, camera, actions, onChange }) {
   root.innerHTML = `
-    <div class="hud-top-left"><button class="avatar-btn" data-act="settings" aria-label="Настройки и профиль"><img alt=""></button><div class="brand"><span class="sun">✺</span>Солнечный дом${STUDIO ? ' · студия' : ''}<small>${VERSION}</small></div></div>
+    <div class="hud-top-left"><button class="avatar-btn" data-act="settings" aria-label="Настройки и профиль"><img alt=""></button><button class="btn home-btn" data-act="home" aria-label="Домой">🏠</button><div class="brand"><span class="sun">✺</span>Солнечный дом${STUDIO ? ' · студия' : ''}<small>${VERSION}</small></div></div>
     <div class="hud-top-right">
       <button class="btn icon" data-act="undo" aria-label="Отменить" title="Отменить">↶</button>
       <button class="btn icon" data-act="night" aria-label="День или вечер" title="День / вечер">☾</button>
@@ -60,8 +60,13 @@ export function createHud({ root, store, camera, actions, onChange }) {
   const admin = __STUDIO__ ? createAdmin({ root, store, camera, actions, toast, onChange }) : { open() {}, sync() {}, guides: null, setStorageNote() {} };
   const heroEditor = createHeroEditor({ root, store, actions, onChange });
   // Друзья (сервер Firebase): запускаются сами при старте, если есть интернет.
+  // Мой профиль для друзей: имя, аватарка и внешность героя из профиля (в гостях я — этот герой).
+  // Внешность берётся из своего дома, даже когда я в гостях.
+  let homeLook = null;
+  const getMe = () => { const p = getProfile(); const c = (visit?.mode === 'guest' ? null : store.state.chars.find((c) => c.id === p.face)); if (c?.look) homeLook = { ...homeLook, [p.face]: c.look }; return { ...p, look: c?.look || homeLook?.[p.face] || null }; };
+  let visit = null;
   const friends = createFriends({
-    getMe: () => { const p = getProfile(); return { ...p, look: store.state.chars.find((c) => c.id === p.face)?.look || null }; },
+    getMe,
     onUpdate: (st) => {
       settings?.refresh();
       const n = st.requests.length, badge = q('.avatar-btn');
@@ -173,6 +178,7 @@ export function createHud({ root, store, camera, actions, onChange }) {
     if (performance.now() < suppressUntil && t.closest('.panel')) return; // клик-хвост от перетаскивания
     if (act === 'undo') { play(store.undo() ? 'whoosh' : 'nope'); }
     else if (act === 'settings') { showPanel(null); settings.open(); }
+    else if (act === 'home') { visit?.leave(); play('whoosh'); }
     else if (act === 'night') actions.toggleNight();
     else if (act === 'full') fullscreen();
     else if (act === 'admin') { showPanel(null); admin.open(); }
@@ -309,6 +315,10 @@ export function createHud({ root, store, camera, actions, onChange }) {
     closePanels() { if (!mode.design) showPanel(null); },
     setDesign,
     setPets(p, onCall) { pets = p; callPet = onCall; },
+    friends, getMe,
+    setVisit(v) { visit = v; settings.setVisit(v); },
+    // В гостях: нет «Вещей», редактора, магазина, отмены, ночи, героев и кнопок животных; есть «домой».
+    setVisiting(on) { root.closest('#app')?.classList.toggle('visiting', on); showPanel(null); if (on && heroEditor.isOpen) heroEditor.close(); },
   };
 }
 

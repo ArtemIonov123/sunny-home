@@ -47,6 +47,14 @@ export function createStore(initial) {
       events.emit('change', { save: true });
     },
 
+    // Подменить дом целиком (в гости к другу и обратно, новый дом от хозяина): без отмены и без сохранения.
+    swap(next) {
+      undoStack.length = 0;
+      state = next;
+      lay = layout(state.rooms);
+      events.emit('change', { save: false, remote: true });
+    },
+
     // Последнее изменение во время перетаскивания: без сохранения на каждый кадр.
     touch() { lay = layout(state.rooms); events.emit('change', { save: false }); },
   };
