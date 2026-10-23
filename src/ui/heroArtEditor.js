@@ -8,7 +8,7 @@ import { drawHero, drawPart, partThumb } from '../render/hero.js';
 import { buildRig, drawRig, heroPose, rigAnims } from '../render/rig.js';
 import { HERO_LAYERS } from '../render/heroLayout.js';
 import { layerRect } from '../render/garment.js';
-import { HERO_GROUPS, SLOT_NAMES, ALL_SLOTS, slotGroup, templateSizeText, fitHeroUpload, heroTemplate, applyHeroArt, ownHeroArt, packHeroArt, saveOwnHeroArt } from '../render/heroArt.js';
+import { colorShare, HERO_GROUPS, SLOT_NAMES, ALL_SLOTS, slotGroup, templateSizeText, fitHeroUpload, heroTemplate, applyHeroArt, ownHeroArt, packHeroArt, saveOwnHeroArt } from '../render/heroArt.js';
 import { img, loadImage } from '../assets.js';
 import { play } from '../audio.js';
 import { escapeHtml as esc } from '../util.js';
@@ -70,6 +70,7 @@ export function createHeroArtEditor({ store, actions, toast, onChange }) {
               <label class="file-btn">📂 ${has(slot) ? 'Другая картинка' : 'Загрузить картинку'}<input type="file" accept="image/png,image/webp,image/jpeg" data-ha-file hidden></label>
               ${has(slot) ? '<button data-ha-reset>↺ Вернуть встроенную</button>' : ''}
             </div>
+            ${has(slot) && slotGroup(slot) !== 'face' ? `<label class="an-give"><input type="checkbox" data-ha-tint${work[slot].tint === false ? '' : ' checked'}> <b>Игрок перекрашивает</b><small>${work[slot].tint === false ? 'картинка всегда такая, как нарисована (кружков цвета в гардеробе нет)' : 'серое и светлое в картинке красится в цвет, который выберет игрок'}</small></label>` : ''}
             ${has(slot) ? `<div class="lv-tools ce-nudge">
               <button data-ha-nudge="0,-1" aria-label="Выше">⬆</button><button data-ha-nudge="0,1" aria-label="Ниже">⬇</button>
               <button data-ha-nudge="-1,0" aria-label="Левее">⬅</button><button data-ha-nudge="1,0" aria-label="Правее">➡</button>
@@ -135,6 +136,8 @@ export function createHeroArtEditor({ store, actions, toast, onChange }) {
     const im = await loadImage(await fileUrl(file));
     const r = fitHeroUpload(im, name);
     work[name] = { image: r.image, box: r.box };
+    // Цветная картинка (яркие пряди, узор) — сразу «не перекрашивать»; серая — перекрашивать.
+    if (slotGroup(name) !== 'face' && colorShare(await loadImage(r.image)) > 0.15) work[name].tint = false;
     dirty = true;
     if (r.opaque) toast(`${SLOT_NAMES[name]}: фон не прозрачный — будет квадрат. Попроси у GPT прозрачный фон или #FF00FF`, true);
     return r;
@@ -189,6 +192,10 @@ export function createHeroArtEditor({ store, actions, toast, onChange }) {
   const onChangeEv = async (e) => {
     if (!host?.contains(e.target)) return;
     try {
+      if (e.target.matches('[data-ha-tint]')) {
+        if (e.target.checked) delete work[slot].tint; else work[slot].tint = false;
+        dirty = true; await apply(); render(); return;
+      }
       if (e.target.matches('[data-ha-file]') && e.target.files[0]) {
         const r = await setFile(slot, e.target.files[0]); await apply();
         toast(r.onTemplate === false ? 'Картинка не по образцу — встала на место прежней. Подвинь, если нужно' : 'Готово — смотри на героя');

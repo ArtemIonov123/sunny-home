@@ -54,10 +54,12 @@ export function drawHero(c, look, { face = null, sc = 1 } = {}) {
   }
   part(c, 'head', look.skin, sc);
   part(c, 'face_' + (face || look.face), null, sc);
-  if (hair !== 'none') { part(c, 'hair_cap', look.hairColor, sc); part(c, 'hair_' + hair, look.hairColor, sc); } // шапочка закрывает макушку
+  if (hair !== 'none') { if (capUnder(hair)) part(c, 'hair_cap', look.hairColor, sc); part(c, 'hair_' + hair, look.hairColor, sc); } // шапочка закрывает макушку
   for (const w of headWear(look.wear)) part(c, 'wear_' + w, look.wear[w], sc);
 }
 
+// Шапочка цвета волос под причёской — только у перекрашиваемой (у цветной своей причёски она проступала бы пятнами).
+export const capUnder = (hair) => !!HERO_LAYERS[`hero/hair_${hair}_t`];
 const built = new Map(); // id → подпись внешности (чтобы не пересобирать без нужды)
 // Картинки одежды поменялись (своя вещь сохранена в студии) — героев собрать заново.
 export function heroArtChanged() { built.clear(); tints.clear(); }

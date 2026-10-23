@@ -13,6 +13,8 @@ const HEAD_BOX = [78, 8, 352, 300];
 // Вся одежда: встроенная и своя (из студии и паков), по типам: верх, платья, низ, обувь, голова.
 const TYPE_ORDER = ['top', 'outer', 'dress', 'pants', 'skirt', 'shoes', 'hat', 'glasses'];
 const wearList = () => Object.keys(WEAR).sort((a, b) => TYPE_ORDER.indexOf(WEAR[a].type) - TYPE_ORDER.indexOf(WEAR[b].type) || (WEAR[a].custom ? 1 : 0) - (WEAR[b].custom ? 1 : 0));
+// Перекрашивается ли причёска (у цветной своей причёски нет серого слоя — кружки цвета не нужны).
+const hairTintable = (h) => h === 'none' || (h === 'long' ? ['hair_long_front', 'hair_long_back'] : ['hair_' + h]).some((n) => HERO_LAYERS[`hero/${n}_t`]);
 const firstColor = (w, k) => WEAR[w]?.color || WEAR_COLORS[(k * 5) % WEAR_COLORS.length];
 const PLAIN = '#f6f2ea'; // ненадетая вещь на кнопке — белая
 
@@ -67,7 +69,7 @@ export function createHeroEditor({ root, store, actions, onChange }) {
 
   function renderWho() {
     who.innerHTML = heroes().map((c) => {
-      const t = partThumb(HEAD_BOX, (ctx) => { drawPart(ctx, 'head', c.look.skin); drawPart(ctx, 'face_' + c.look.face); if (c.look.hair !== 'none') { drawPart(ctx, 'hair_cap', c.look.hairColor); drawPart(ctx, 'hair_' + (c.look.hair === 'long' ? 'long_front' : c.look.hair), c.look.hairColor); } }, 72);
+      const t = partThumb(HEAD_BOX, (ctx) => { drawPart(ctx, 'head', c.look.skin); drawPart(ctx, 'face_' + c.look.face); if (c.look.hair !== 'none') { if (hairTintable(c.look.hair)) drawPart(ctx, 'hair_cap', c.look.hairColor); drawPart(ctx, 'hair_' + (c.look.hair === 'long' ? 'long_front' : c.look.hair), c.look.hairColor); } }, 72);
       return `<button class="hs-hero${c.id === current ? ' on' : ''}" data-hs-hero="${c.id}" aria-label="${CHARS[c.id].name}"><img src="${url(t)}" alt=""></button>`;
     }).join('');
   }
@@ -84,10 +86,10 @@ export function createHeroEditor({ root, store, actions, onChange }) {
         const t = partThumb(HEAD_BOX, (c) => {
           if (h === 'long') drawPart(c, 'hair_long_back', look.hairColor);
           drawPart(c, 'head', look.skin); drawPart(c, 'face_' + look.face);
-          if (h !== 'none') { drawPart(c, 'hair_cap', look.hairColor); drawPart(c, 'hair_' + (h === 'long' ? 'long_front' : h), look.hairColor); }
+          if (h !== 'none') { if (hairTintable(h)) drawPart(c, 'hair_cap', look.hairColor); drawPart(c, 'hair_' + (h === 'long' ? 'long_front' : h), look.hairColor); }
         });
         return `<button class="hs-pick${h === look.hair ? ' on' : ''}" data-hs-hair="${h}" aria-label="${h}"><img src="${url(t)}" alt=""></button>`;
-      }).join('')}</div>${swatches(HAIR_COLORS, look.hairColor, 'hs-haircolor')}`;
+      }).join('')}</div>${hairTintable(look.hair) ? swatches(HAIR_COLORS, look.hairColor, 'hs-haircolor') : ''}`;
     } else if (tab === 'face') {
       opts.innerHTML = `<div class="hs-grid">${FACES.map((f) => {
         const t = partThumb([150, 100, 210, 180], (c) => { drawPart(c, 'head', look.skin); drawPart(c, 'face_' + f); });

@@ -153,7 +153,7 @@ export function buildRig(look, face = null, grip = {}) {
   if (look.hair === 'long') plan.hairBack.push(['hair_long_back', look.hairColor, 'bone:hairBack']);
   const hair = look.hair === 'long' ? 'long_front' : look.hair;
   plan.head.push(['head', look.skin, 'bone:head'], ['face_' + (face || look.face), null, 'bone:head']);
-  if (hair !== 'none') plan.head.push(['hair_cap', look.hairColor, 'bone:head'], ['hair_' + hair, look.hairColor, 'bone:head']);
+  if (hair !== 'none') { if (HERO_LAYERS[`hero/hair_${hair}_t`]) plan.head.push(['hair_cap', look.hairColor, 'bone:head']); plan.head.push(['hair_' + hair, look.hairColor, 'bone:head']); } // шапочка — только под перекрашиваемой причёской
   for (const w of headWear(look.wear)) plan.head.push(['wear_' + w, look.wear[w], 'bone:head']);
 
   // Холст кости — по размеру того, что в ней нарисовано (части от GPT могут быть больше вырезанных).

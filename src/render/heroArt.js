@@ -45,7 +45,7 @@ export function cleanHeroArt(raw) {
     const e = raw[n], b = e?.box;
     if (!e || typeof e.image !== 'string' || !IMG_RE.test(e.image) || e.image.length > 2_500_000) continue;
     if (!Array.isArray(b) || b.length !== 4 || !b.every(Number.isFinite) || b[2] < 4 || b[3] < 4 || b[2] > 1200 || b[3] > 1400 || Math.abs(b[0]) > 1500 || Math.abs(b[1]) > 1500) continue;
-    out[n] = { image: e.image, box: b.map((v) => Math.round(v * 10) / 10) };
+    out[n] = { image: e.image, box: b.map((v) => Math.round(v * 10) / 10), ...(e.tint === false ? { tint: false } : {}) }; // tint: false — игрок не перекрашивает
   }
   return out;
 }
@@ -110,7 +110,7 @@ function restoreAll() {
 function applyOne(name, e, im) {
   const [x, y, w, h] = e.box, g = slotGroup(name);
   const cv = canvas(w, h); cv.getContext('2d').drawImage(im, 0, 0, cv.width, cv.height);
-  const parts = g === 'face' ? { t: null, f: cv } : splitTint(cv); // лица не перекрашиваются
+  const parts = g === 'face' || e.tint === false ? { t: null, f: cv } : splitTint(cv); // лица и цветные картинки (галочка снята) не перекрашиваются
   setLayer(`hero/${name}_t`, parts.t, [x, y]);
   setLayer(`hero/${name}_f`, parts.f, [x, y]);
   if (g === 'wear') { const wk = name.slice(5); replacedWear.add(wk); setGarmentBones(wk, parts, e.box, WEAR_TYPE[name]); }
@@ -186,4 +186,14 @@ export async function setPackHeroArt(raw) {
   if (!Object.keys(add).length) return;
   Object.assign(fromPacks, add);
   await applyHeroArt(mergedHeroArt());
+}
+
+// Сколько в картинке ярких цветных мест (0…1): много — значит, нарисовано цветным, перекрашивать не надо.
+export function colorShare(src) {
+  const cv = canvas(Math.min(200, src.width), Math.min(200, src.height)), c = cv.getContext('2d', { willReadFrequently: true });
+  c.drawImage(src, 0, 0, cv.width, cv.height);
+  const px = c.getImageData(0, 0, cv.width, cv.height).data;
+  let all = 0, col = 0;
+  for (let k = 0; k < px.length; k += 4) if (px[k + 3] > 100) { all++; const mx = Math.max(px[k], px[k + 1], px[k + 2]), mn = Math.min(px[k], px[k + 1], px[k + 2]); if (mx > 90 && (mx - mn) / mx > 0.22) col++; }
+  return all ? col / all : 0;
 }
