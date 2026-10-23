@@ -30,6 +30,7 @@ export function layerRect(name) {
 }
 export const sampleBox = (type) => layerRect('wear_' + SAMPLE[type]) || [150, 270, 210, 330];
 
+const MID = 256; // середина героя на его холсте (ось тела и головы)
 const canvas = (w, h) => { const cv = document.createElement('canvas'); cv.width = Math.max(1, Math.round(w)); cv.height = Math.max(1, Math.round(h)); return cv; };
 
 // Серое (почти без цвета и не тёмное) — отдельно: его перекрашивают. Светлое серое тянем к белому.
@@ -85,7 +86,7 @@ export function colored(src, tint, color, w = src.width, h = src.height) {
 // Деление своей вещи по костям (как отдельные части от GPT у встроенной одежды): что лежит на туловище —
 // туловищу, что торчит на руке (рукав) — руке, штанины ниже таза — ногам. Маски — по частям тела героя.
 const BONE_SUBS = ['torso', 'armUpL', 'armLoL', 'armUpR', 'armLoR', 'legL', 'legR'];
-const HIP = 585, LAP = 596, SHOULDER = 188, ARMPIT = 400; // ниже HIP у штанов — штанины; ниже LAP у верха и платья — подол (на туловище)
+const HIP = 585, LAP = 596, SHOULDER = 188, ARMPIT = 400, WRIST = 530; // ниже HIP у штанов — штанины; ниже LAP у верха и платья — подол (на туловище)
 let masks = null;
 // Тело заменили (студия → «Герои») — маски посчитать заново.
 export function resetBodyMasks() { masks = null; }
@@ -116,7 +117,10 @@ function boneAt(M, type, X, Y) {
   const left = X < M.W / 2;
   if (Y < ARMPIT && (left ? X < SHOULDER : X > M.W - SHOULDER) && M[left ? 'armUpL' : 'armUpR'][i]) return left ? 'armUpL' : 'armUpR';
   if (M.torso[i]) return 'torso';
-  for (const b of ['armLoL', 'armUpL', 'armLoR', 'armUpR']) if (M[b][i]) return b;
+  // Ниже подмышки руке отдаём только длинный рукав верха (и не ниже запястья): у платья там юбка,
+  // а юбка у ладошек должна оставаться на туловище, иначе её кусочки уезжают вместе с руками.
+  if (type !== 'top' || Y > WRIST) return 'torso';
+  for (const b of left ? ['armLoL', 'armUpL'] : ['armLoR', 'armUpR']) if (M[b][i]) return b;
   return 'torso';
 }
 // parts — { t, f } на рамке box; вернуть { кость: { t, f, at } } (пустые кости пропускаем).
@@ -125,13 +129,19 @@ function splitBones(parts, box, type) {
   const x = Math.round(box[0]), y = Math.round(box[1]);
   const src = {}, w = parts.f.width, h = parts.f.height;
   for (const suf of ['t', 'f']) if (parts[suf]) src[suf] = parts[suf].getContext('2d', { willReadFrequently: true }).getImageData(0, 0, w, h).data;
-  const owner = new Uint8Array(w * h);
-  for (let j = 0; j < h; j++) for (let i = 0; i < w; i++) owner[j * w + i] = BONE_SUBS.indexOf(boneAt(M, type, x + i, y + j));
+  const owner = new Uint8Array(w * h), dup = new Uint8Array(w * h);
+  for (let j = 0; j < h; j++) for (let i = 0; i < w; i++) {
+    const X = x + i, Y = y + j, bone = boneAt(M, type, X, Y), k = j * w + i;
+    owner[k] = BONE_SUBS.indexOf(bone);
+    // Рукав у подмышки — ещё и на туловище: рука поднимется — под рукавом не будет дырки.
+    if ((bone === 'armUpL' && X > SHOULDER - 56) || (bone === 'armUpR' && X < M.W - SHOULDER + 56)) dup[k] = Y > 330 ? 1 : 0;
+  }
+  const mine = (k, bi) => owner[k] === bi || (bi === 0 && dup[k]);
   const out = {};
   BONE_SUBS.forEach((bone, bi) => {
     let x0 = w, y0 = h, x1 = -1, y1 = -1;
     for (let j = 0; j < h; j++) for (let i = 0; i < w; i++) {
-      const k = j * w + i; if (owner[k] !== bi) continue;
+      const k = j * w + i; if (!mine(k, bi)) continue;
       if (!((src.t && src.t[k * 4 + 3]) || src.f[k * 4 + 3])) continue;
       if (i < x0) x0 = i; if (i > x1) x1 = i; if (j < y0) y0 = j; if (j > y1) y1 = j;
     }
@@ -142,7 +152,7 @@ function splitBones(parts, box, type) {
       const d = new ImageData(bw, bh);
       let any = false;
       for (let j = 0; j < bh; j++) for (let i = 0; i < bw; i++) {
-        const k = (y0 + j) * w + x0 + i; if (owner[k] !== bi) continue;
+        const k = (y0 + j) * w + x0 + i; if (!mine(k, bi)) continue;
         const a = src[suf][k * 4 + 3]; if (!a) continue;
         const o = (j * bw + i) * 4; d.data[o] = src[suf][k * 4]; d.data[o + 1] = src[suf][k * 4 + 1]; d.data[o + 2] = src[suf][k * 4 + 2]; d.data[o + 3] = a; any = true;
       }
@@ -214,7 +224,8 @@ export function fitUpload(im, type) {
   let drawn = null;
   if (Math.abs(im.width / im.height - T.w / T.h) < 0.02) { const k = T.s * T.w / im.width; drawn = [T.x + x0 * k, T.y + y0 * k, bw * k, bh * k]; }
   const sb = sampleBox(type), near = drawn && drawn[2] / sb[2] > 0.7 && drawn[2] / sb[2] < 1.4 && Math.abs(drawn[0] + drawn[2] / 2 - sb[0] - sb[2] / 2) < sb[2] * 0.15;
-  const box = near ? drawn : fitToSample(bw / bh, type);
+  const box = near ? drawn.slice() : fitToSample(bw / bh, type);
+  box[0] = MID - box[2] / 2; // герой симметричный: вещь — ровно по его середине (GPT часто рисует чуть сбоку)
   const r = (b) => b && b.map((v) => Math.round(v * 10) / 10);
   const corner = (x, y) => px[(y * src.width + x) * 4 + 3];
   const opaque = [corner(0, 0), corner(src.width - 1, 0), corner(0, src.height - 1), corner(src.width - 1, src.height - 1)].every((v) => v > 0); // фон не прозрачный
@@ -224,7 +235,7 @@ export function fitUpload(im, type) {
 export function fitToSample(aspect, type) {
   const [x, y, w, h] = sampleBox(type), nh = w / aspect;
   const ny = type === 'shoes' || type === 'hat' ? y + h - nh : type === 'glasses' ? y + (h - nh) / 2 : y;
-  return [x, ny, w, nh];
+  return [MID - w / 2, ny, w, nh]; // по середине героя
 }
 
 // Образец для GPT: серое тело (или голова) и голубая встроенная вещь того же типа — «рисуй тут».
