@@ -18,6 +18,7 @@ export const ASSET_KEYS = [
   'items/pet_bowl_empty', 'items/pet_bowl_full', 'items/pet_food_bag', 'items/pet_bone', 'items/pet_ball', 'items/pet_toy_mouse', 'items/pet_bed',
   'items/bread', 'items/toast', 'items/egg', 'items/fried_egg', 'items/cheese', 'items/pizza', 'items/carrot', 'items/potato', 'items/soup',
   'items/fridge', 'items/fridge_open', 'items/stove', 'items/sink_counter', 'items/kitchen_counter', 'items/kitchen_shelf', 'items/toaster',
+  'rooms/shop/wall', 'rooms/shop/floor_tile', 'items/shop_shelf', 'items/shop_fridge', 'items/shop_counter', 'items/shop_crate', 'items/shop_cart', 'items/shop_basket',
   'rooms/bath/wall_tile', 'items/bathtub', 'items/bath_sink', 'items/bath_mirror', 'items/toilet', 'items/toilet_open',
   'items/towel_rack', 'items/soap', 'items/rubber_duck', 'items/wall_clock',
   'items/wardrobe', 'items/wardrobe_open', 'items/bed', 'items/nightstand', 'items/bedside_lamp', 'items/dresser',

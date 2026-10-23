@@ -21,7 +21,7 @@ import { isSmall } from '../core/physics.js';
 
 // Иконки комнат: ребёнку не нужно читать, чтобы найти кухню.
 const EMOTES = ['👋', '❤️', '😂', '⭐', '😮', '👍'];
-const ROOM_ICONS = { lawn: '🌳', living: '🛋️', kitchen: '🍳', kids: '🧸', bath: '🛁', bedroom: '🛏️' };
+const ROOM_ICONS = { lawn: '🌳', living: '🛋️', kitchen: '🍳', kids: '🧸', bath: '🛁', bedroom: '🛏️', shop: '🛒' };
 // Разделы редактора комнаты (как в Toca Boca: иконки сверху).
 const DESIGN_TABS = [['furniture', '🛋️', 'Мебель'], ['appliances', '🔌', 'Техника'], ['decor', '🖼️', 'Декор'], ['build', '🪟', 'Окна и двери'], ['garden', '🌳', 'Сад'], ['finish', '🖌️', 'Отделка']];
 

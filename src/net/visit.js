@@ -114,7 +114,7 @@ export function createVisit({ friends, store, getMe, isDragging, camera, pets, o
   function publish(now = false) {
     if (mode !== 'home' || !visitors.size || !me) return;
     clearTimeout(publishTimer);
-    const go = () => { const s = { ...store.state }; delete s.missing; net.set('live/' + me + '/state', { json: JSON.stringify(s), at: Date.now() }).catch(() => {}); };
+    const go = () => { const s = { ...store.state }; delete s.missing; delete s.places; /* другие места гостям не нужны */ net.set('live/' + me + '/state', { json: JSON.stringify(s), at: Date.now() }).catch(() => {}); };
     if (now) go(); else publishTimer = setTimeout(go, 160);
   }
   // Изменения от гостя → в мой дом.

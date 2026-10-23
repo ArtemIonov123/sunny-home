@@ -327,12 +327,34 @@ def build_map():
         sprite(f'map/map_{n}.png', f'map/{n}.webp', max_w=mw, max_h=mw)
 
 
+def build_shop():
+    """Магазин (место на карте): серые стена и плитка пола, мебель."""
+    gray_texture('shop/shop_wall.png', 'rooms/shop/wall.webp', 540, 0.80, 90)
+    # Пол от GPT — в перспективе (веером), повторять нельзя. Берём одну плитку из середины и
+    # кладём её рядами в игре (render/background.js).
+    im = ImageOps.grayscale(Image.open(os.path.join(SRC, 'shop/shop_floor.png')))
+    tile = im.crop((352, 340, 670, 512))
+    hist = tile.histogram(); total = sum(hist); acc, wp = 0, 255
+    for v, n in enumerate(hist):
+        acc += n
+        if acc >= total * 0.7:
+            wp = v; break
+    tile = tile.point(lambda v: min(255, round(v * 255 / max(wp, 1))))
+    save(tile.resize((300, 160), Image.LANCZOS).convert('RGB'), 'rooms/shop/floor_tile.webp')
+    for n, mw, mh in [('shelf', None, 700), ('fridge', None, 700), ('counter', 760, None), ('cart', 380, None), ('basket', 220, None), ('crate', 360, None)]:
+        sprite(f'shop/shop_{n}.png', f'items/shop_{n}.webp', max_w=mw, max_h=mh)
+
+
 if __name__ == '__main__':
     import sys
     if sys.argv[1:] == ['map']:  # только карта (быстро)
         build_map()
         sys.exit()
+    if sys.argv[1:] == ['shop']:
+        build_shop()
+        sys.exit()
     build_map()
+    build_shop()
     # Гостиная. Стена рисуется высотой до 600 px, пол — до 420 px (зависит от разметки комнаты).
     gray_texture('living/living_wall.png', 'rooms/living/wall.webp', 600, 0.80, 90)
     gray_texture('living/living_floor_wood.png', 'rooms/living/floor_wood.webp', 420, 0.6, 60)

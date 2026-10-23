@@ -1,10 +1,11 @@
 // Карта — маленькая круглая планета (как в Toca Boca World): тянешь пальцем — планета крутится,
 // здания стоят по кругу и уходят за горизонт. Нажал на здание — заходишь внутрь.
-// Пока готов только дом; остальные места подпрыгивают и показывают 🚧 (скоро).
+// Готовые места — core/places.js (isReady); остальные подпрыгивают и показывают 🚧 (скоро).
 // Своё окно поверх игры со своим холстом; кадры рисуются только пока что-то движется.
 import { img } from '../assets.js';
 import { MAX_DPR } from '../config.js';
 import { play } from '../audio.js';
+import { isReady } from '../core/places.js';
 
 const H = 900;                 // высота экрана в единицах карты (как VIEW_H у дома)
 const R = 820;                 // радиус планеты
@@ -14,7 +15,7 @@ const SOIL = '#6b4127';        // земля внутри планеты
 
 // Что стоит на планете: угол (доли круга), картинка, ширина. place — место, куда можно зайти.
 export const PLACES = [
-  { id: 'home', art: 'map/house', ready: true },
+  { id: 'home', art: 'map/house' },
   { id: 'shop', art: 'map/shop' },
   { id: 'disco', art: 'map/disco' },
   { id: 'cafe', art: 'map/cafe' },
@@ -30,7 +31,7 @@ PLACES.forEach((p, k) => {
 const CLOUDS = [0, 1, 2, 3, 4, 5, 6].map((k) => ({ a: k * 0.9 + 0.3, r: R + 470 + (k % 3) * 85, w: 190 + (k % 3) * 40, drift: 0.012 + (k % 4) * 0.004 }));
 const ROT_KEY = 'sunny-map-rot';
 
-export function createMap({ root, viewport, isNight = () => false, onEnter = () => {} }) {
+export function createMap({ root, viewport, isNight = () => false, getPlace = () => 'home', onEnter = () => {} }) {
   const el = document.createElement('div');
   el.className = 'map-screen'; el.hidden = true;
   el.innerHTML = '<canvas aria-label="Карта"></canvas>';
@@ -183,7 +184,7 @@ export function createMap({ root, viewport, isNight = () => false, onEnter = () 
   function tap(p) {
     const th = hitPlace(p); if (!th) return;
     bounce.set(th.place.id, now());
-    if (!th.place.ready) { soon = { id: th.place.id, t0: now() }; play('boing'); return; }
+    if (!isReady(th.place.id)) { soon = { id: th.place.id, t0: now() }; play('boing'); return; }
     play('pop');
     // Повернуть планету так, чтобы здание было посередине, и «войти» (приближение + светлая вспышка).
     const target = rot - norm(th.a + rot), from = rot;
@@ -196,6 +197,9 @@ export function createMap({ root, viewport, isNight = () => false, onEnter = () 
   }
 
   function openMap() {
+    // Планета повёрнута к месту, где сейчас игрок.
+    const here = THINGS.find((t) => t.place?.id === getPlace());
+    if (here && Math.abs(norm(here.a + rot)) > 0.9) rot = -here.a;
     if (open) return;
     open = true; el.hidden = false; resize(); lastT = 0;
     zoom = { t0: now(), from: 1.8, to: 1, dur: 0.5, fade: -1 };

@@ -6,8 +6,9 @@ import { defaultState, newRoom, MAX_ROOMS, NEW_IN_INVENTORY, BATH_START, BEDROOM
 import { clamp, isHex } from '../util.js';
 import { cleanLook } from '../core/looks.js';
 import { isLocked } from '../core/access.js';
+import { PLACE_IDS, newPlace } from '../core/places.js';
 
-export const SCHEMA = 16;
+export const SCHEMA = 17;
 
 const MIGRATIONS = {
   // 1 → 2: появился шкафчик. Все вещи из версии 1 стоят в доме, формат вещи в доме не меняется.
@@ -135,6 +136,8 @@ const MIGRATIONS = {
     for (const def of PET_INV) if (!items.some((i) => i.def === def)) items.push({ id: next++, def, inv: true });
     return { ...s, items, next, schema: 16 };
   },
+  // 16 → 17: места на карте. Игрок дома, других мест ещё нет (появятся при первом заходе).
+  16: (s) => ({ ...s, place: 'home', places: {}, schema: 17 }),
 
 };
 
@@ -175,34 +178,50 @@ export function validate(raw) {
   }
   if (s.schema !== SCHEMA) throw new Error('Сохранение из более новой версии игры.');
 
-  const used = new Set();
-  let rooms = (Array.isArray(s.rooms) ? s.rooms : []).map((r) => cleanRoom(r, used)).filter(Boolean).slice(0, MAX_ROOMS);
-  if (!rooms.length) rooms = defaultState().rooms;
-  // Лужайка всегда первая — через неё вход в дом.
-  const lawnAt = rooms.findIndex((r) => r.type === 'lawn');
-  if (lawnAt > 0) rooms.unshift(rooms.splice(lawnAt, 1)[0]);
-  const roomIds = new Set(rooms.map((r) => r.id));
-  const fallbackRoom = (rooms.find((r) => r.type !== 'lawn') || rooms[0]).id;
-
+  const place = PLACE_IDS.includes(s.place) ? s.place : 'home';
   const ids = new Set();
-  const items = [], missing = [];
-  for (const i of [...(Array.isArray(s.items) ? s.items : []), ...(Array.isArray(s.missing) ? s.missing : [])]) {
-    if (!i || !Number.isInteger(i.id) || ids.has(i.id)) continue;
-    const inInventory = i.inv === true || !Number.isFinite(i.x) || !Number.isFinite(i.y);
-    ids.add(i.id);
-    const item = inInventory
-      ? { id: i.id, def: String(i.def), inv: true }
-      : { id: i.id, def: String(i.def), room: roomIds.has(i.room) ? i.room : fallbackRoom, x: i.x, y: i.y };
-    if (!inInventory && i.on && Number.isInteger(i.on.id) && i.on.id !== i.id && Number.isInteger(i.on.s) && Number.isFinite(i.on.dx)) {
-      item.on = { id: i.on.id, s: i.on.s, dx: i.on.dx }; // проверка, что мебель существует, — в syncChildren
+  // Комнаты и вещи одного места (текущего или лежащего в state.places). Номера вещей — общие на всю игру.
+  function cleanPlace(id, rawRooms, rawItems, rawMissing, current) {
+    const used = new Set();
+    let rooms = (Array.isArray(rawRooms) ? rawRooms : []).map((r) => cleanRoom(r, used)).filter(Boolean).slice(0, MAX_ROOMS);
+    if (!rooms.length) rooms = id === 'home' ? defaultState().rooms : (newPlace(id, () => 0)?.rooms || defaultState().rooms);
+    if (id === 'home') { // Лужайка всегда первая — через неё вход в дом.
+      const lawnAt = rooms.findIndex((r) => r.type === 'lawn');
+      if (lawnAt > 0) rooms.unshift(rooms.splice(lawnAt, 1)[0]);
     }
-    if (!inInventory && i.open === true) item.open = true;
-    if (!inInventory && i.lit === true) item.lit = true;
-    if (!inInventory && i.full === true) item.full = true; // миска с кормом
-    if (i.flip === true) item.flip = true;
-    if (!inInventory && i.held && CHARS[i.held.by]) item.held = { by: i.held.by }; // место — от героя (syncChildren)
-    if (Number.isInteger(i.bites) && i.bites > 0 && i.bites < 3) item.bites = i.bites;
-    (itemDef(item.def) ? items : missing).push(item); // неизвестный предмет откладываем, а не удаляем
+    const roomIds = new Set(rooms.map((r) => r.id));
+    const fallbackRoom = (rooms.find((r) => r.type !== 'lawn') || rooms[0]).id;
+    const items = [], missing = [];
+    for (const i of [...(Array.isArray(rawItems) ? rawItems : []), ...(Array.isArray(rawMissing) ? rawMissing : [])]) {
+      if (!i || !Number.isInteger(i.id) || ids.has(i.id)) continue;
+      const inInventory = i.inv === true || !Number.isFinite(i.x) || !Number.isFinite(i.y);
+      if (inInventory && !current) continue; // шкафчик — один, он всегда с игроком
+      ids.add(i.id);
+      const item = inInventory
+        ? { id: i.id, def: String(i.def), inv: true }
+        : { id: i.id, def: String(i.def), room: roomIds.has(i.room) ? i.room : fallbackRoom, x: i.x, y: i.y };
+      if (!inInventory && i.on && Number.isInteger(i.on.id) && i.on.id !== i.id && Number.isInteger(i.on.s) && Number.isFinite(i.on.dx)) {
+        item.on = { id: i.on.id, s: i.on.s, dx: i.on.dx }; // проверка, что мебель существует, — в syncChildren
+      }
+      if (!inInventory && i.open === true) item.open = true;
+      if (!inInventory && i.lit === true) item.lit = true;
+      if (!inInventory && i.full === true) item.full = true; // миска с кормом
+      if (i.flip === true) item.flip = true;
+      if (current && !inInventory && i.held && CHARS[i.held.by]) item.held = { by: i.held.by }; // место — от героя (syncChildren)
+      if (Number.isInteger(i.bites) && i.bites > 0 && i.bites < 3) item.bites = i.bites;
+      (itemDef(item.def) ? items : missing).push(item); // неизвестный предмет откладываем, а не удаляем
+    }
+    return { rooms, items, missing, roomIds, fallbackRoom };
+  }
+  const cur = cleanPlace(place, s.rooms, s.items, s.missing, true);
+  const { rooms, items, roomIds, fallbackRoom } = cur;
+  const missing = cur.missing;
+  const places = {};
+  for (const id of PLACE_IDS) {
+    const p = s.places?.[id];
+    if (id === place || !p || typeof p !== 'object') continue;
+    const c = cleanPlace(id, p.rooms, p.items, p.missing, false);
+    places[id] = { rooms: c.rooms, items: c.items, ...(c.missing.length ? { missing: c.missing } : {}) };
   }
 
   const chars = Object.keys(CHARS).map((id, k) => {
@@ -217,7 +236,7 @@ export function validate(raw) {
   });
 
   const maxId = Math.max(0, ...[...ids]);
-  return { schema: SCHEMA, rooms, items, missing, chars, next: Math.max(Number(s.next) || 1, maxId + 1), night: !!s.night };
+  return { schema: SCHEMA, rooms, items, missing, chars, next: Math.max(Number(s.next) || 1, maxId + 1), night: !!s.night, place, places };
 }
 
 // Комната из версии 0.4.1 (координаты в долях 0..1) → гостиная нового дома.

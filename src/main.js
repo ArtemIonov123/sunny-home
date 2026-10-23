@@ -87,7 +87,13 @@ async function boot() {
   });
   renderer.setPets(pets);
   // Карта-планета: дом и другие места (пока строятся).
-  const map = createMap({ root: $('app'), viewport, isNight: () => !!store.state.night, onEnter: () => { invalidate(); } });
+  const map = createMap({
+    root: $('app'), viewport, isNight: () => !!store.state.night, getPlace: () => store.state.place || 'home',
+    onEnter: (id) => { // вошли в здание на карте: дом или другое место
+      if (actions.goPlace(id)) { camera.holdAt(0); camera.mode = 'idle'; hud.refreshThings(); }
+      invalidate();
+    },
+  });
   hud.setMap(() => map.open());
   // В гости к друзьям и гости у меня (net/visit.js).
   const visit = createVisit({

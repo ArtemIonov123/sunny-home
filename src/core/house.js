@@ -16,6 +16,7 @@ export function newRoom(type, id) {
     kids:    { width: 1600, wall: '#f6cfc8', floor: { material: 'wood', color: '#e2b27c' } },
     bath:    { width: 2000, pattern: 'tile', wall: '#cfe0ef', floor: { material: 'tile', color: '#e9e4dc' } },
     bedroom: { width: 2000, wall: '#dfe8d0', floor: { material: 'wood', color: '#cf9a63' } },
+    shop:    { width: 2800, pattern: 'brick', wall: '#f3d6bd', floor: { material: 'shop', color: '#eef1f2' } },
   };
   const p = presets[type] || presets.living;
   return {
@@ -89,7 +90,8 @@ export function defaultState() {
   const rest = [...NEW_IN_INVENTORY];
   for (const d of [...KITCHEN_START, 'tshirt', 'dress']) { const k = rest.indexOf(d); if (k >= 0) rest.splice(k, 1); }
   return {
-    schema: 16, // = SCHEMA в save/migrate.js
+    schema: 17, // = SCHEMA
+    place: 'home', places: {}, // где сейчас игрок (дом или место на карте) и остальные места в save/migrate.js
     rooms, items: [...items, ...['picture', 'picture', 'table', 'window', 'door', ...PET_INV, ...rest].map((def) => ({ id: id++, def, inv: true }))], next: id,
     chars: [
       { id: 'girl', room: 'living', x: 900, y: 770 },

@@ -117,12 +117,24 @@ function drawIndoor(c, room) {
   // Стена: цвет → узор → серая фактура умножением (тени и штукатурка).
   c.fillStyle = room.wall.color; c.fillRect(0, 0, W, wallH);
   drawPattern(c, room.wall.pattern, W, wallH);
-  tile(c, 'rooms/living/wall', 0, wallH, W);
+  tile(c, room.wall.pattern === 'brick' ? 'rooms/shop/wall' : 'rooms/living/wall', 0, wallH, W); // кирпич — своя серая фактура
   if (room.wall.pattern === 'tile') drawTiles(c, W, wallH);
 
   // Пол.
   c.fillStyle = room.floor.color; c.fillRect(0, wallH, W, floorH);
-  if (room.floor.material === 'tile') {
+  if (room.floor.material === 'shop') {
+    // Большая плитка: ряды плиток, ближе к нам — крупнее (одна плитка от GPT, умножением на цвет пола).
+    const im = img('rooms/shop/floor_tile');
+    if (im) {
+      c.save(); c.globalCompositeOperation = 'multiply';
+      for (let y = wallH, row = 0; y < VIEW_H; row++) {
+        const h = 62 + row * 16, w = h * 1.9;
+        for (let x = -(row % 2) * w * 0.5; x < W; x += w) c.drawImage(im, x, y, w + 0.5, h + 0.5);
+        y += h;
+      }
+      c.restore();
+    }
+  } else if (room.floor.material === 'tile') {
     c.save();
     c.strokeStyle = 'rgba(255,255,255,.75)'; c.lineWidth = 4;
     for (let x = 0; x <= W; x += 150) { c.beginPath(); c.moveTo(x, wallH); c.lineTo(x, VIEW_H); c.stroke(); }

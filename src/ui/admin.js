@@ -51,7 +51,7 @@ export function createAdmin({ root, store, camera, actions, toast, onChange }) {
         <button data-del class="danger"${lawn ? ' disabled' : ''} aria-label="Убрать комнату">×</button>
       </div>`;
     }).join('');
-    const types = Object.entries(ROOM_TYPES).filter(([t]) => t !== 'lawn').map(([t, d]) => `<option value="${t}">${d.name}</option>`).join('');
+    const types = Object.entries(ROOM_TYPES).filter(([t, d]) => t !== 'lawn' && !d.place).map(([t, d]) => `<option value="${t}">${d.name}</option>`).join('');
     return `<p class="adm-help">Порядок слева направо. Лужайка всегда первая — через неё вход. Вещи едут вместе со своей комнатой.</p>
       <div class="adm-list">${rows}</div>
       <div class="adm-add"><select class="adm-type-new">${types}</select><button data-addroom class="primary"${store.state.rooms.length >= MAX_ROOMS ? ' disabled' : ''}>+ Добавить комнату</button></div>`;

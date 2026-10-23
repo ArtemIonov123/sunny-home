@@ -6,6 +6,7 @@ import { snapItem, snapChar, itemBounds } from './placement.js';
 import { landing, syncChildren, releaseChildren, freeSpot, isSmall } from './physics.js';
 import { toggleWear, WEAR } from './looks.js';
 import { defaultState } from './house.js';
+import { newPlace, restock, isReady } from './places.js';
 import { clamp } from '../util.js';
 
 export const MAX_ITEMS = 250;
@@ -131,6 +132,31 @@ export function createActions(store, camera) {
       if (i < 0 || j < 0 || j >= rooms.length) return false;
       if (rooms[i].type === 'lawn' || rooms[j].type === 'lawn') return false;
       store.change((s) => { const [r] = s.rooms.splice(i, 1); s.rooms.splice(j, 0, r); });
+      return true;
+    },
+
+    // Перейти в другое место на карте. С игроком идут герои, вещи у них в руках (и то, что лежит на этих
+    // вещах — в корзинке) и шкафчик. Остальное остаётся на месте до следующего прихода.
+    goPlace(id) {
+      const s0 = store.state;
+      if (!isReady(id) || (s0.place || 'home') === id) return false;
+      store.change((s) => {
+        const travel = new Set(s.items.filter((i) => i.inv || i.held).map((i) => i.id));
+        for (let grew = true; grew;) { grew = false; for (const i of s.items) if (!travel.has(i.id) && i.on && travel.has(i.on.id)) { travel.add(i.id); grew = true; } }
+        const go = s.items.filter((i) => travel.has(i.id)), stay = s.items.filter((i) => !travel.has(i.id));
+        s.places ||= {};
+        s.places[s.place || 'home'] = { rooms: s.rooms, items: stay };
+        const next = s.places[id] || newPlace(id, () => s.next++);
+        delete s.places[id];
+        s.place = id; s.rooms = next.rooms; s.items = [...next.items, ...go];
+        restock(s, () => s.next++);
+        // Герои входят в первую комнату (дома — на лужайку) рядком.
+        const entry = s.rooms[0];
+        s.chars.forEach((c, k) => { c.room = entry.id; c.x = 420 + k * 280; c.y = 790 + (k % 2) * 30; delete c.seat; });
+        for (const i of go) if (!i.inv && !i.held) i.room = entry.id;
+        syncChildren(s);
+      }, { undo: false });
+      store.clearUndo();
       return true;
     },
 

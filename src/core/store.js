@@ -55,6 +55,9 @@ export function createStore(initial) {
       events.emit('change', { save: false, remote: true });
     },
 
+    // Перешли в другое место — старые шаги отмены туда не относятся.
+    clearUndo() { undoStack.length = 0; },
+
     // Последнее изменение во время перетаскивания: без сохранения на каждый кадр.
     touch() { lay = layout(state.rooms); events.emit('change', { save: false }); },
   };

@@ -74,6 +74,13 @@ export const ITEMS = {
   pet_ball:      { name: 'Мячик',    art: 'items/pet_ball',      w: 60,  anchor: 'bottom', place: 'floor', group: 'animals', small: true, pet: 'fetch' },
   pet_toy_mouse: { name: 'Мышка',    art: 'items/pet_toy_mouse', w: 80,  anchor: 'bottom', place: 'floor', group: 'animals', small: true, pet: 'fetch', tap: 'squeak' },
   pet_bed:       { name: 'Лежанка',  art: 'items/pet_bed',       w: 250, anchor: 'bottom', place: 'floor', group: 'animals', pet: 'bed', surfaces: [[0.2, 0.8, 0.55]] },
+  // Магазин (место на карте): стеллажи, витрина-холодильник, ящики, касса, тележка, корзинка.
+  shop_shelf:   { name: 'Стеллаж',     art: 'items/shop_shelf',   h: 470, anchor: 'bottom', place: 'floor', group: 'furniture', surfaces: [[0.1, 0.9, 0.375], [0.1, 0.9, 0.62], [0.1, 0.9, 0.865]] },
+  shop_fridge:  { name: 'Витрина',     art: 'items/shop_fridge',  h: 470, anchor: 'bottom', place: 'floor', group: 'appliances', surfaces: [[0.13, 0.87, 0.385], [0.13, 0.87, 0.6], [0.13, 0.87, 0.82]] },
+  shop_counter: { name: 'Касса',       art: 'items/shop_counter', w: 520, anchor: 'bottom', place: 'floor', group: 'furniture', surfaces: [[0.03, 0.72, 0.335]], tap: 'ring' },
+  shop_crate:   { name: 'Ящик',        art: 'items/shop_crate',   w: 230, anchor: 'bottom', place: 'floor', group: 'furniture', surfaces: [[0.12, 0.88, 0.6]] },
+  shop_cart:    { name: 'Тележка',     art: 'items/shop_cart',    w: 230, anchor: 'bottom', place: 'floor', group: 'toys', small: true, surfaces: [[0.3, 0.93, 0.47]] },
+  shop_basket:  { name: 'Корзинка',    art: 'items/shop_basket',  w: 120, anchor: 'bottom', place: 'floor', group: 'toys', small: true, surfaces: [[0.15, 0.85, 0.5]] },
   teddy_bear:   { name: 'Мишка',     art: 'items/teddy_bear',  w: 100, anchor: 'bottom', place: 'floor', group: 'toys', tap: 'squeak' },
   alarm_clock:  { name: 'Будильник', art: 'items/alarm_clock', w: 62,  anchor: 'bottom', place: 'floor', group: 'decor', tap: 'ring' },
   book:         { name: 'Книжка',    art: 'items/book',        h: 70,  anchor: 'bottom', place: 'floor', group: 'toys' },
@@ -191,10 +198,11 @@ export const ROOM_TYPES = {
   kids:    { name: 'Детская' },
   bath:    { name: 'Душевая' },
   bedroom: { name: 'Спальня' },
+  shop:    { name: 'Магазин', place: 'shop' }, // комнаты мест на карте (core/places.js) — в дом не добавляются
 };
 
-export const WALL_PATTERNS = { plain: 'Однотонные', stripes: 'Полоски', dots: 'Горошек', flowers: 'Ромашки', tile: 'Кафель' };
-export const FLOOR_MATERIALS = { wood: 'Деревянный пол', tile: 'Плитка' };
+export const WALL_PATTERNS = { plain: 'Однотонные', stripes: 'Полоски', dots: 'Горошек', flowers: 'Ромашки', tile: 'Кафель', brick: 'Кирпич' };
+export const FLOOR_MATERIALS = { wood: 'Деревянный пол', tile: 'Плитка', shop: 'Большая плитка' };
 
 // Палитры для быстрого выбора в «Отделке».
 export const WALL_SWATCHES = ['#f6e3c4', '#f4ead9', '#dfe8d0', '#f6cfc8', '#cfe0ef', '#e7dcf0', '#fbe7a8', '#d7e7e3'];
