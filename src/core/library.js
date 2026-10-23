@@ -76,7 +76,7 @@ export function cleanLiving(raw) {
   const cl = raw.cloth, b = cl?.box;
   if (cl && typeof cl === 'object' && WEAR_TYPES[cl.type] && typeof cl.image === 'string' && IMG_RE.test(cl.image) && cl.image.length < 1_500_000
     && Array.isArray(b) && b.length === 4 && b.every(Number.isFinite) && b[2] >= 6 && b[3] >= 6 && b[2] <= 900 && b[3] <= 1100 && b[0] > -400 && b[0] < 900 && b[1] > -400 && b[1] < 1300) {
-    out.cloth = { type: cl.type, image: cl.image, box: b.map((v) => Math.round(v * 10) / 10), color: isHex(cl.color) ? cl.color : '#ff8fa8', tint: cl.tint !== false, ...(cl.own === true ? { own: true } : {}) }; // own — своя картинка «лежит в доме»
+    out.cloth = { type: cl.type, image: cl.image, box: b.map((v) => Math.round(v * 10) / 10), color: isHex(cl.color) ? cl.color : '#ff8fa8', tint: cl.tint !== false, ...(cl.own === true ? { own: true } : {}), ...(['none', 'short', 'long'].includes(cl.sleeve) ? { sleeve: cl.sleeve } : {}), ...(cl.stiff === false ? { stiff: false } : {}) }; // own — своя картинка «лежит в доме»
     delete out.wear;
   }
   return out;

@@ -4,7 +4,7 @@
 // рисуют те же render/hero.js и render/rig.js: вещь режется по костям по своему типу (core/looks.js).
 import { HERO_LAYERS, HERO_SIZE } from './heroLayout.js';
 import { img, registerImage, forgetImage } from '../assets.js';
-import { WEAR_TYPES, registerWear, unregisterWear } from '../core/looks.js';
+import { WEAR_TYPES, registerWear, unregisterWear, sleeveOf } from '../core/looks.js';
 import { heroArtChanged, drawPart } from './hero.js';
 
 // Образцы для GPT → холст героя: hero = s · точка образца + (x, y).
@@ -16,7 +16,7 @@ export const TEMPLATES = {
 };
 export const templateOf = (type) => (WEAR_TYPES[type]?.cut === 'head' ? 'head' : 'body');
 // Встроенная вещь того же типа — образец места на теле.
-export const SAMPLE = { top: 'tshirt', dress: 'dress', pants: 'pants', skirt: 'skirt', shoes: 'sneakers', hat: 'cap', glasses: 'glasses' };
+export const SAMPLE = { outer: 'tshirt', top: 'tshirt', dress: 'dress', pants: 'pants', skirt: 'skirt', shoes: 'sneakers', hat: 'cap', glasses: 'glasses' };
 
 // Рамка слоя на холсте героя (оба его слоя вместе).
 export function layerRect(name) {
@@ -108,30 +108,30 @@ function bodyMasks() {
   masks = { W: Wc, H: Hc, torso: mk(['body_torso'], 0), armUpL: mk(['arm_upper_left'], 10), armLoL: mk(['arm_lower_left', 'hand_grip_left'], 10), armUpR: mk(['arm_upper_right'], 10), armLoR: mk(['arm_lower_right', 'hand_grip_right'], 10) };
   return masks;
 }
-function boneAt(M, type, X, Y) {
+function boneAt(M, type, X, Y, sleeve) {
   if (X < 0 || Y < 0 || X >= M.W || Y >= M.H) return 'torso';
   const i = Y * M.W + X;
   if (type === 'pants') return Y > HIP ? (X < M.W / 2 ? 'legL' : 'legR') : 'torso';
-  if (Y > LAP) return 'torso';
+  if (Y > LAP || sleeve === 'none') return 'torso'; // без рукавов — всё на туловище
   // Рукав — всё, что дальше плечевого сустава (JOINTS.shoulder в rig.js) и выше подмышки, на руке.
   const left = X < M.W / 2;
   if (Y < ARMPIT && (left ? X < SHOULDER : X > M.W - SHOULDER) && M[left ? 'armUpL' : 'armUpR'][i]) return left ? 'armUpL' : 'armUpR';
   if (M.torso[i]) return 'torso';
-  // Ниже подмышки руке отдаём только длинный рукав верха (и не ниже запястья): у платья там юбка,
+  // Ниже подмышки руке отдаём только длинный рукав (и не ниже запястья): у платья там юбка,
   // а юбка у ладошек должна оставаться на туловище, иначе её кусочки уезжают вместе с руками.
-  if (type !== 'top' || Y > WRIST) return 'torso';
+  if (sleeve !== 'long' || Y > WRIST) return 'torso';
   for (const b of left ? ['armLoL', 'armUpL'] : ['armLoR', 'armUpR']) if (M[b][i]) return b;
   return 'torso';
 }
 // parts — { t, f } на рамке box; вернуть { кость: { t, f, at } } (пустые кости пропускаем).
-function splitBones(parts, box, type) {
+function splitBones(parts, box, type, sleeve) {
   const M = bodyMasks(); if (!M) return null;
   const x = Math.round(box[0]), y = Math.round(box[1]);
   const src = {}, w = parts.f.width, h = parts.f.height;
   for (const suf of ['t', 'f']) if (parts[suf]) src[suf] = parts[suf].getContext('2d', { willReadFrequently: true }).getImageData(0, 0, w, h).data;
   const owner = new Uint8Array(w * h), dup = new Uint8Array(w * h);
   for (let j = 0; j < h; j++) for (let i = 0; i < w; i++) {
-    const X = x + i, Y = y + j, bone = boneAt(M, type, X, Y), k = j * w + i;
+    const X = x + i, Y = y + j, bone = boneAt(M, type, X, Y, sleeve), k = j * w + i;
     owner[k] = BONE_SUBS.indexOf(bone);
     // Рукав у подмышки — ещё и на туловище: рука поднимется — под рукавом не будет дырки.
     if ((bone === 'armUpL' && X > SHOULDER - 56) || (bone === 'armUpR' && X < M.W - SHOULDER + 56)) dup[k] = Y > 330 ? 1 : 0;
@@ -172,10 +172,10 @@ function forgetBones(id) {
   boneLayers.delete(id);
 }
 // Поделить вещь по костям и поставить её слои костей (верх, платье, штаны; остальное режет rig.js).
-export function setGarmentBones(id, parts, box, type) {
+export function setGarmentBones(id, parts, box, type, sleeve = type === 'dress' ? 'short' : 'long') {
   forgetBones(id);
-  if (!['top', 'dress', 'pants'].includes(type)) return;
-  const bones = splitBones(parts, box, type);
+  if (!['top', 'outer', 'dress', 'pants'].includes(type)) return;
+  const bones = splitBones(parts, box, type, sleeve);
   if (!bones) return;
   for (const [bone, r] of Object.entries(bones)) for (const s of ['t', 'f']) if (r[s]) { const k = `hero/wear_${id}__${bone}_${s}`; registerImage(k, r[s]); HERO_LAYERS[k] = r.at.slice(); }
   boneLayers.set(id, Object.keys(bones));
@@ -191,8 +191,8 @@ export function registerGarment(id, cloth, im) {
     if (layer) { registerImage(k, layer); HERO_LAYERS[k] = [Math.round(x), Math.round(y)]; }
     else { forgetImage(k); delete HERO_LAYERS[k]; }
   }
-  setGarmentBones(id, parts, cloth.box, cloth.type);
-  registerWear(id, cloth.type, cloth.color);
+  setGarmentBones(id, parts, cloth.box, cloth.type, cloth.sleeve || (cloth.type === 'dress' ? 'short' : 'long'));
+  registerWear(id, cloth.type, cloth.color, { tint: cloth.tint, sleeve: cloth.sleeve, stiff: cloth.stiff });
   heroArtChanged();
 }
 export function unregisterGarment(id) {
@@ -223,13 +223,13 @@ export function fitUpload(im, type) {
   // На образце? Тогда — как нарисовано, если GPT не промахнулся (ширина и середина — близко к встроенной вещи).
   let drawn = null;
   if (Math.abs(im.width / im.height - T.w / T.h) < 0.02) { const k = T.s * T.w / im.width; drawn = [T.x + x0 * k, T.y + y0 * k, bw * k, bh * k]; }
-  const sb = sampleBox(type), near = drawn && drawn[2] / sb[2] > 0.7 && drawn[2] / sb[2] < 1.4 && Math.abs(drawn[0] + drawn[2] / 2 - sb[0] - sb[2] / 2) < sb[2] * 0.15;
-  const box = near ? drawn.slice() : fitToSample(bw / bh, type);
-  box[0] = MID - box[2] / 2; // герой симметричный: вещь — ровно по его середине (GPT часто рисует чуть сбоку)
+  // Нарисовано на образце (тот же размер холста) — встаёт РОВНО как нарисовано: без середины и подгонки
+  // (асимметричный рукав или бант не должны сдвигать вещь). Другая картинка — вписывается в место встроенной.
+  const box = drawn ? drawn.slice() : fitToSample(bw / bh, type);
   const r = (b) => b && b.map((v) => Math.round(v * 10) / 10);
   const corner = (x, y) => px[(y * src.width + x) * 4 + 3];
   const opaque = [corner(0, 0), corner(src.width - 1, 0), corner(0, src.height - 1), corner(src.width - 1, src.height - 1)].every((v) => v > 0); // фон не прозрачный
-  return { image: out.toDataURL('image/webp', 0.92), box: r(box), drawn: r(drawn), opaque };
+  return { image: out.toDataURL('image/webp', 0.92), box: r(box), drawn: r(drawn), onTemplate: !!drawn, opaque };
 }
 // Вписать вещь (отношение сторон aspect) по ширине в место встроенной вещи того же типа.
 export function fitToSample(aspect, type) {

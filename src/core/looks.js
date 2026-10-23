@@ -13,6 +13,7 @@ export const FACES = ['happy', 'laugh', 'yum', 'surprised', 'sad', 'sleep'];
 //  free — целиком на туловище (юбка), legs — на голенях (обувь), head — на голове (поверх волос).
 export const WEAR_TYPES = {
   top:     { slot: 'top', rank: 3, cut: 'all', icon: '👕', name: 'Верх', hint: 'Футболка, кофта, свитер, худи. Рукава двигаются вместе с руками.' },
+  outer:   { slot: 'outer', rank: 4.5, cut: 'all', icon: '🧥', name: 'Куртка', hint: 'Куртка, жилетка, кардиган, плащ. Надевается ПОВЕРХ кофты или платья (их не снимает).' },
   dress:   { slot: 'dress', rank: 4, cut: 'sleeves', icon: '👗', name: 'Платье', hint: 'Платье, сарафан, комбинезон. Занимает и верх, и низ; рукава идут за руками, подол — на туловище.' },
   pants:   { slot: 'bottom', rank: 1, cut: 'all', icon: '👖', name: 'Штаны', hint: 'Штаны, шорты, леггинсы. Штанины двигаются вместе с ногами.' },
   skirt:   { slot: 'bottom', rank: 2, cut: 'free', icon: '🩳', name: 'Юбка', hint: 'Юбка, пачка. Висит на туловище, ноги под ней двигаются свободно.' },
@@ -27,7 +28,11 @@ export const WEAR = {
 };
 for (const w of Object.values(WEAR)) w.slot = WEAR_TYPES[w.type].slot;
 export const BUILTIN_WEAR = Object.keys(WEAR);
-export function registerWear(id, type, color) { if (WEAR_TYPES[type]) WEAR[id] = { type, slot: WEAR_TYPES[type].slot, custom: true, color }; }
+// opts: tint — перекрашивается ли; sleeve — 'none' | 'short' | 'long'; stiff — плечо почти не двигается (рукав не отрывается).
+export function registerWear(id, type, color, opts = {}) { if (WEAR_TYPES[type]) WEAR[id] = { type, slot: WEAR_TYPES[type].slot, custom: true, color, ...opts }; }
+// Длина рукава и «жёсткое плечо» вещи (у встроенных — по типу).
+export const sleeveOf = (w) => WEAR[w]?.sleeve || (WEAR[w]?.type === 'dress' ? 'short' : 'long');
+export const stiffOf = (w) => WEAR[w]?.stiff !== false && sleeveOf(w) !== 'none';
 export function unregisterWear(id) { if (WEAR[id]?.custom) delete WEAR[id]; }
 const rankOf = (k) => WEAR_TYPES[WEAR[k]?.type]?.rank ?? 5;
 // Что надето — в порядке рисования: на теле (снизу вверх) и на голове (поверх волос).

@@ -256,7 +256,7 @@ export function createActions(store, camera) {
           delete look.wear[wear]; // надеть заново (с цветом этой вещи), а не снять
           ch.look = toggleWear(look, wear, color || WEAR_DEFAULT_COLOR[wear] || WEAR[wear]?.color);
           releaseChildren(s, itemId); delete i.room; delete i.x; delete i.y; delete i.on; delete i.held; delete i.bites; i.inv = true;
-        }, { undo: false });
+        }); // переодевание можно отменить (↶): вещь вернётся на место, прежняя одежда — на героя
         return 'wear';
       }
       store.change((s) => {

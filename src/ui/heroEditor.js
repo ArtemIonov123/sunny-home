@@ -11,7 +11,7 @@ import { play } from '../audio.js';
 const TABS = [['skin', '🎨', 'Кожа'], ['hair', '💇', 'Причёска'], ['face', '😊', 'Лицо'], ['wear', '👕', 'Одежда']];
 const HEAD_BOX = [78, 8, 352, 300];
 // Вся одежда: встроенная и своя (из студии и паков), по типам: верх, платья, низ, обувь, голова.
-const TYPE_ORDER = ['top', 'dress', 'pants', 'skirt', 'shoes', 'hat', 'glasses'];
+const TYPE_ORDER = ['top', 'outer', 'dress', 'pants', 'skirt', 'shoes', 'hat', 'glasses'];
 const wearList = () => Object.keys(WEAR).sort((a, b) => TYPE_ORDER.indexOf(WEAR[a].type) - TYPE_ORDER.indexOf(WEAR[b].type) || (WEAR[a].custom ? 1 : 0) - (WEAR[b].custom ? 1 : 0));
 const firstColor = (w, k) => WEAR[w]?.color || WEAR_COLORS[(k * 5) % WEAR_COLORS.length];
 const PLAIN = '#f6f2ea'; // ненадетая вещь на кнопке — белая
@@ -100,7 +100,7 @@ export function createHeroEditor({ root, store, actions, onChange }) {
         const t = partThumb(layerBox('wear_' + w), (c) => drawPart(c, 'wear_' + w, look.wear[w] || PLAIN));
         const cls = (look.wear[w] ? ' on' : '') + (w === picked ? ' picked' : '');
         return `<button class="hs-pick wear${cls}" data-hs-wear="${w}" aria-label="${w}"><img src="${url(t)}" alt=""></button>`;
-      }).join('')}</div>${picked ? swatches(WEAR_COLORS, look.wear[picked], 'hs-wearcolor') : ''}`;
+      }).join('')}</div>${picked ? `<div class="hs-wearbar">${WEAR[picked]?.tint === false ? '' : swatches(WEAR_COLORS, look.wear[picked], 'hs-wearcolor')}<button class="hs-off" data-hs-off="${picked}" aria-label="Снять">🧺</button></div>` : ''}`;
     }
   }
 
@@ -119,13 +119,20 @@ export function createHeroEditor({ root, store, actions, onChange }) {
     else if (d.hsHaircolor) setLook({ ...look, hairColor: d.hsHaircolor });
     else if (d.hsFace) setLook({ ...look, face: d.hsFace });
     else if (d.hsWear) {
-      const w = d.hsWear, on = !!look.wear[w];
-      // Нажал на надетую, но не выбранную — просто выбрать её для покраски; иначе надеть/снять.
-      if (on && picked !== w) { picked = w; play('click'); renderOpts(); return; }
-      const next = toggleWear(look, w, on ? null : firstColor(w, wearList().indexOf(w)));
-      picked = next.wear[w] ? w : null;
+      // Тап всегда одинаковый: надетая — выбрать (покрасить или снять кнопкой 🧺), ненадетая — надеть.
+      const w = d.hsWear;
+      if (look.wear[w]) { picked = w; play('click'); renderOpts(); return; }
+      const next = toggleWear(look, w, firstColor(w, wearList().indexOf(w)));
+      picked = w;
       setLook(next);
-      play(next.wear[w] ? 'pop' : 'stash');
+      play('pop');
+      return;
+    } else if (d.hsOff) { // снять вещь (вешалка-корзинка)
+      const w = d.hsOff; if (!look.wear[w]) return;
+      const wear = { ...look.wear }; delete wear[w];
+      picked = Object.keys(wear)[0] || null;
+      setLook({ ...look, wear });
+      play('stash');
       return;
     } else if (d.hsWearcolor && picked) setLook({ ...look, wear: { ...look.wear, [picked]: d.hsWearcolor } });
     else return;

@@ -7,7 +7,7 @@
 // (см. PART_LAYERS: если такие картинки есть, используются они).
 import { HERO_SIZE, HERO_LAYERS } from './heroLayout.js';
 import { img } from '../assets.js';
-import { WEAR, WEAR_TYPES, bodyWear, headWear } from '../core/looks.js';
+import { WEAR, WEAR_TYPES, bodyWear, headWear, stiffOf } from '../core/looks.js';
 import { garmentBones } from './garment.js';
 import { drawPart } from './hero.js';
 
@@ -99,7 +99,7 @@ const PART_BONES = {
 };
 // Как вещь режется по костям — по её типу (core/looks.js).
 // Надета своя или заменённая вещь с подолом (верх, платье, юбка) — руки от локтя рисуем поверх одежды.
-export const handsOverWear = (look) => bodyWear(look.wear).some((w) => (WEAR[w].custom || replacedWear.has(w)) && ['top', 'dress', 'skirt'].includes(WEAR[w].type));
+export const handsOverWear = (look) => bodyWear(look.wear).some((w) => (WEAR[w].custom || replacedWear.has(w)) && ['top', 'outer', 'dress', 'skirt'].includes(WEAR[w].type));
 // Встроенные вещи, которым заменили картинку (студия → «Герои»): старые части от GPT им уже не подходят.
 export const replacedWear = new Set();
 const cutOf = (w) => WEAR_TYPES[WEAR[w]?.type]?.cut || 'free';
@@ -185,7 +185,7 @@ export function buildRig(look, face = null, grip = {}) {
     }
     bones[name] = { cv, x: x0, y: y0, used: true };
   }
-  const stiff = bodyWear(look.wear).some((w) => (WEAR[w].custom || replacedWear.has(w)) && (WEAR[w].type === 'top' || WEAR[w].type === 'dress'));
+  const stiff = bodyWear(look.wear).some((w) => (WEAR[w].custom || replacedWear.has(w)) && ['top', 'outer', 'dress'].includes(WEAR[w].type) && stiffOf(w));
   const handsFront = FULL_PARTS && handsOverWear(look);
   return { bones, stiff, handsFront, h: HERO_LAYERS['hero/body_stand_f'][1] + (img('hero/body_stand_f')?.height || 600) };
 }

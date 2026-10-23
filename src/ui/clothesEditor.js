@@ -9,18 +9,22 @@ import { WEAR, WEAR_TYPES, WEAR_COLORS, BUILTIN_WEAR, canDress, toggleWear } fro
 import { hasToken, sendGameUpdate } from '../core/publish.js';
 import { normalize } from '../core/actions.js';
 import { drawHero, drawPart, partThumb } from '../render/hero.js';
-import { buildRig, drawRig, heroPose, rigAnims } from '../render/rig.js';
+import { buildRig, drawRig, heroPose, rigAnims, HIP_Y } from '../render/rig.js';
 import { HERO_LAYERS } from '../render/heroLayout.js';
-import { registerGarment, unregisterGarment, fitUpload, fitToSample, sampleBox, layerRect, templateCanvas, templateOf, colored, grayShare } from '../render/garment.js';
+import { registerGarment, unregisterGarment, fitUpload, fitToSample, sampleBox, layerRect, templateCanvas, templateOf, colored, grayShare, garmentBones } from '../render/garment.js';
 import { img, loadImage } from '../assets.js';
 import { play } from '../audio.js';
 import { escapeHtml as esc } from '../util.js';
 
 const DRAFT = 'draftwear'; // вещь на примерке (временный слой, в сохранение не попадает)
-const TYPE_LIST = ['top', 'dress', 'pants', 'skirt', 'shoes', 'glasses', 'hat'];
+const TYPE_LIST = ['top', 'outer', 'dress', 'pants', 'skirt', 'shoes', 'glasses', 'hat'];
 const BUILTIN_NAMES = { tshirt: 'Футболка', dress: 'Платье', pants: 'Штанишки', skirt: 'Юбка', sneakers: 'Кеды', cap: 'Кепка', glasses: 'Очки' };
 const BUILTIN_COLORS = { tshirt: '#6fcfc0', dress: '#ffe27a', pants: '#7fb1f0', skirt: '#ff8fa8', sneakers: '#ff6b6b', cap: '#ffb36b', glasses: '#3d6fc4' };
-const MODES = { stand: '🧍 Стоит', wave: '👋 Машет', sit: '🪑 Сидит', walk: '🚶 Идёт', cheer: '🎉 Радуется' };
+const MODES = { stand: '🧍 Стоит', wave: '👋 Машет', cheer: '🎉 Руки вверх', hold: '✋ Держит', sit: '🪑 Сидит', walk: '🚶 Идёт', lie: '🛏 Лежит' };
+const SLEEVES = { none: 'Без рукавов', short: 'Короткие', long: 'Длинные' };
+const HAS_SLEEVES = ['top', 'outer', 'dress'];
+const defSleeve = (type) => (type === 'dress' ? 'short' : 'long');
+const BONE_COLORS = { torso: '#4a90e2', armUpL: '#f5a623', armUpR: '#f5a623', armLoL: '#7ed321', armLoR: '#7ed321', legL: '#bd10e0', legR: '#bd10e0' };
 const W = 512;
 
 async function fileUrl(file) {
@@ -34,7 +38,7 @@ export function createClothesEditor({ store, actions, toast, onChange }) {
   let heroId = 'girl', mode = 'stand', raf = 0, srcIm = null, rig = null, rigSig = '', drag = null, lastWave = 0, walkPh = 0, lastT = 0;
   let uploadBox = null; // где вещь встала при загрузке (кнопка «Как на картинке»)
 
-  const fresh = (type = 'top') => ({ id: newId(), name: '', group: 'clothes', place: 'floor', w: 130, image: '', give: false, cloth: { type, image: '', box: null, color: WEAR_COLORS[0], tint: true, own: false } });
+  const fresh = (type = 'top') => ({ id: newId(), name: '', group: 'clothes', place: 'floor', w: 130, image: '', give: false, cloth: { type, image: '', box: null, color: WEAR_COLORS[0], tint: true, own: false, sleeve: defSleeve(type) } });
   const mine = () => listRecords().filter((r) => r.cloth);
   const heroes = () => store.state.chars.filter((c) => canDress(c.id) && c.look);
 
@@ -82,6 +86,9 @@ export function createClothesEditor({ store, actions, toast, onChange }) {
             <small class="ce-hint">Образец — ${templateOf(cl.type) === 'head' ? 'голова 1355×1161' : 'тело 1024×1536'}. Нарисованное на образце встанет точно на место, другая картинка встанет туда, где сидит встроенная вещь этого типа.</small></div>
           <label class="an-give"><input type="checkbox" data-ce-tint${cl.tint ? ' checked' : ''}> <b>Игрок перекрашивает</b><small>${cl.tint ? 'серое в картинке красится в цвет, который выберет игрок' : 'вещь всегда такая, как нарисована'}</small></label>
           ${cl.tint ? `<div class="adm-field">Цвет сначала<div class="swatches">${WEAR_COLORS.map((c) => `<button class="swatch${c === cl.color ? ' on' : ''}" style="--c:${c}" data-ce-color="${c}" aria-label="${c}"></button>`).join('')}</div></div>` : ''}
+          ${HAS_SLEEVES.includes(cl.type) ? `<div class="adm-field">Рукава<div class="lv-tools">${Object.entries(SLEEVES).map(([k, n]) => `<button data-ce-sleeve="${k}" class="${(cl.sleeve || defSleeve(cl.type)) === k ? 'on' : ''}">${n}</button>`).join('')}</div>
+            <small class="ce-hint">Короткие — рукав двигается с плечом. Длинные — ещё и с рукой до запястья. Без рукавов — вся вещь на туловище.</small></div>
+          ${(cl.sleeve || defSleeve(cl.type)) !== 'none' ? `<label class="an-give"><input type="checkbox" data-ce-stiff${cl.stiff !== false ? ' checked' : ''}> <b>Плечо почти не двигается</b><small>${cl.stiff !== false ? 'герой машет рукой от локтя — рукав не отрывается' : 'рука двигается вся — проверь «Машет» и «Руки вверх»'}</small></label>` : ''}` : ''}
           <div class="adm-field">Как вещь лежит в доме
             <div class="ce-row">
               <div class="ce-thumb">${d.image ? `<img src="${d.image}" alt="">` : '<span>？</span>'}</div>
@@ -106,6 +113,7 @@ export function createClothesEditor({ store, actions, toast, onChange }) {
             <button data-ce-stretch="1,1.04" aria-label="Длиннее">↕ длиннее</button><button data-ce-stretch="1,0.96" aria-label="Короче">↕ короче</button>
           </div>
           <div class="lv-tools"><button data-ce-fit>📐 По месту встроенной</button>${uploadBox ? '<button data-ce-asdrawn>🖼 Как на картинке</button>' : ''}<button data-ce-outline class="${showOutline ? 'on' : ''}">⬚ Рамка</button></div>
+          <div class="lv-tools"><button data-ce-view="split" class="${view === 'split' ? 'on' : ''}">🎨 Разрез</button><button data-ce-view="paint" class="${view === 'paint' ? 'on' : ''}">🖌 Что перекрасится</button></div>
           <p class="adm-help">В режиме «Стоит» вещь можно тянуть пальцем. Голубая рамка — где сидит встроенная вещь этого типа.</p>` : '<p class="adm-help">Загрузи картинку — вещь появится на герое.</p>'}
         </div>
       </div>
@@ -116,7 +124,7 @@ export function createClothesEditor({ store, actions, toast, onChange }) {
         ${getRecord(draft.id) ? '<button data-ce-del>Удалить</button>' : ''}
       </div>`;
   }
-  let showOutline = true;
+  let showOutline = true, view = 'normal'; // view: split — части вещи цветом (туловище/рукава/ноги), paint — что перекрашивается
 
   function render() {
     if (!host) return;
@@ -154,7 +162,7 @@ export function createClothesEditor({ store, actions, toast, onChange }) {
     c.fillStyle = '#f4efe6'; c.fillRect(0, 0, cv.width, cv.height);
     c.fillStyle = '#e6d6bb'; c.fillRect(0, cv.height - 24, cv.width, 24);
     const look = tryLook(); if (!look) return true;
-    const sig = JSON.stringify([look, draft.cloth.box, draft.cloth.type, draft.cloth.tint]);
+    const sig = JSON.stringify([look, draft.cloth.box, draft.cloth.type, draft.cloth.tint, draft.cloth.sleeve, draft.cloth.stiff]);
     if (sig !== rigSig) { rig = buildRig(look); rigSig = sig; }
     const F = frame(cv);
     const t = performance.now() / 1000, dt = lastT ? Math.min(0.1, t - lastT) : 0; lastT = t;
@@ -162,6 +170,7 @@ export function createClothesEditor({ store, actions, toast, onChange }) {
     c.fillStyle = 'rgba(110,74,38,.16)'; c.beginPath(); c.ellipse(cv.width / 2, cv.height - 24, 150 * F.s, 14, 0, 0, Math.PI * 2); c.fill();
     if (mode === 'stand') {
       c.save(); c.translate(F.x, F.y); c.scale(F.s, F.s); drawHero(c, look); c.restore();
+      if (view !== 'normal') drawOverlay(c, F);
       if (showOutline && draft.cloth.box) {
         const sb = sampleBox(draft.cloth.type), b = draft.cloth.box;
         c.setLineDash([6, 5]); c.lineWidth = 2;
@@ -173,7 +182,15 @@ export function createClothesEditor({ store, actions, toast, onChange }) {
     }
     if (!rig) return true;
     let pose;
+    if (mode === 'lie') { // лежит: таз — на «кровати», голова влево
+      const k = cv.width / 1050, hx = cv.width * 0.42, hy = cv.height * 0.55;
+      c.fillStyle = '#dcc7a6'; c.fillRect(20, hy + 30 * k, cv.width - 40, 26);
+      const bw = W * k, bh = rig.h * k;
+      drawRig(c, rig, { x: hx - bw / 2, y: hy - bh - k * (HIP_Y - rig.h), w: bw, h: bh }, heroPose('cepreview', { seat: 'lie' }));
+      return true;
+    }
     if (mode === 'sit') pose = heroPose('cepreview', { seat: 'sit' });
+    else if (mode === 'hold') pose = heroPose('cepreview', { holding: true });
     else if (mode === 'walk') { walkPh += dt * 6; pose = heroPose('cepreview', { walk: { phase: walkPh, amp: 1, dir: 1 } }); }
     else {
       if (mode !== 'stand' && t - lastWave > (mode === 'wave' ? 1.8 : 1.2)) { lastWave = t; if (mode === 'wave') rigAnims.wave('cepreview'); else rigAnims.cheer('cepreview'); }
@@ -182,6 +199,19 @@ export function createClothesEditor({ store, actions, toast, onChange }) {
     const sitDrop = mode === 'sit' ? 60 * F.s : 0;
     drawRig(c, rig, { x: F.x, y: F.y + sitDrop, w: W * F.s, h: rig.h * F.s }, pose);
     return true;
+  }
+  // Наложение поверх героя: «разрез» — части вещи по костям цветом, «что перекрасится» — серая часть вещи.
+  function drawOverlay(c, F) {
+    const tint = (key, color) => {
+      const im = img(key), at = HERO_LAYERS[key]; if (!im || !at) return;
+      const t = document.createElement('canvas'); t.width = im.width; t.height = im.height;
+      const x = t.getContext('2d'); x.drawImage(im, 0, 0); x.globalCompositeOperation = 'source-atop'; x.globalAlpha = 0.7; x.fillStyle = color; x.fillRect(0, 0, t.width, t.height);
+      c.drawImage(t, F.x + at[0] * F.s, F.y + at[1] * F.s, im.width * F.s, im.height * F.s);
+    };
+    if (view === 'paint') { tint(`hero/wear_${DRAFT}_t`, '#ff2fb0'); return; }
+    const bones = garmentBones(DRAFT);
+    if (!bones) { tint(`hero/wear_${DRAFT}_f`, BONE_COLORS.torso); tint(`hero/wear_${DRAFT}_t`, BONE_COLORS.torso); return; }
+    for (const b of bones) for (const sfx of ['t', 'f']) tint(`hero/wear_${DRAFT}__${b}_${sfx}`, BONE_COLORS[b]);
   }
   function loop() { stop(); const tick = () => { if (draw()) raf = requestAnimationFrame(tick); else raf = 0; }; raf = requestAnimationFrame(tick); }
   function stop() { if (raf) cancelAnimationFrame(raf); raf = 0; }
@@ -212,8 +242,9 @@ export function createClothesEditor({ store, actions, toast, onChange }) {
   // ── Картинки ──
   async function setImage(file) {
     const im = await loadImage(await fileUrl(file));
-    const { image, box, drawn, opaque } = fitUpload(im, draft.cloth.type);
+    const { image, box, drawn, opaque, onTemplate } = fitUpload(im, draft.cloth.type);
     draft.cloth.image = image; draft.cloth.box = box; uploadBox = drawn && drawn.join() !== box.join() ? drawn : null;
+    toast(onTemplate ? 'Картинка по образцу — встала ровно как нарисовано' : 'Картинка не по образцу (другой размер холста) — вписана в место встроенной вещи, подвинь, если нужно');
     srcIm = await loadImage(image);
     draft.cloth.tint = grayShare(srcIm) > 0.3;
     if (!draft.name) draft.name = file.name.replace(/\.(png|webp|jpe?g)$/i, '').replace(/^wear_/, '').replace(/_/g, ' ').slice(0, 40);
@@ -280,7 +311,7 @@ export function createClothesEditor({ store, actions, toast, onChange }) {
     else if (d.ceSend !== undefined) { if (!hasToken()) { toast('Нужен ключ GitHub: нажми вверху «🔑 В игру» и вставь ключ (или загрузи резервную копию студии в «Данные»)', true); return; } if (!sending) sendToPlayers(); return; }
     else if (d.ceBack !== undefined) { if (dirty && !confirm('Есть несохранённые изменения. Выйти без сохранения?')) return; draft = null; }
     else if (!draft) return;
-    else if (d.ceType) { draft.cloth.type = d.ceType; if (draft.cloth.box && draft.cloth.image) setBox(fitToSample(draft.cloth.box[2] / draft.cloth.box[3], d.ceType)); dirty = true; play('click'); }
+    else if (d.ceType) { draft.cloth.type = d.ceType; draft.cloth.sleeve = defSleeve(d.ceType); if (draft.cloth.box && draft.cloth.image) setBox(fitToSample(draft.cloth.box[2] / draft.cloth.box[3], d.ceType)); dirty = true; play('click'); }
     else if (d.ceTemplate !== undefined) { download(templateCanvas(draft.cloth.type), `obrazec_${draft.cloth.type}.png`); toast('Образец скачан. Отправь его GPT вместе с промптом'); return; }
     else if (d.ceColor) { draft.cloth.color = d.ceColor; dirty = true; await autoArt(); await applyDraft(); play('pop'); }
     else if (d.ceAutoart !== undefined) { draft.cloth.own = false; await autoArt(); dirty = true; }
@@ -291,6 +322,8 @@ export function createClothesEditor({ store, actions, toast, onChange }) {
     else if (d.ceStretch) { const [kx, ky] = d.ceStretch.split(',').map(Number), bx = draft.cloth.box, cx = bx[0] + bx[2] / 2; setBox([cx - bx[2] * kx / 2, bx[1], bx[2] * kx, bx[3] * ky]); return; }
     else if (d.ceFit !== undefined) { const bx = draft.cloth.box; setBox(fitToSample(bx[2] / bx[3], draft.cloth.type)); return; }
     else if (d.ceAsdrawn !== undefined) { if (uploadBox) setBox(uploadBox.slice()); return; }
+    else if (d.ceView) { view = view === d.ceView ? 'normal' : d.ceView; host.querySelectorAll('[data-ce-view]').forEach((x) => x.classList.toggle('on', x.dataset.ceView === view)); if (mode !== 'stand') { mode = 'stand'; host.querySelectorAll('[data-ce-mode]').forEach((x) => x.classList.toggle('on', x.dataset.ceMode === 'stand')); } return; }
+    else if (d.ceSleeve) { draft.cloth.sleeve = d.ceSleeve; dirty = true; await applyDraft(); play('click'); }
     else if (d.ceOutline !== undefined) { showOutline = !showOutline; b.classList.toggle('on', showOutline); return; }
     else if (d.ceSave !== undefined) return save(null);
     else if (d.ceWearit !== undefined) return save('wear');
@@ -316,7 +349,8 @@ export function createClothesEditor({ store, actions, toast, onChange }) {
         const cv = document.createElement('canvas'); cv.width = Math.round(im.width * s); cv.height = Math.round(im.height * s);
         cv.getContext('2d').drawImage(im, 0, 0, cv.width, cv.height);
         draft.image = cv.toDataURL('image/webp', 0.9); draft.cloth.own = true; dirty = true; render();
-      } else if (e.target.matches('[data-ce-tint]')) { draft.cloth.tint = e.target.checked; dirty = true; await autoArt(); render(); }
+      } else if (e.target.matches('[data-ce-stiff]')) { draft.cloth.stiff = e.target.checked ? undefined : false; if (draft.cloth.stiff === undefined) delete draft.cloth.stiff; dirty = true; await applyDraft(); render(); }
+      else if (e.target.matches('[data-ce-tint]')) { draft.cloth.tint = e.target.checked; dirty = true; await autoArt(); render(); }
       else if (e.target.matches('[data-ce-give]')) { draft.give = e.target.checked; dirty = true; e.target.parentElement.querySelector('small').textContent = draft.give ? 'придёт всем игрокам подарком после «📤 Отправить игрокам»' : 'только в паках'; }
     } catch (err) { toast(err.message, true); }
     e.target.value && e.target.type === 'file' && (e.target.value = '');
