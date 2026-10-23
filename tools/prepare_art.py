@@ -330,6 +330,11 @@ def build_map():
     save(g, 'map/grass.webp', quality=82)
     for n, mw in [('pond', 420), ('fountain', 320), ('flowerbed', 260), ('rocks', 220), ('bench', 240), ('lamp', 260), ('mushrooms', 180), ('tree_pine', 340), ('tree_blossom', 380)]:
         sprite(f'map/map_{n}.png', f'map/{n}.webp', max_w=mw, max_h=mw)
+    for n in ('mountains', 'city', 'hills'):  # горизонт: длинные бесшовные полосы (ширину не обрезаем)
+        im = keyed_full(f'map/horizon_{n}.png')
+        top = im.getchannel('A').point(lambda v: 255 if v > 24 else 0).getbbox()[1]  # горы полупрозрачные — по слабой альфе
+        im = im.crop((0, top, im.width, im.height))
+        save(im.resize((1024, round(im.height * 1024 / im.width)), Image.LANCZOS), f'map/horizon_{n}.webp', quality=85)
     for n in ('home', 'shop', 'disco', 'cafe', 'salon'):  # места в изометрии (сценки)
         sprite(f'map/iso_{n}.png', f'map/iso_{n}.webp', max_w=560, max_h=560)
 

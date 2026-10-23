@@ -54,8 +54,8 @@ for (let n = 0; n < 150; n++) {
   THINGS.push({ a, lat, art, w: SCW[art] * (0.8 + hsh(n + 71) * 0.4), tap: 'pop', id: 's' + n });
 }
 const CLOUDS = [0, 1, 2, 3, 4, 5, 6, 7].map((k) => ({ x: k * 520 + (k % 3) * 90, y: 60 + (k % 4) * 55, w: 170 + (k % 3) * 45, drift: 6 + (k % 4) * 3 }));
-// Холмы на горизонте (пока рисуются кодом): долгота, ширина, высота, цвет.
-const HILLS = Array.from({ length: 26 }, (_, n) => ({ a: n * 0.26 + (n % 3) * 0.05, w: 260 + (n % 4) * 90, h: 70 + ((n * 7) % 5) * 28, c: ['#a9cfa0', '#97c48f', '#b7d9ae', '#8fbf9a'][n % 4] }));
+// Горизонт: длинные полосы от GPT (горы, холмы, город) по кругу, стык — плавный.
+const HORIZON = ['mountains', 'hills', 'city', 'mountains', 'hills', 'city'];
 const ROT_KEY = 'sunny-map-rot';
 
 export function createMap({ root, viewport, isNight = () => false, getPlace = () => 'home', onEnter = () => {} }) {
@@ -109,11 +109,27 @@ export function createMap({ root, viewport, isNight = () => false, getPlace = ()
       const x = (((c.x + rot * RC * 0.12 + t * c.drift) % span) + span) % span - 450, h = c.w * cloud.height / cloud.width;
       ctx.globalAlpha = night ? 0.55 : 0.95; ctx.drawImage(cloud, x, c.y, c.w, h);
     } ctx.globalAlpha = 1; }
-    // Холмы на горизонте — дальше, чем земля, поэтому едут медленнее.
-    for (const hl of HILLS) {
-      const th = norm(hl.a + rot * 0.6); if (Math.cos(th) < 0.2) continue;
-      const p = at(-0.02, th), w = hl.w * (0.6 + 0.4 * Math.cos(th));
-      ctx.fillStyle = night ? '#4d5f7d' : hl.c; ctx.beginPath(); ctx.ellipse(p.x, p.y + 12, w / 2, hl.h, 0, Math.PI, 0); ctx.fill();
+    // Горизонт — дальше, чем земля, поэтому едет медленнее. Каждая полоса режется на столбики и
+    // ложится по изгибу; на стыках полосы плавно растворяются друг в друге.
+    {
+      // Столбики рисуются в пикселях экрана встык (целые края) — без щелей и без наложений.
+      const seg = (Math.PI * 2) / HORIZON.length, M = ctx.getTransform();
+      const toPx = (p) => ({ x: Math.round(p.x * M.a + M.e), y: p.y * M.d + M.f });
+      ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.globalAlpha = night ? 0.7 : 1;
+      const cols = 160, da = seg / cols, F = 40; // F столбиков — плавный переход от прошлой полосы
+      const strip = (n, from, to) => {
+        const name = HORIZON[n], im = img('map/horizon_' + name); if (!im) return;
+        const hh = 215 * (name === 'mountains' ? 1.25 : 1) * M.d, sw = im.width / cols;
+        for (let c = from; c < to; c++) {
+          const a = n * seg + c * da, th = norm(a + rot * 0.6); if (Math.cos(th) < 0.12) continue;
+          const pa = toPx(at(0, th)), pb = toPx(at(0, th + da)); if (pb.x <= pa.x) continue;
+          ctx.globalAlpha = (night ? 0.7 : 1) * (c < 0 ? (c + F) / F : 1);
+          ctx.drawImage(im, (((c % cols) + cols) % cols) * sw, 0, sw, im.height, pa.x, pa.y + 26 * M.d - hh, pb.x - pa.x, hh);
+        }
+      };
+      HORIZON.forEach((_, n) => strip(n, -F, cols));
+      strip(0, -F, 0); // начало первой полосы — поверх конца последней
+      ctx.restore();
     }
     // Земля: клетки (угол × глубина) с фактурой травы, край по бокам заворачивается вниз.
     const grass = img('map/grass'), NL = 44, span2 = 2.6, dth = span2 / NL, G = [0, 0.18, 0.36, 0.55, 0.75, 1, 1.4];
