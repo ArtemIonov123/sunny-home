@@ -18,7 +18,7 @@ import { escapeHtml as esc } from '../util.js';
 const NAMES = { home: 'Дом', shop: 'Магазин', disco: 'Дискотека', cafe: 'Кафе', salon: 'Салон' };
 
 export function createMapEditor({ toast, store, enterPlace }) {
-  let host = null, district = 'home', list = [], sel = -1, dirty = false, drawing = null, moving = null;
+  let host = null, district = 'home', list = [], sel = -1, dirty = false, drawing = null, moving = null, part = 'map'; // part: map — районы и здания, places — свои места
   const load = () => { list = JSON.parse(JSON.stringify(zonesOf(district))); sel = -1; dirty = false; };
   load();
   const opt = (obj, cur) => Object.entries(obj).map(([k, n]) => `<option value="${k}"${k === cur ? ' selected' : ''}>${esc(n)}</option>`).join('');
@@ -28,11 +28,13 @@ export function createMapEditor({ toast, store, enterPlace }) {
   function html() {
     const z = list[sel], D = districtList(), cur = dOf(), w = ownWorld(), own = w.districts.find((d) => d.id === district);
     const places = Object.entries(w.places), here = store.state.place || 'home';
-    return `<h4>Районы карты</h4><div class="ie-bar">${D.map((d) => `<button class="${d.id === district ? 'primary' : ''}" data-mz-d="${d.id}">${esc(d.name || NAMES[d.id] || d.id)}</button>`).join('')}
+    const tabs = `<div class="ie-bar mz-parts"><button class="${part === 'map' ? 'primary' : ''}" data-mz-part-tab="map">🗺️ Районы и здания</button><button class="${part === 'places' ? 'primary' : ''}" data-mz-part-tab="places">🏠 Свои места (${places.length})</button></div>`;
+    if (part === 'places') return tabs + placesHtml(places, here);
+    return tabs + `<h4>Районы карты</h4><div class="ie-bar">${D.map((d) => `<button class="${d.id === district ? 'primary' : ''}" data-mz-d="${d.id}">${esc(d.name || NAMES[d.id] || d.id)}</button>`).join('')}
         <label class="ie-upload small mz-add"><em>＋ Свой район</em><input type="file" accept="image/png,image/webp,image/jpeg" data-mz-newd></label></div>
       ${own ? `<div class="lv-row">
         <label class="adm-field">Название района<input data-mz-dname maxlength="30" value="${esc(own.name)}"></label>
-        <label class="adm-field">На площадке посередине<select data-mz-dplace>${opt({ '': 'Ничего (только домики района)', ...Object.fromEntries(PLACE_IDS.map((id) => [id, nameOf(id)])) }, own.place || '')}</select></label>
+        <label class="adm-field">На площадке посередине<select data-mz-dplace>${opt({ '': 'Ничего (только домики района)', ...Object.fromEntries(PLACE_IDS.map((id) => [id, nameOf(id)])), __new: '＋ Создать новое место…' }, own.place || '')}</select></label>
         <label class="ie-upload small"><em>Заменить картинку</em><input type="file" accept="image/png,image/webp,image/jpeg" data-mz-dimg></label>
         <button class="danger" data-mz-ddel>Убрать район</button></div>` : `<p class="adm-help">Встроенный район «${esc(NAMES[cur.id] || cur.id)}». Свой район — картинка от GPT по тому же промпту, что и встроенные (2048×1024, прозрачное небо, дорога на 70% высоты, пустая площадка посередине).</p>`}
       <h4>Живые здания района</h4>
@@ -41,10 +43,13 @@ export function createMapEditor({ toast, store, enterPlace }) {
       <canvas class="mz-canvas" width="1000" height="500" data-mz-canvas></canvas>
       ${z ? `<div class="lv-row">
         <label class="adm-field">Звук<select data-mz-snd>${opt(ZONE_SOUNDS, z.snd)}</select></label>
-        <label class="adm-field">Заходить внутрь<select data-mz-place>${opt({ '': 'Нет — только пружинит', ...Object.fromEntries(PLACE_IDS.map((id) => [id, nameOf(id) + (isReady(id) ? '' : ' (ещё строится)')])) }, z.place || '')}</select></label>
+        <label class="adm-field">Заходить внутрь<select data-mz-place>${opt({ '': 'Нет — только пружинит', ...Object.fromEntries(PLACE_IDS.map((id) => [id, nameOf(id) + (isReady(id) ? '' : ' (ещё строится)')])), __new: '＋ Создать новое место…' }, z.place || '')}</select></label>
         <button data-mz-test>▶ Звук</button><button class="danger" data-mz-del>Убрать зону</button></div>` : ''}
       <div class="ie-actions"><button class="primary" data-mz-save${dirty ? '' : ' disabled'}>Сохранить зоны</button><button data-mz-reset>Как было</button></div>
-      <h4>Свои места</h4>
+`;
+  }
+  function placesHtml(places, here) {
+    return `<h4>Свои места</h4>
       <p class="adm-help">Место — как дом: свои комнаты и вещи. Создай место, нажми «Зайти и обставить» — откроется само место, расставь мебель и вещи как обычно (✎ редактор комнаты, комнаты — во вкладке «Комнаты»), потом вернись сюда и нажми «Сохранить обстановку». Игроки получат такую обстановку при первом приходе. Чтобы в место можно было зайти — поставь его на площадку района или выбери у зоны «Заходить внутрь».</p>
       <div class="ie-bar"><select data-mz-ptype>${opt(Object.fromEntries(Object.entries(ROOM_TYPES).filter(([t]) => t !== 'lawn').map(([t, d]) => [t, d.name])), 'shop')}</select><button class="primary" data-mz-newp>＋ Новое место</button></div>
       <div class="mz-places">${places.map(([id, p]) => `<div class="mz-place${here === id ? ' here' : ''}">
@@ -128,16 +133,19 @@ export function createMapEditor({ toast, store, enterPlace }) {
     c.putImageData(data, 0, 0);
     return cv.toDataURL('image/webp', 0.85);
   }
+  // Новое место: одна комната выбранного типа, без вещей. Возвращает id.
+  async function createPlace(type = 'shop', after = null) {
+    const id = newPlaceId(), room = newRoom(type, 'r1');
+    room.name = ROOM_TYPES[type]?.name || 'Комната';
+    await world((w) => { w.places[id] = { name: 'Новое место', rooms: [room], items: [] }; after?.(w, id); }, 'Место создано — оно во вкладке «🏠 Свои места»: назови, добавь картинку здания и обставь');
+    return id;
+  }
   async function click(e) {
     const b = e.target.closest('button'); if (!b || !host?.contains(b)) return;
     const d = b.dataset;
     if (d.mzDdel !== undefined) { if (!confirm('Убрать этот район с карты?')) return; await world((w) => { w.districts = w.districts.filter((x) => x.id !== district); }, 'Район убран'); district = 'home'; load(); render(); return; }
-    if (d.mzNewp !== undefined) {
-      const type = host.querySelector('[data-mz-ptype]').value, id = newPlaceId(), room = newRoom(type, 'r1');
-      room.name = ROOM_TYPES[type]?.name || 'Комната';
-      await world((w) => { w.places[id] = { name: 'Новое место', rooms: [room], items: [] }; }, 'Место создано — назови его и обставь');
-      return;
-    }
+    if (d.mzPartTab) { part = d.mzPartTab; render(); return; }
+    if (d.mzNewp !== undefined) { await createPlace(host.querySelector('[data-mz-ptype]').value); return; }
     if (d.mzPenter) { enterPlace(d.mzPenter); return; }
     if (d.mzPsave) {
       const s0 = store.state;
@@ -172,13 +180,19 @@ export function createMapEditor({ toast, store, enterPlace }) {
       }
       if (t.matches('[data-mz-dimg]') && t.files?.[0]) { const image = await districtImage(t.files[0]); t.value = ''; await world((w) => { const x = w.districts.find((q) => q.id === district); if (x) x.image = image; }, 'Картинка района заменена'); return; }
       if (t.matches('[data-mz-dname]')) { await world((w) => { const x = w.districts.find((q) => q.id === district); if (x) x.name = t.value; }); return; }
-      if (t.matches('[data-mz-dplace]')) { await world((w) => { const x = w.districts.find((q) => q.id === district); if (x) { if (t.value) x.place = t.value; else delete x.place; } }); return; }
+      if (t.matches('[data-mz-dplace]')) {
+        if (t.value === '__new') { await createPlace('shop', (w, id) => { const x = w.districts.find((q) => q.id === district); if (x) x.place = id; }); return; }
+        await world((w) => { const x = w.districts.find((q) => q.id === district); if (x) { if (t.value) x.place = t.value; else delete x.place; } }); return;
+      }
       if (t.matches('[data-mz-pname]')) { await world((w) => { if (w.places[t.dataset.mzPname]) w.places[t.dataset.mzPname].name = t.value; }); return; }
       if (t.matches('[data-mz-part]') && t.files?.[0]) { const res = await prepareImage(t.files[0]); const id = t.dataset.mzPart; t.value = ''; await world((w) => { if (w.places[id]) w.places[id].art = res.src; }, 'Здание готово'); return; }
     } catch (err) { toast(err.message, true); return; }
     if (!list[sel]) return;
     if (t.matches('[data-mz-snd]')) { list[sel].snd = t.value; play(t.value); }
-    else if (t.matches('[data-mz-place]')) { if (t.value) list[sel].place = t.value; else delete list[sel].place; }
+    else if (t.matches('[data-mz-place]')) {
+      if (t.value === '__new') { const id = await createPlace('shop'); list[sel].place = id; dirty = true; render(); return; }
+      if (t.value) list[sel].place = t.value; else delete list[sel].place;
+    }
     else return;
     dirty = true; render();
   }
