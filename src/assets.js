@@ -14,7 +14,7 @@ export const ASSET_KEYS = [
   'items/sofa', 'items/armchair', 'items/rug', 'items/floor_lamp', 'items/tv_stand', 'items/plant_big', 'items/bookshelf',
   'items/blender', 'items/washing_machine', 'items/laundry_basket', 'items/smoothie_banana', 'items/tshirt', 'items/pants', 'items/dress',
   'items/banana', 'items/apple', 'items/milk', 'items/juice', 'items/cake', 'items/sandwich', 'items/tomato',
-  ...['grass', 'pond', 'fountain', 'flowerbed', 'rocks', 'bench', 'lamp', 'mushrooms', 'tree_pine', 'tree_blossom', 'tree', 'bush', 'cloud', 'iso_home', 'iso_shop', 'iso_disco', 'iso_cafe', 'iso_salon'].map((n) => 'map/' + n), 'map/horizon_mountains', 'map/horizon_city', 'map/horizon_hills', // карта-планета
+  ...['grass', 'pond', 'fountain', 'flowerbed', 'rocks', 'bench', 'lamp', 'mushrooms', 'tree_pine', 'tree_blossom', 'tree', 'bush', 'cloud', 'iso_home', 'iso_shop', 'iso_disco', 'iso_cafe', 'iso_salon'].map((n) => 'map/' + n), 'map/horizon_mountains', 'map/horizon_city', 'map/horizon_hills', ...['home', 'shop', 'disco', 'cafe', 'salon'].map((n) => 'map/district_' + n), // карта-планета
   'items/pet_bowl_empty', 'items/pet_bowl_full', 'items/pet_food_bag', 'items/pet_bone', 'items/pet_ball', 'items/pet_toy_mouse', 'items/pet_bed',
   'items/bread', 'items/toast', 'items/egg', 'items/fried_egg', 'items/cheese', 'items/pizza', 'items/carrot', 'items/potato', 'items/soup',
   'items/fridge', 'items/fridge_open', 'items/stove', 'items/sink_counter', 'items/kitchen_counter', 'items/kitchen_shelf', 'items/toaster',

@@ -335,6 +335,18 @@ def build_map():
         top = im.getchannel('A').point(lambda v: 255 if v > 24 else 0).getbbox()[1]  # горы полупрозрачные — по слабой альфе
         im = im.crop((0, top, im.width, im.height))
         save(im.resize((1024, round(im.height * 1024 / im.width)), Image.LANCZOS), f'map/horizon_{n}.webp', quality=85)
+    # Районы карты (по одному на место): большие картинки, ложатся на изгиб земли (ui/map.js).
+    from PIL import ImageFile
+    ImageFile.LOAD_TRUNCATED_IMAGES = True  # один файл пришёл недописанным — низ дорисуем травой
+    for n in ('home', 'shop', 'disco', 'cafe', 'salon'):
+        im = Image.open(os.path.join(SRC, f'map/district_{n}.png')).convert('RGBA')
+        a = im.getchannel('A')
+        last = a.point(lambda v: 255 if v > 200 else 0).getbbox()[3]
+        if last < im.height - 4:  # недорисованный низ — повторить полосу травы над ним
+            band = im.crop((0, last - 80, im.width, last))
+            for y in range(last, im.height, 80):
+                im.paste(band, (0, y))
+        save(im.resize((1600, 800), Image.LANCZOS), f'map/district_{n}.webp', quality=80)
     for n in ('home', 'shop', 'disco', 'cafe', 'salon'):  # места в изометрии (сценки)
         sprite(f'map/iso_{n}.png', f'map/iso_{n}.webp', max_w=560, max_h=560)
 
