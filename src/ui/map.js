@@ -69,6 +69,9 @@ export function createMap({ root, viewport, isNight = () => false, getPlace = ()
   let vel = 0, k = 1, W = 1600, raf = 0, lastT = 0, open = false, boxes = [], focus = null;
   let zoom = { t0: 0, from: 1, to: 1, dur: 0, then: null }, bounce = new Map(), soon = null, splash = new Map();
   const lampsOn = new Set();
+  const STEP = (Math.PI * 2) / PLACES.length; // один квартал — одно место
+  let snap = null; // долёт до квартала: { from, to, t0, dur }
+  function snapTo(to) { vel = 0; snap = { from: rot, to, t0: now(), dur: Math.min(0.7, 0.3 + Math.abs(to - rot) * 0.6) }; }
   const now = () => performance.now() / 1000;
 
   function resize() {
@@ -194,11 +197,11 @@ export function createMap({ root, viewport, isNight = () => false, getPlace = ()
   function frame(ts) {
     raf = 0; if (!open) return;
     const dt = lastT ? Math.min(0.05, (ts - lastT) / 1000) : 0; lastT = ts;
-    if (!drag && Math.abs(vel) > 0.0005) { rot += vel * dt; vel *= Math.exp(-2.6 * dt); }
+    if (snap) { const q = Math.min(1, (now() - snap.t0) / snap.dur), e = 1 - (1 - q) ** 3; rot = snap.from + (snap.to - snap.from) * e; if (q >= 1) { snap = null; try { localStorage.setItem(ROT_KEY, String(rot)); } catch (err) { /* не важно */ } } }
     draw();
     const t = now();
     if (zoom.dur && t - zoom.t0 >= zoom.dur) { const f = zoom.then; zoom = { dur: 0 }; f?.(); if (!open) return; }
-    const busy = drag || Math.abs(vel) > 0.0005 || zoom.dur || bounce.size || soon || splash.size;
+    const busy = drag || snap || zoom.dur || bounce.size || soon || splash.size;
     if (busy) kick(); else { lastT = 0; idle = setTimeout(kick, 120); } // облака плывут — редкие кадры
   }
   let idle = 0;
@@ -212,7 +215,7 @@ export function createMap({ root, viewport, isNight = () => false, getPlace = ()
   };
   cv.addEventListener('pointerdown', (e) => {
     if (zoom.then) return;
-    const p = toWorld(e); drag = { x0: p.x, y0: p.y, x: p.x, t0: now(), tl: now(), moved: false }; vel = 0;
+    const p = toWorld(e); drag = { x0: p.x, y0: p.y, x: p.x, t0: now(), tl: now(), moved: false, rot0: snap ? snap.to : rot }; vel = 0; snap = null;
     try { cv.setPointerCapture(e.pointerId); } catch (err) { /* нет */ }
     kick();
   });
@@ -229,9 +232,14 @@ export function createMap({ root, viewport, isNight = () => false, getPlace = ()
     if (!drag) return;
     const d = drag; drag = null;
     if (now() - d.tl > 0.08) vel = 0; // остановил палец — без инерции
-    vel = Math.max(-4, Math.min(4, vel));
-    try { localStorage.setItem(ROT_KEY, String(norm(rot))); } catch (err) { /* не важно */ }
-    if (!d.moved && e.type === 'pointerup') tap(toWorld(e));
+    if (!d.moved && e.type === 'pointerup') { snapTo(Math.round(rot / STEP) * STEP); tap(toWorld(e)); kick(); return; }
+    // Листание страницами: лёгкий свайп — земля сама долетает до следующего квартала.
+    const start = d.rot0, page0 = Math.round(start / STEP);
+    let page = Math.round((rot + vel * 0.18) / STEP);
+    if (page === page0 && Math.abs(rot - start) > 0.012) page += rot > start ? 1 : -1;
+    page = Math.max(page0 - 1, Math.min(page0 + 1, page)); // не больше одного квартала за раз
+    snapTo(page * STEP);
+    play('whoosh');
     kick();
   };
   cv.addEventListener('pointerup', up); cv.addEventListener('pointercancel', up);
@@ -256,7 +264,7 @@ export function createMap({ root, viewport, isNight = () => false, getPlace = ()
     const target = rot - norm(th.a + rot), from = rot;
     const t0 = now();
     const spin = () => { const q = Math.min(1, (now() - t0) / 0.35); rot = from + (target - from) * q * (2 - q); if (q < 1) requestAnimationFrame(spin); };
-    vel = 0; spin();
+    vel = 0; snap = null; spin();
     focus = { x: W / 2, y: HZ + 0.5 * 640 - 160 }; // здание повернётся вперёд — приближаем к нему
     zoom = { t0: now() + 0.0, from: 1, to: 2.3, dur: 0.6, fade: 1, then: () => { close(true); onEnter(th.place.id); } };
     setTimeout(() => play('whoosh'), 250);
@@ -266,7 +274,7 @@ export function createMap({ root, viewport, isNight = () => false, getPlace = ()
   function openMap() {
     // Планета повёрнута к месту, где сейчас игрок.
     const here = THINGS.find((t) => t.place?.id === getPlace());
-    if (here && Math.abs(norm(here.a + rot)) > 0.9) rot = -here.a;
+    if (here) rot = -here.a + Math.round((rot + here.a) / (Math.PI * 2)) * Math.PI * 2; // ровно на своём квартале
     if (open) return;
     open = true; el.hidden = false; resize(); lastT = 0;
     focus = null; zoom = { t0: now(), from: 1.8, to: 1, dur: 0.5, fade: -1 };
