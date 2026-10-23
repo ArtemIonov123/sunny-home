@@ -325,6 +325,11 @@ def build_map():
     save(im.resize((round(im.width * s), 220), Image.LANCZOS), 'map/ground.webp')
     for n, mw in [('tree', 360), ('bush', 260), ('cloud', 360)]:
         sprite(f'map/map_{n}.png', f'map/{n}.webp', max_w=mw, max_h=mw)
+    # Трава шара (вид сверху, бесшовная) и украшения планеты.
+    g = Image.open(os.path.join(SRC, 'map/map_grass_top.png')).convert('RGB').resize((512, 512), Image.LANCZOS)
+    save(g, 'map/grass.webp', quality=82)
+    for n, mw in [('pond', 420), ('fountain', 320), ('flowerbed', 260), ('rocks', 220), ('bench', 240), ('lamp', 260), ('mushrooms', 180), ('tree_pine', 340), ('tree_blossom', 380)]:
+        sprite(f'map/map_{n}.png', f'map/{n}.webp', max_w=mw, max_h=mw)
     for n in ('home', 'shop', 'disco', 'cafe', 'salon'):  # места в изометрии (сценки)
         sprite(f'map/iso_{n}.png', f'map/iso_{n}.webp', max_w=560, max_h=560)
 

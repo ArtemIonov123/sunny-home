@@ -24,16 +24,22 @@ export const PLACES = [
   { id: 'salon', art: 'map/iso_salon' },
 ];
 const THINGS = [];
+// Украшения по сторонам от дорожки: [картинка, доля пути между местами, сдвиг широты, ширина, отклик].
+const PROPS = [
+  [['map/pond', 0.5, 0.42, 250, 'splash'], ['map/tree_pine', 0.22, 0.26, 130], ['map/flowerbed', 0.7, -0.2, 120, 'pop'], ['map/mushrooms', 0.38, -0.16, 70, 'boing']],
+  [['map/fountain', 0.5, 0.4, 200, 'splash'], ['map/tree_blossom', 0.75, 0.28, 175], ['map/bench', 0.3, -0.19, 110, 'pop'], ['map/rocks', 0.62, -0.22, 95, 'pop']],
+  [['map/tree_blossom', 0.3, 0.3, 170], ['map/flowerbed', 0.6, 0.45, 130, 'pop'], ['map/tree_pine', 0.72, 0.24, 135], ['map/mushrooms', 0.5, -0.18, 70, 'boing']],
+  [['map/tree_pine', 0.25, 0.32, 140], ['map/rocks', 0.55, 0.42, 100, 'pop'], ['map/bench', 0.68, -0.19, 110, 'pop'], ['map/flowerbed', 0.4, -0.21, 115, 'pop']],
+  [['map/flowerbed', 0.45, 0.45, 140, 'pop'], ['map/tree_blossom', 0.5, 0.25, 160], ['map/bench', 0.62, 0.5, 105, 'pop'], ['map/mushrooms', 0.28, -0.17, 70, 'boing'], ['map/rocks', 0.75, -0.2, 90, 'pop']],
+];
 PLACES.forEach((p, k) => {
   const a = (k / PLACES.length) * Math.PI * 2, step = (Math.PI * 2) / PLACES.length;
   THINGS.push({ a, lat: LAT, art: p.art, w: 400, sink: 0.12, place: p });
-  if (k % 2 === 0) THINGS.push({ a: a + step * 0.5, lat: LAT + 0.3, art: 'map/tree', w: 170 });
-  THINGS.push({ a: a + step * 0.38, lat: LAT - 0.22, art: 'map/bush', w: 120 });
-  THINGS.push({ a: a + step * 0.66, lat: LAT - 0.05, art: k % 2 ? 'map/tree' : 'map/bush', w: k % 2 ? 150 : 115 });
+  for (const [art, f, dl, w, tap] of PROPS[k]) THINGS.push({ a: a + step * f, lat: LAT + dl, art, w, tap, id: 'p' + THINGS.length });
+  THINGS.push({ a: a + step * 0.15, lat: LAT + 0.55, art: k % 2 ? 'map/tree' : 'map/tree_pine', w: 120 });
+  for (const f of [0.25, 0.75]) THINGS.push({ a: a + step * f, lat: LAT - 0.1, art: 'map/lamp', w: 42, tap: 'lamp', lamp: true, id: 'l' + THINGS.length });
+  THINGS.push({ a: a + step * 0.88, lat: LAT + 0.12, art: 'map/bush', w: 100, tap: 'pop', id: 'b' + THINGS.length });
 });
-// Травинки и цветочки на шаре (одни и те же каждый раз).
-const hash = (n) => { const x = Math.sin(n * 127.1 + 311.7) * 43758.5453; return x - Math.floor(x); };
-const SPECKS = Array.from({ length: 240 }, (_, n) => ({ a: hash(n) * Math.PI * 2, lat: -0.2 + hash(n + 999) * 1.65, kind: hash(n + 77) < 0.3 ? 1 : 0, c: ['#ffffff', '#ffc4d6', '#fff1a8', '#e1cdff'][Math.floor(hash(n + 5) * 4)] }));
 const CLOUDS = [0, 1, 2, 3, 4, 5, 6].map((k) => ({ a: k * 0.9 + 0.3, r: RS + 260 + (k % 3) * 90, w: 190 + (k % 3) * 40, drift: 0.012 + (k % 4) * 0.004 }));
 const ROT_KEY = 'sunny-map-rot';
 
@@ -46,7 +52,8 @@ export function createMap({ root, viewport, isNight = () => false, getPlace = ()
 
   let rot = 0; try { rot = Number(localStorage.getItem(ROT_KEY)) || 0; } catch (e) { /* пусто */ }
   let vel = 0, k = 1, W = 1600, raf = 0, lastT = 0, open = false, boxes = [], focus = null;
-  let zoom = { t0: 0, from: 1, to: 1, dur: 0, then: null }, bounce = new Map(), soon = null;
+  let zoom = { t0: 0, from: 1, to: 1, dur: 0, then: null }, bounce = new Map(), soon = null, splash = new Map();
+  const lampsOn = new Set();
   const now = () => performance.now() / 1000;
 
   function resize() {
@@ -90,9 +97,26 @@ export function createMap({ root, viewport, isNight = () => false, getPlace = ()
       ctx.drawImage(cloud, -c.w / 2, -c.r - h / 2, c.w, h); ctx.restore();
     }
     ctx.globalAlpha = 1;
-    // Шар: трава со светом сверху-слева и тенью к краю.
+    // Шар: фактура травы «натянута» на него клетками (широта × долгота), сверху — свет и тень к краю.
+    ctx.fillStyle = '#7fc35a'; ctx.beginPath(); ctx.arc(cx, cy, RS, 0, Math.PI * 2); ctx.fill();
+    const grass = img('map/grass');
+    if (grass) {
+      const NL = 48, NB = 12, lat0 = -0.45, lat1 = Math.PI / 2, gw = grass.width / 8, gh = grass.height / 4;
+      for (let j = 0; j < NB; j++) {
+        const la = lat0 + (lat1 - lat0) * j / NB, lb = lat0 + (lat1 - lat0) * (j + 1) / NB;
+        for (let i = 0; i < NL; i++) {
+          const lo = rot + i * Math.PI * 2 / NL, lo2 = lo + Math.PI * 2 / NL;
+          const p0 = proj(la, lo), p1 = proj(la, lo2), p2 = proj(lb, lo), p3 = proj(lb, lo2);
+          if (p0.d < -0.05 && p1.d < -0.05 && p2.d < -0.05 && p3.d < -0.05) continue;
+          ctx.save();
+          ctx.transform((p1.x - p0.x) / gw, (p1.y - p0.y) / gw, (p2.x - p0.x) / gh, (p2.y - p0.y) / gh, p0.x, p0.y);
+          ctx.drawImage(grass, (i % 8) * gw, (j % 4) * gh, gw, gh, -0.6, -0.6, gw + 1.4, gh + 1.4);
+          ctx.restore();
+        }
+      }
+    }
     const g = ctx.createRadialGradient(cx - RS * 0.3, cy - RS * 0.55, RS * 0.1, cx, cy, RS);
-    g.addColorStop(0, '#b5e57f'); g.addColorStop(0.55, '#86c95e'); g.addColorStop(1, '#4f9a45');
+    g.addColorStop(0, 'rgba(255,255,220,.22)'); g.addColorStop(0.5, 'rgba(255,255,220,0)'); g.addColorStop(1, 'rgba(20,60,20,.18)');
     ctx.fillStyle = g; ctx.beginPath(); ctx.arc(cx, cy, RS, 0, Math.PI * 2); ctx.fill();
     ctx.lineWidth = 7; ctx.strokeStyle = '#3d7a37'; ctx.stroke();
     // Дорожка по кругу — по ней стоят места.
@@ -102,13 +126,6 @@ export function createMap({ root, viewport, isNight = () => false, getPlace = ()
       if (a0.d < 0 && a1.d < 0) continue;
       ctx.fillStyle = '#ead6a4'; ctx.beginPath(); ctx.moveTo(a0.x, a0.y); ctx.lineTo(a1.x, a1.y); ctx.lineTo(b1.x, b1.y); ctx.lineTo(b0.x, b0.y); ctx.closePath(); ctx.fill();
       ctx.strokeStyle = '#c9ab72'; ctx.lineWidth = 2.5; ctx.beginPath(); ctx.moveTo(a0.x, a0.y); ctx.lineTo(a1.x, a1.y); ctx.moveTo(b0.x, b0.y); ctx.lineTo(b1.x, b1.y); ctx.stroke();
-    }
-    // Травинки и цветочки.
-    for (const sp of SPECKS) {
-      const p = proj(sp.lat, sp.a + rot); if (p.d < 0.05) continue;
-      const s2 = 0.5 + 0.6 * p.d;
-      if (sp.kind) { ctx.fillStyle = sp.c; for (let q = 0; q < 5; q++) { ctx.beginPath(); ctx.ellipse(p.x + Math.cos(q * 1.26) * 5 * s2, p.y + Math.sin(q * 1.26) * 3 * s2, 4 * s2, 3 * s2, 0, 0, Math.PI * 2); ctx.fill(); } ctx.fillStyle = '#f2b84b'; ctx.beginPath(); ctx.arc(p.x, p.y, 3 * s2, 0, Math.PI * 2); ctx.fill(); }
-      else { ctx.strokeStyle = 'rgba(45,110,40,.55)'; ctx.lineWidth = 2.5 * s2; ctx.beginPath(); ctx.moveTo(p.x - 7 * s2, p.y - 6 * s2); ctx.lineTo(p.x - 2 * s2, p.y + 2 * s2); ctx.lineTo(p.x + 2 * s2, p.y - 8 * s2); ctx.lineTo(p.x + 5 * s2, p.y + 2 * s2); ctx.lineTo(p.x + 10 * s2, p.y - 5 * s2); ctx.stroke(); }
     }
     // Тень у края шара — он «круглый».
     const sh = ctx.createRadialGradient(cx, cy, RS * 0.72, cx, cy, RS);
@@ -124,15 +141,18 @@ export function createMap({ root, viewport, isNight = () => false, getPlace = ()
       const sc = 0.38 + 0.64 * p.d, w = th.w * sc, h = w * im.height / im.width;
       ctx.save(); ctx.globalAlpha = Math.min(1, (p.d - 0.02) / 0.15);
       ctx.translate(p.x, p.y + (th.sink || 0) * h);
-      const b = th.place && bounce.get(th.place.id);
-      if (b) { const q = (t - b) / 0.5; if (q < 1) { const s2 = Math.sin(q * Math.PI); ctx.translate(0, -40 * s2); ctx.scale(1 - 0.06 * s2, 1 + 0.08 * s2); } else bounce.delete(th.place.id); }
+      const key = th.place?.id || th.id, b = key && bounce.get(key);
+      if (b) { const q = (t - b) / 0.5; if (q < 1) { const s2 = Math.sin(q * Math.PI); ctx.translate(0, -40 * s2 * Math.min(1, w / 200)); ctx.scale(1 - 0.06 * s2, 1 + 0.08 * s2); } else bounce.delete(key); }
       ctx.drawImage(im, -w / 2, -h, w, h);
+      if (th.lamp && (night || lampsOn.has(th.id))) { ctx.globalCompositeOperation = 'lighter'; const gl = ctx.createRadialGradient(0, -h * 0.82, 2, 0, -h * 0.82, w * 1.6); gl.addColorStop(0, 'rgba(255,220,130,.9)'); gl.addColorStop(1, 'rgba(255,200,100,0)'); ctx.fillStyle = gl; ctx.fillRect(-w * 1.6, -h * 0.82 - w * 1.6, w * 3.2, w * 3.2); ctx.globalCompositeOperation = 'source-over'; }
+      const sp = splash.get(th.id); // брызги фонтана/пруда
+      if (sp) { const q = (t - sp) / 0.9; if (q < 1) { ctx.fillStyle = 'rgba(160,215,255,.9)'; for (let n = 0; n < 12; n++) { const an = -Math.PI / 2 + (n / 11 - 0.5) * 2.2, v = 1 + (n % 3) * 0.3; ctx.beginPath(); ctx.arc(Math.cos(an) * w * 0.5 * q * v, -h * 0.5 + Math.sin(an) * w * 0.45 * q * v + 160 * q * q, 5 * (1 - q) + 2, 0, Math.PI * 2); ctx.fill(); } } else splash.delete(th.id); }
       if (soon && th.place?.id === soon.id) { // ещё строится
         const q = (t - soon.t0) / 1.4;
         if (q < 1) { ctx.globalAlpha = Math.min(1, (1 - q) * 4); ctx.font = '64px sans-serif'; ctx.textAlign = 'center'; ctx.fillText('🚧', 0, -h - 20 - q * 30); } else soon = null;
       }
       ctx.restore();
-      if (th.place) boxes.push({ th, x0: p.x - w / 2, x1: p.x + w / 2, y0: p.y + (th.sink || 0) * h - h, y1: p.y + (th.sink || 0) * h, d: p.d });
+      if (th.place || th.tap) boxes.push({ th, x0: p.x - w / 2, x1: p.x + w / 2, y0: p.y + (th.sink || 0) * h - h, y1: p.y + (th.sink || 0) * h, d: p.d });
     }
     if (night) { ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.fillStyle = 'rgba(28,40,85,.25)'; ctx.fillRect(0, 0, cv.width, cv.height); }
     // Затемнение при входе
@@ -146,7 +166,7 @@ export function createMap({ root, viewport, isNight = () => false, getPlace = ()
     draw();
     const t = now();
     if (zoom.dur && t - zoom.t0 >= zoom.dur) { const f = zoom.then; zoom = { dur: 0 }; f?.(); if (!open) return; }
-    const busy = drag || Math.abs(vel) > 0.0005 || zoom.dur || bounce.size || soon;
+    const busy = drag || Math.abs(vel) > 0.0005 || zoom.dur || bounce.size || soon || splash.size;
     if (busy) kick(); else { lastT = 0; idle = setTimeout(kick, 120); } // облака плывут — редкие кадры
   }
   let idle = 0;
@@ -185,11 +205,18 @@ export function createMap({ root, viewport, isNight = () => false, getPlace = ()
   cv.addEventListener('pointerup', up); cv.addEventListener('pointercancel', up);
 
   function hitPlace(p) {
-    for (const bx of [...boxes].sort((u, v) => v.d - u.d)) if (p.x > bx.x0 && p.x < bx.x1 && p.y > bx.y0 && p.y < bx.y1) return bx.th;
+    for (const bx of [...boxes].sort((u, v) => (v.th.place ? 1 : 0) - (u.th.place ? 1 : 0) || v.d - u.d)) if (p.x > bx.x0 && p.x < bx.x1 && p.y > bx.y0 && p.y < bx.y1) return bx.th;
     return null;
   }
   function tap(p) {
     const th = hitPlace(p); if (!th) return;
+    if (!th.place) { // украшение: подпрыгнуть, брызнуть, зажечься
+      bounce.set(th.id, now());
+      if (th.tap === 'splash') { splash.set(th.id, now()); play('bubble'); setTimeout(() => play('bubble'), 120); }
+      else if (th.tap === 'lamp') { if (lampsOn.has(th.id)) lampsOn.delete(th.id); else lampsOn.add(th.id); play('click'); }
+      else play(th.tap === 'boing' ? 'boing' : 'pop');
+      kick(); return;
+    }
     bounce.set(th.place.id, now());
     if (!isReady(th.place.id)) { soon = { id: th.place.id, t0: now() }; play('boing'); return; }
     play('pop');

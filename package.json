@@ -1,6 +1,6 @@
 {
   "name": "sunny-home",
-  "version": "0.34.2",
+  "version": "0.34.3",
   "private": true,
   "description": "Солнечный дом — 2D-игра про дом в духе Toca Boca",
   "type": "module",
