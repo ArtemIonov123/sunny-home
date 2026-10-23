@@ -280,8 +280,12 @@ function drawHeld(ctx, it, mHand, mHead, toMouth, k) {
   const x = ph.x + (pm.x - ph.x) * toMouth, y = ph.y + (pm.y - ph.y) * toMouth;
   const w = it.w / k, h = it.h / k; // размер вещи в единицах холста героя
   ctx.save();
-  ctx.setTransform(mHand.a, mHand.b, mHand.c, mHand.d, x, y);
-  if (it.drink) ctx.rotate(-0.7 * toMouth); // пьёт — наклоняет
+  // Вещь в руке держится ровно (не переворачивается вместе с ладошкой, когда рука у рта):
+  // берём из руки только размер и зеркало, а поворот — лишь чуть-чуть (еда) или наклон ко рту (напиток).
+  const sc = Math.hypot(mHand.a, mHand.b), mirror = mHand.a * mHand.d - mHand.b * mHand.c < 0 ? -1 : 1;
+  const handAng = Math.atan2(mHand.b, mHand.a) * mirror;
+  ctx.setTransform(sc * mirror, 0, 0, sc, x, y);
+  ctx.rotate(it.drink ? -0.6 * Math.max(toMouth, Math.min(1, Math.abs(handAng) / 2)) : Math.max(-0.35, Math.min(0.35, handAng * 0.2))); // пьёт — наклоняет стакан ко рту
   let src = it.im;
   if (it.bites && !it.drink) {
     biteCv ||= document.createElement('canvas');
