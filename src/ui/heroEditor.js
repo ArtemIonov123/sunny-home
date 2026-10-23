@@ -10,7 +10,10 @@ import { play } from '../audio.js';
 
 const TABS = [['skin', '🎨', 'Кожа'], ['hair', '💇', 'Причёска'], ['face', '😊', 'Лицо'], ['wear', '👕', 'Одежда']];
 const HEAD_BOX = [78, 8, 352, 300];
-const WEAR_LIST = ['tshirt', 'dress', 'pants', 'skirt', 'sneakers', 'cap', 'glasses'];
+// Вся одежда: встроенная и своя (из студии и паков), по типам: верх, платья, низ, обувь, голова.
+const TYPE_ORDER = ['top', 'dress', 'pants', 'skirt', 'shoes', 'hat', 'glasses'];
+const wearList = () => Object.keys(WEAR).sort((a, b) => TYPE_ORDER.indexOf(WEAR[a].type) - TYPE_ORDER.indexOf(WEAR[b].type) || (WEAR[a].custom ? 1 : 0) - (WEAR[b].custom ? 1 : 0));
+const firstColor = (w, k) => WEAR[w]?.color || WEAR_COLORS[(k * 5) % WEAR_COLORS.length];
 const PLAIN = '#f6f2ea'; // ненадетая вещь на кнопке — белая
 
 // Рамка слоя на холсте героя (для картинки-кнопки вещи).
@@ -93,7 +96,7 @@ export function createHeroEditor({ root, store, actions, onChange }) {
     } else {
       if (picked && !look.wear[picked]) picked = null;
       if (!picked) picked = Object.keys(look.wear)[0] || null;
-      opts.innerHTML = `<div class="hs-grid">${WEAR_LIST.map((w) => {
+      opts.innerHTML = `<div class="hs-grid">${wearList().map((w) => {
         const t = partThumb(layerBox('wear_' + w), (c) => drawPart(c, 'wear_' + w, look.wear[w] || PLAIN));
         const cls = (look.wear[w] ? ' on' : '') + (w === picked ? ' picked' : '');
         return `<button class="hs-pick wear${cls}" data-hs-wear="${w}" aria-label="${w}"><img src="${url(t)}" alt=""></button>`;
@@ -119,7 +122,7 @@ export function createHeroEditor({ root, store, actions, onChange }) {
       const w = d.hsWear, on = !!look.wear[w];
       // Нажал на надетую, но не выбранную — просто выбрать её для покраски; иначе надеть/снять.
       if (on && picked !== w) { picked = w; play('click'); renderOpts(); return; }
-      const next = toggleWear(look, w, on ? null : (WEAR_COLORS[(WEAR_LIST.indexOf(w) * 5) % WEAR_COLORS.length]));
+      const next = toggleWear(look, w, on ? null : firstColor(w, wearList().indexOf(w)));
       picked = next.wear[w] ? w : null;
       setLook(next);
       play(next.wear[w] ? 'pop' : 'stash');

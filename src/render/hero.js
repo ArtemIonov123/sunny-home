@@ -4,7 +4,7 @@
 // и размеры работают так же, как у предметов.
 import { HERO_SIZE, HERO_LAYERS } from './heroLayout.js';
 import { img, registerImage } from '../assets.js';
-import { WEAR_ORDER, WEAR_TOP } from '../core/looks.js';
+import { bodyWear, headWear } from '../core/looks.js';
 import { buildRig, setRig } from './rig.js';
 
 const tints = new Map(); // 'ключ|цвет' → холст
@@ -43,14 +43,16 @@ export function drawHero(c, look, { face = null, sc = 1 } = {}) {
   const hair = look.hair === 'long' ? 'long_front' : look.hair;
   if (look.hair === 'long') part(c, 'hair_long_back', look.hairColor, sc);
   part(c, 'body_stand', look.skin, sc);
-  for (const w of WEAR_ORDER) if (look.wear[w]) part(c, 'wear_' + w, look.wear[w], sc);
+  for (const w of bodyWear(look.wear)) part(c, 'wear_' + w, look.wear[w], sc);
   part(c, 'head', look.skin, sc);
   part(c, 'face_' + (face || look.face), null, sc);
   if (hair !== 'none') { part(c, 'hair_cap', look.hairColor, sc); part(c, 'hair_' + hair, look.hairColor, sc); } // шапочка закрывает макушку
-  for (const w of WEAR_TOP) if (look.wear[w]) part(c, 'wear_' + w, look.wear[w], sc);
+  for (const w of headWear(look.wear)) part(c, 'wear_' + w, look.wear[w], sc);
 }
 
 const built = new Map(); // id → подпись внешности (чтобы не пересобирать без нужды)
+// Картинки одежды поменялись (своя вещь сохранена в студии) — героев собрать заново.
+export function heroArtChanged() { built.clear(); tints.clear(); }
 export function composeHero(look, opts = {}) {
   const cv = document.createElement('canvas');
   cv.width = HERO_SIZE[0]; cv.height = feet();

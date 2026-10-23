@@ -212,7 +212,7 @@ export async function publishForPlayers({ locked, gift }, onStep = () => {}) {
 // правки встроенных предметов, свои рецепты, свои животные с «выдать игроку». Плюс список «не выдавать».
 // Комнаты и расстановка — это сохранение дома, не каталог: игрокам не отправляются.
 export async function sendGameUpdate(onStep = () => {}) {
-  const items = listRecords().filter((r) => r.animal && r.give);
+  const items = listRecords().filter((r) => (r.animal || r.cloth) && r.give);
   const overrides = listOverrides(), recipes = listOwnRecipes(), mapZones = ownZones(), world = ownWorld();
   const hasWorld = world.districts.length || Object.keys(world.places).length || Object.keys(world.finishes).length;
   const gift = items.length || overrides.length || recipes.length || Object.keys(mapZones).length || hasWorld

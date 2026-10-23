@@ -7,7 +7,8 @@
 // (см. PART_LAYERS: если такие картинки есть, используются они).
 import { HERO_SIZE, HERO_LAYERS } from './heroLayout.js';
 import { img } from '../assets.js';
-import { WEAR_ORDER, WEAR_TOP } from '../core/looks.js';
+import { WEAR, WEAR_TYPES, bodyWear, headWear } from '../core/looks.js';
+import { garmentBones } from './garment.js';
 import { drawPart } from './hero.js';
 
 const W = HERO_SIZE[0];
@@ -94,6 +95,8 @@ const PART_BONES = {
   wear_dress_body: 'torso', wear_dress_sleeve_left: 'armUpL', wear_dress_sleeve_right: 'armUpR',
   wear_pants_hips: 'torso', wear_pants_leg_left: 'legL', wear_pants_leg_right: 'legR',
 };
+// Как вещь режется по костям — по её типу (core/looks.js).
+const cutOf = (w) => WEAR_TYPES[WEAR[w]?.type]?.cut || 'free';
 const has = (layer) => !!(HERO_LAYERS[`hero/${layer}_t`] || HERO_LAYERS[`hero/${layer}_f`]);
 
 // Какие слои в какую кость: [слой, цвет, способ].
@@ -103,10 +106,7 @@ const has = (layer) => !!(HERO_LAYERS[`hero/${layer}_t`] || HERO_LAYERS[`hero/${
 function sources(look, grip = {}) {
   if (FULL_PARTS) return partSources(look, grip);
   const out = [['body_stand', look.skin, 'all']];
-  for (const w of WEAR_ORDER) {
-    if (!look.wear[w]) continue;
-    out.push(['wear_' + w, look.wear[w], w === 'dress' ? 'sleeves' : w === 'skirt' ? 'free' : 'all']);
-  }
+  for (const w of bodyWear(look.wear)) out.push(['wear_' + w, look.wear[w], cutOf(w)]);
   return out;
 }
 
@@ -119,8 +119,14 @@ function partSources(look, grip) {
     const n = grip[side] && has('hand_grip_' + side) ? 'hand_grip_' + side : 'arm_lower_' + side;
     if (has(n)) out.push([n, look.skin, 'bone:' + bone]);
   }
-  for (const w of WEAR_ORDER) {
-    const c = look.wear[w]; if (!c) continue;
+  for (const w of bodyWear(look.wear)) {
+    const c = look.wear[w];
+    if (WEAR[w].custom) { // своя вещь: поделена по костям заранее (render/garment.js) или режется по контурам
+      const bones = garmentBones(w);
+      if (bones) for (const bone of bones) out.push([`wear_${w}__${bone}`, c, 'bone:' + bone]);
+      else out.push(['wear_' + w, c, cutOf(w)]);
+      continue;
+    }
     if (w === 'tshirt' || w === 'dress') { add(`wear_${w}_body`, c); add(`wear_${w}_sleeve_left`, c); add(`wear_${w}_sleeve_right`, c); }
     else if (w === 'pants') { add('wear_pants_hips', c); add('wear_pants_leg_left', c); add('wear_pants_leg_right', c); }
     else if (w === 'sneakers') out.push(['wear_sneakers', c, 'legs']); // кеды делим пополам: левый и правый
@@ -144,7 +150,7 @@ export function buildRig(look, face = null, grip = {}) {
   const hair = look.hair === 'long' ? 'long_front' : look.hair;
   plan.head.push(['head', look.skin, 'bone:head'], ['face_' + (face || look.face), null, 'bone:head']);
   if (hair !== 'none') plan.head.push(['hair_cap', look.hairColor, 'bone:head'], ['hair_' + hair, look.hairColor, 'bone:head']);
-  for (const w of WEAR_TOP) if (look.wear[w]) plan.head.push(['wear_' + w, look.wear[w], 'bone:head']);
+  for (const w of headWear(look.wear)) plan.head.push(['wear_' + w, look.wear[w], 'bone:head']);
 
   // Холст кости — по размеру того, что в ней нарисовано (части от GPT могут быть больше вырезанных).
   const bones = {};

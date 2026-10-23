@@ -7,6 +7,9 @@ import { loadCatalogRecords, saveCatalogRecords, loadOldStudio, loadOverrides, s
 import { validateRecipe, setOwnRecipes, listOwnRecipes, addPackRecipes } from './recipes.js';
 import { ANIMAL_PARTS, JOINT_PARTS, VOICES, setupAnimal, forgetAnimal } from '../render/animal.js';
 import { unlock } from './access.js';
+import { WEAR_TYPES } from './looks.js';
+import { registerGarment, unregisterGarment } from '../render/garment.js';
+import { isHex } from '../util.js';
 import { itemDef } from './catalog.js';
 import { cleanAllZones, setPackZones } from './mapZones.js';
 import { cleanWorld, setPackWorld } from './world.js';
@@ -68,6 +71,13 @@ export function cleanLiving(raw) {
   }
   if (raw.drink === true) out.drink = true;
   if (WEARS[raw.wear]) out.wear = raw.wear;
+  // Своя одежда: картинка вещи «на герое», рамка на холсте героя, тип, цвет по умолчанию, перекрашивать ли.
+  const cl = raw.cloth, b = cl?.box;
+  if (cl && typeof cl === 'object' && WEAR_TYPES[cl.type] && typeof cl.image === 'string' && IMG_RE.test(cl.image) && cl.image.length < 1_500_000
+    && Array.isArray(b) && b.length === 4 && b.every(Number.isFinite) && b[2] >= 6 && b[3] >= 6 && b[2] <= 900 && b[3] <= 1100 && b[0] > -400 && b[0] < 900 && b[1] > -400 && b[1] < 1300) {
+    out.cloth = { type: cl.type, image: cl.image, box: b.map((v) => Math.round(v * 10) / 10), color: isHex(cl.color) ? cl.color : '#ff8fa8', tint: cl.tint !== false, ...(cl.own === true ? { own: true } : {}) }; // own — своя картинка «лежит в доме»
+    delete out.wear;
+  }
   return out;
 }
 
@@ -92,6 +102,7 @@ async function install(rec, { builtin = false } = {}) {
     for (const [k, src] of Object.entries(rec.animal.parts)) registerImage(def.animal.parts[k], await loadImage(src));
     setupAnimal(def);
   }
+  if (rec.cloth) registerGarment(rec.id, rec.cloth, await loadImage(rec.cloth.image));
   putCustomDef(def);
   if (!builtin) records.set(rec.id, rec);
 }
@@ -319,6 +330,7 @@ export async function deleteRecord(id) {
   forgetImage('custom/' + id); forgetImage('custom/' + id + '_open');
   for (const k of Object.keys(ANIMAL_PARTS)) forgetImage('custom/' + id + '_a_' + k);
   forgetAnimal(id);
+  unregisterGarment(id);
 }
 
 // Импорт пака: новый формат «sunny-home-items» v2 или пак старой Studio 0.3 (v1).

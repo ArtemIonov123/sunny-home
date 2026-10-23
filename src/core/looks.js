@@ -7,14 +7,35 @@ export const HAIR_COLORS = ['#2a201c', '#553420', '#8a5530', '#c27c3a', '#e8c46a
 export const WEAR_COLORS = ['#ff8fa8', '#ff6b6b', '#ffb36b', '#ffe27a', '#a8e08a', '#6fcfc0', '#7fb1f0', '#3d6fc4', '#b49cf0', '#f6f2ea', '#8b8f9c', '#4a4e5a'];
 export const HAIRS = ['braids', 'bob', 'ponytail', 'bun', 'curly', 'spiky', 'bangs', 'long', 'none'];
 export const FACES = ['happy', 'laugh', 'yum', 'surprised', 'sad', 'sleep'];
-// Вещь → «место» на теле. В одном месте одна вещь; платье занимает и верх, и низ.
-export const WEAR = {
-  tshirt: { slot: 'top' }, dress: { slot: 'dress' }, pants: { slot: 'bottom' }, skirt: { slot: 'bottom' },
-  sneakers: { slot: 'shoes' }, cap: { slot: 'hat' }, glasses: { slot: 'glasses' },
+// Типы одежды: место на теле (slot — в одном месте одна вещь; платье занимает и верх, и низ),
+// порядок рисования (rank — снизу вверх) и как вещь двигается со скелетом (cut, см. render/rig.js):
+//  all — режется по костям (рукава идут за руками, штанины — за ногами), sleeves — в руки только рукава,
+//  free — целиком на туловище (юбка), legs — на голенях (обувь), head — на голове (поверх волос).
+export const WEAR_TYPES = {
+  top:     { slot: 'top', rank: 3, cut: 'all', icon: '👕', name: 'Верх', hint: 'Футболка, кофта, свитер, худи. Рукава двигаются вместе с руками.' },
+  dress:   { slot: 'dress', rank: 4, cut: 'sleeves', icon: '👗', name: 'Платье', hint: 'Платье, сарафан, комбинезон. Занимает и верх, и низ; рукава идут за руками, подол — на туловище.' },
+  pants:   { slot: 'bottom', rank: 1, cut: 'all', icon: '👖', name: 'Штаны', hint: 'Штаны, шорты, леггинсы. Штанины двигаются вместе с ногами.' },
+  skirt:   { slot: 'bottom', rank: 2, cut: 'free', icon: '🩳', name: 'Юбка', hint: 'Юбка, пачка. Висит на туловище, ноги под ней двигаются свободно.' },
+  shoes:   { slot: 'shoes', rank: 0, cut: 'legs', icon: '👟', name: 'Обувь', hint: 'Кеды, сапоги, тапочки. Делятся на левую и правую ногу.' },
+  glasses: { slot: 'glasses', rank: 10, cut: 'head', icon: '👓', name: 'Очки', hint: 'Очки, маска. На лице, поверх волос.' },
+  hat:     { slot: 'hat', rank: 11, cut: 'head', icon: '🧢', name: 'Шапка', hint: 'Кепка, шапка, корона, бант. На голове, поверх волос.' },
 };
-// Порядок рисования одежды (снизу вверх).
+// Вещь → тип. Встроенные — ниже; свои (из студии и паков) добавляет registerWear (render/garment.js).
+export const WEAR = {
+  tshirt: { type: 'top' }, dress: { type: 'dress' }, pants: { type: 'pants' }, skirt: { type: 'skirt' },
+  sneakers: { type: 'shoes' }, cap: { type: 'hat' }, glasses: { type: 'glasses' },
+};
+for (const w of Object.values(WEAR)) w.slot = WEAR_TYPES[w.type].slot;
+export const BUILTIN_WEAR = Object.keys(WEAR);
+export function registerWear(id, type, color) { if (WEAR_TYPES[type]) WEAR[id] = { type, slot: WEAR_TYPES[type].slot, custom: true, color }; }
+export function unregisterWear(id) { if (WEAR[id]?.custom) delete WEAR[id]; }
+const rankOf = (k) => WEAR_TYPES[WEAR[k]?.type]?.rank ?? 5;
+// Что надето — в порядке рисования: на теле (снизу вверх) и на голове (поверх волос).
+export const bodyWear = (wear) => Object.keys(wear || {}).filter((k) => WEAR[k] && WEAR_TYPES[WEAR[k].type].cut !== 'head').sort((a, b) => rankOf(a) - rankOf(b));
+export const headWear = (wear) => Object.keys(wear || {}).filter((k) => WEAR[k] && WEAR_TYPES[WEAR[k].type].cut === 'head').sort((a, b) => rankOf(a) - rankOf(b));
+// Старые имена (порядок встроенных вещей).
 export const WEAR_ORDER = ['sneakers', 'pants', 'skirt', 'tshirt', 'dress'];
-export const WEAR_TOP = ['glasses', 'cap']; // поверх головы и волос
+export const WEAR_TOP = ['glasses', 'cap'];
 
 export const DEFAULT_LOOKS = {
   girl: { skin: '#d9a074', hair: 'braids', hairColor: '#2a201c', face: 'happy', wear: { dress: '#ffe27a', sneakers: '#f6f2ea' } },
@@ -48,7 +69,7 @@ export function toggleWear(look, item, color) {
     const s = WEAR[k].slot;
     if (s === slot || (slot === 'dress' && (s === 'top' || s === 'bottom')) || ((slot === 'top' || slot === 'bottom') && s === 'dress')) delete wear[k];
   }
-  wear[item] = color || look.wear[item] || WEAR_COLORS[0];
+  wear[item] = color || look.wear[item] || WEAR[item].color || WEAR_COLORS[0];
   return { ...look, wear };
 }
 

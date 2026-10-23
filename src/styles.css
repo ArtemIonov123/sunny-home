@@ -472,3 +472,18 @@ button.st-name:active { background: #f4ecdf; }
 .fin-row img { width: 72px; height: 40px; object-fit: cover; border-radius: 6px; }
 .fin-row input { flex: 1; min-height: 36px; border-radius: 8px; border: 1px solid #dfe3d2; padding: 0 8px; }
 .adm-check { display: inline-flex; gap: 6px; align-items: center; font-size: 14px; }
+
+/* Студия → «Одежда» */
+.ce-steps { margin: 6px 0 10px; padding-left: 22px; font-size: 13px; color: #5f5a50; display: grid; gap: 4px; }
+.ce-types { display: grid; grid-template-columns: repeat(auto-fill, minmax(84px, 1fr)); gap: 6px; margin-top: 4px; }
+.ce-types button { display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 8px 4px; border-radius: 12px; border: 2px solid #ead6b4; background: #fff; font-size: 13px; }
+.ce-types button span { font-size: 24px; line-height: 1; }
+.ce-types button.on { background: #ffd98c; border-color: #c9a477; }
+.ce-hint { display: block; margin-top: 4px; color: #7a7466; font-size: 12px; font-weight: normal; }
+.ce-row { display: flex; gap: 10px; align-items: center; margin-top: 4px; }
+.ce-col { display: flex; flex-direction: column; gap: 6px; align-items: flex-start; }
+.ce-thumb { width: 84px; height: 84px; flex: none; display: grid; place-items: center; border-radius: 12px; border: 2px solid #ead6b4; background: repeating-conic-gradient(#eee 0 25%, #fff 0 50%) 0 0/12px 12px; font-size: 30px; color: #c9b48f; }
+.ce-thumb img { max-width: 76px; max-height: 76px; object-fit: contain; }
+.ce-preview { flex: 1 1 300px; }
+.ce-canvas { width: 100%; max-width: 440px; aspect-ratio: 440 / 560; border-radius: 14px; border: 2px solid #ead6b4; touch-action: none; display: block; margin: 0 auto; }
+.ce-nudge button { min-width: 44px; }
