@@ -29,6 +29,7 @@ export function createHud({ root, store, camera, actions, onChange }) {
   root.innerHTML = `
     <div class="hud-top-left"><button class="avatar-btn" data-act="settings" aria-label="Настройки и профиль"><img alt=""></button><button class="btn home-btn" data-act="home" aria-label="Домой">🏠</button><div class="brand"><span class="sun">✺</span>Солнечный дом${STUDIO ? ' · студия' : ''}<small>${VERSION}</small></div></div>
     <div class="hud-top-right">
+      <button class="btn icon map-btn" data-act="map" aria-label="Карта" title="Карта">🗺️</button>
       <button class="btn icon" data-act="undo" aria-label="Отменить" title="Отменить">↶</button>
       <button class="btn icon" data-act="night" aria-label="День или вечер" title="День / вечер">☾</button>
       <button class="btn icon" data-act="settings" aria-label="Настройки" title="Настройки">⚙️</button>
@@ -183,6 +184,7 @@ export function createHud({ root, store, camera, actions, onChange }) {
     else if (act === 'home') { visit?.leave(); play('whoosh'); }
     else if (act === 'emote') { const p = q('.emote-pick'); p.hidden = !p.hidden; play('click'); }
     else if (t.dataset.emote) { q('.emote-pick').hidden = true; if (visit?.emote(t.dataset.emote)) { play('pop'); onChange(); } }
+    else if (act === 'map') { showPanel(null); if (heroEditor.isOpen) heroEditor.close(); onMap?.(); }
     else if (act === 'night') actions.toggleNight();
     else if (act === 'full') fullscreen();
     else if (act === 'admin') { showPanel(null); admin.open(); }
@@ -288,7 +290,7 @@ export function createHud({ root, store, camera, actions, onChange }) {
   }
 
   // Кнопки «позвать»: по одной на каждое животное в доме, с его мордочкой.
-  let pets = null, callPet = null;
+  let pets = null, callPet = null, onMap = null;
   const faces = new Map(); // id определения → картинка мордочки
   function faceOf(defId) {
     if (faces.has(defId)) return faces.get(defId);
@@ -321,6 +323,7 @@ export function createHud({ root, store, camera, actions, onChange }) {
     closePanels() { if (!mode.design) showPanel(null); },
     setDesign,
     setPets(p, onCall) { pets = p; callPet = onCall; },
+    setMap(f) { onMap = f; },
     friends, getMe,
     setVisit(v) { visit = v; settings.setVisit(v); },
     // В гостях: нет «Вещей», редактора, магазина, отмены, ночи, героев и кнопок животных; есть «домой».

@@ -24,6 +24,7 @@ import { refreshHero } from './render/hero.js';
 import { rigAnims, getRig, drawRig, LIE } from './render/rig.js';
 import { animalAnims, setupAnimal } from './render/animal.js';
 import { createPets } from './core/pets.js';
+import { createMap } from './ui/map.js';
 import { createVisit } from './net/visit.js';
 
 const $ = (id) => document.getElementById(id);
@@ -85,6 +86,9 @@ async function boot() {
     onArrive: (id, called) => { if (called) { anims.hop('item:' + id); animalAnims.happy(id); play(itemDef(store.state.items.find((i) => i.id === id)?.def)?.animal?.voice || 'pop'); } },
   });
   renderer.setPets(pets);
+  // Карта-планета: дом и другие места (пока строятся).
+  const map = createMap({ root: $('app'), isNight: () => !!store.state.night, onEnter: () => { invalidate(); } });
+  hud.setMap(() => map.open());
   // В гости к друзьям и гости у меня (net/visit.js).
   const visit = createVisit({
     friends: hud.friends, store, getMe: hud.getMe, camera, toast: hud.toast, pets,
@@ -377,7 +381,7 @@ async function boot() {
   });
 
   // Для автотестов и отладки.
-  window.__sunny = { pets, visit, interaction, rig: { rigAnims, getRig, drawRig, LIE }, store, camera, renderer, actions, viewport, saveNow, physics: { surfacesOf, syncChildren }, mode, hud };
+  window.__sunny = { map, pets, visit, interaction, rig: { rigAnims, getRig, drawRig, LIE }, store, camera, renderer, actions, viewport, saveNow, physics: { surfacesOf, syncChildren }, mode, hud };
 }
 
 boot().catch((e) => {

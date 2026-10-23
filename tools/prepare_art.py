@@ -314,7 +314,25 @@ def copy_webp(name, rel):
     save(im.convert('RGBA'), rel, quality=90)
 
 
+def build_map():
+    """Карта-планета (ui/map.js): полоса земли — бесшовная (обрезаем закруглённые края и сводим),
+    здания и деревья — спрайты."""
+    im = keyed('map/map_ground_strip.png')  # уже обрезана по содержимому
+    w, h = im.size
+    im = im.crop((40, 0, w - 40, h))        # без закруглённых торцов с контуром
+    im = seamless(im, 90)
+    s = 220 / im.height
+    save(im.resize((round(im.width * s), 220), Image.LANCZOS), 'map/ground.webp')
+    for n, mw in [('house', 460), ('shop', 460), ('disco', 460), ('cafe', 460), ('salon', 460), ('tree', 360), ('bush', 260), ('cloud', 360)]:
+        sprite(f'map/map_{n}.png', f'map/{n}.webp', max_w=mw, max_h=mw)
+
+
 if __name__ == '__main__':
+    import sys
+    if sys.argv[1:] == ['map']:  # только карта (быстро)
+        build_map()
+        sys.exit()
+    build_map()
     # Гостиная. Стена рисуется высотой до 600 px, пол — до 420 px (зависит от разметки комнаты).
     gray_texture('living/living_wall.png', 'rooms/living/wall.webp', 600, 0.80, 90)
     gray_texture('living/living_floor_wood.png', 'rooms/living/floor_wood.webp', 420, 0.6, 60)
