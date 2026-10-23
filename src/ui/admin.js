@@ -10,6 +10,7 @@ import { normalize } from '../core/actions.js';
 import { createItemEditor } from './itemEditor.js';
 import { createAnimalEditor } from './animalEditor.js';
 import { createClothesEditor } from './clothesEditor.js';
+import { createHeroArtEditor } from './heroArtEditor.js';
 import { createMapEditor } from './mapEditor.js';
 import { ownWorld, saveOwnWorld, newFinishId } from '../core/world.js';
 import { loadImage } from '../assets.js';
@@ -38,12 +39,14 @@ export function createAdmin({ root, store, camera, actions, toast, onChange }) {
   animals.bind(el);
   const clothes = createClothesEditor({ store, actions, toast, onChange });
   clothes.bind(el);
+  const heroArt = createHeroArtEditor({ store, actions, toast, onChange });
+  heroArt.bind(el);
   // «Зайти и обставить» своё место: закрыть админку и перейти туда (обставлять — обычным редактором).
   const mapEd = createMapEditor({ toast, store, enterPlace: (id) => { if (actions.goPlace(id) || (store.state.place === id)) { camera.holdAt(0); camera.mode = 'idle'; close(); toast('Ты в своём месте. Обставь его и нажми ✎ Админка → «Карта» → «Сохранить обстановку»'); onChange(); } } });
   mapEd.bind(el);
 
   const open = () => { isOpen = true; el.hidden = false; render(); onChange(); };
-  const close = () => { isOpen = false; el.hidden = true; clothes.unmount(); onChange(); };
+  const close = () => { isOpen = false; el.hidden = true; clothes.unmount(); heroArt.unmount(); onChange(); };
 
   // Свои отделки: фактура стены или пола от GPT → новый вид в «🖌️ Отделка» для любой комнаты.
   let finKind = 'wall', finTint = true;
@@ -298,23 +301,24 @@ export function createAdmin({ root, store, camera, actions, toast, onChange }) {
 
   function render() {
     if (!isOpen) return;
-    const tabs = { rooms: 'Комнаты', markup: 'Разметка', items: 'Предметы', clothes: 'Одежда', animals: 'Животные', recipes: 'Рецепты', map: 'Карта', packs: 'Паки', data: 'Данные' };
+    const tabs = { rooms: 'Комнаты', markup: 'Разметка', items: 'Предметы', heroes: 'Герои', clothes: 'Одежда', animals: 'Животные', recipes: 'Рецепты', map: 'Карта', packs: 'Паки', data: 'Данные' };
     const navX = el.querySelector('header nav')?.scrollLeft || 0; // перерисовка не должна сбрасывать прокрутку вкладок
     el.innerHTML = `<header><b>Админка</b>
         <nav>${Object.entries(tabs).map(([k, n]) => `<button class="tab${tab === k ? ' on' : ''}" data-tab="${k}">${n}</button>`).join('')}</nav>
         <button class="adm-send" data-send${hasToken() && !sending ? '' : ' disabled'} title="${hasToken() ? 'Отправить правки, рецепты и животных всем игрокам' : 'Нужен ключ GitHub (Паки → публикация)'}">${sending ? '⏳' : '📤 В игру'}</button>
         <button class="close" data-x aria-label="Закрыть">×</button></header>
-      <div class="adm-body">${tab === 'rooms' ? roomsTab() : tab === 'markup' ? markupTab() : tab === 'items' ? '<div class="items-tab"></div>' : tab === 'animals' ? '<div class="animals-tab"></div>' : tab === 'clothes' ? '<div class="clothes-tab"></div>' : tab === 'map' ? '<div class="map-tab"></div>' : tab === 'packs' ? packsTab() : tab === 'recipes' ? recipesTab() : dataTab()}</div>`;
+      <div class="adm-body">${tab === 'rooms' ? roomsTab() : tab === 'markup' ? markupTab() : tab === 'items' ? '<div class="items-tab"></div>' : tab === 'animals' ? '<div class="animals-tab"></div>' : tab === 'clothes' ? '<div class="clothes-tab"></div>' : tab === 'heroes' ? '<div class="heroart-tab"></div>' : tab === 'map' ? '<div class="map-tab"></div>' : tab === 'packs' ? packsTab() : tab === 'recipes' ? recipesTab() : dataTab()}</div>`;
     const nav = el.querySelector('header nav'); if (nav) nav.scrollLeft = navX;
     if (tab === 'items') items.mount(el.querySelector('.items-tab'));
     if (tab === 'animals') animals.mount(el.querySelector('.animals-tab'));
     if (tab === 'clothes') clothes.mount(el.querySelector('.clothes-tab')); else clothes.unmount();
+    if (tab === 'heroes') heroArt.mount(el.querySelector('.heroart-tab')); else heroArt.unmount();
     if (tab === 'map') mapEd.mount(el.querySelector('.map-tab'));
     if (tab === 'packs') drawCoverPreview();
   }
 
   el.addEventListener('click', async (e) => {
-    const b = e.target.closest('button'); if (!b || b.closest('.items-tab') || b.closest('.animals-tab') || b.closest('.clothes-tab') || b.closest('.map-tab')) return; // «Предметы» обрабатывает свой модуль
+    const b = e.target.closest('button'); if (!b || b.closest('.items-tab') || b.closest('.animals-tab') || b.closest('.clothes-tab') || b.closest('.heroart-tab') || b.closest('.map-tab')) return; // «Предметы» обрабатывает свой модуль
     const id = b.closest('.adm-row')?.dataset.id;
     if (b.dataset.x !== undefined) { if (items.dirty && tab === 'items') toast('Черновик предмета сохранится до следующего открытия админки'); return close(); }
     if (b.dataset.send !== undefined) { sendUpdate(); return; }

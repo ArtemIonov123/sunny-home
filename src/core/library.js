@@ -10,9 +10,10 @@ import { unlock } from './access.js';
 import { WEAR_TYPES } from './looks.js';
 import { registerGarment, unregisterGarment } from '../render/garment.js';
 import { isHex } from '../util.js';
-import { itemDef } from './catalog.js';
+import { itemDef, originalDef } from './catalog.js';
 import { cleanAllZones, setPackZones } from './mapZones.js';
 import { cleanWorld, setPackWorld } from './world.js';
+import { cleanHeroArt, setPackHeroArt } from '../render/heroArt.js';
 
 export const LIBRARY_LIMIT = 60;
 export const MIN_W = 40, MAX_W = 900;
@@ -139,13 +140,25 @@ export function validateOverride(raw) {
     if (!/^data:image\/(webp|png|jpeg);base64,[A-Za-z0-9+/]+=*$/.test(raw.image) || raw.image.length > 2_000_000) throw new Error('Картинка не подходит');
     o.image = raw.image;
   }
+  // Второе состояние встроенной вещи: «открыто» (холодильник, шкаф, унитаз) и «полная» (миска) — картинка и рамка
+  // относительно основной картинки (доли, как у своих предметов).
+  const base = originalDef(raw.id) || itemDef(raw.id);
+  for (const [k, need] of [['open', 'openArt'], ['full', 'fullArt']]) {
+    const v = raw[k];
+    if (!v || !base?.[need] || typeof v.image !== 'string' || !IMG_RE.test(v.image) || v.image.length > 2_000_000) continue;
+    const b = Array.isArray(v.box) && v.box.length === 4 && v.box.every(Number.isFinite) && v.box[2] > 0.05 && v.box[3] > 0.05 ? v.box.map((x) => Math.round(x * 1000) / 1000) : [0, 0, 1, 1];
+    o[k] = { image: v.image, box: b };
+  }
   return o;
 }
 
 async function applyOv(o) {
   let art = null;
   if (o.image) { const im = await loadImage(o.image); art = 'override/' + o.id; registerImage(art, im); }
-  applyOverride({ id: o.id, name: o.name, group: o.group, size: o.size, art, surfaces: o.surfaces, seats: o.seats, cover: o.cover, power: o.power, tap: o.tap, machine: o.machine, animal: o.animal });
+  let openArt = null, fullArt = null;
+  if (o.open) { openArt = 'override/' + o.id + '_open'; registerImage(openArt, await loadImage(o.open.image)); }
+  if (o.full) { fullArt = 'override/' + o.id + '_full'; registerImage(fullArt, await loadImage(o.full.image)); }
+  applyOverride({ id: o.id, name: o.name, group: o.group, size: o.size, art, openArt, openBox: o.open?.box, fullArt, fullBox: o.full?.box, surfaces: o.surfaces, seats: o.seats, cover: o.cover, power: o.power, tap: o.tap, machine: o.machine, animal: o.animal });
   const d = itemDef(o.id);
   if (d?.animal) setupAnimal({ id: o.id, ...d }); // новые суставы — скелет заново
 }
@@ -209,11 +222,13 @@ export function validatePack(raw) {
   const zones = cleanAllZones(raw.mapZones); // живые здания на карте (студия → «Карта»)
   const world = cleanWorld(raw.world); // свои районы карты и места
   const hasWorld = world.districts.length || Object.keys(world.places).length || Object.keys(world.finishes).length;
-  if (!items.length && !ovs.length && !recipes.length && !unl.length && !Object.keys(zones).length && !hasWorld) throw new Error('В паке нет предметов');
+  const heroArt = cleanHeroArt(raw.heroArt); // замены картинок героев (студия → «Герои»)
+  if (!items.length && !ovs.length && !recipes.length && !unl.length && !Object.keys(zones).length && !hasWorld && !Object.keys(heroArt).length) throw new Error('В паке нет предметов');
   const out = { format: PACK_FORMAT, version: 1, id: raw.id, name: String(raw.name || raw.id).slice(0, 40), items, overrides: ovs, ...(recipes.length ? { recipes } : {}) };
   if (unl.length) out.unlock = unl;
   if (Object.keys(zones).length) out.mapZones = zones;
   if (hasWorld) out.world = world;
+  if (Object.keys(heroArt).length) out.heroArt = heroArt;
   if (raw.gift === true) out.gift = true;
   // Оформление обложки (для студии и магазина): цвет, своя картинка-фон или обложка целиком.
   const cs = raw.coverStyle;
@@ -260,6 +275,7 @@ export async function installPack(raw) {
   addPackRecipes(pack.recipes);
   if (pack.mapZones) setPackZones(pack.mapZones);
   if (pack.world) await setPackWorld(pack.world);
+  if (pack.heroArt) await setPackHeroArt(pack.heroArt);
   if (pack.unlock) { unlock(pack.unlock); ids.push(...pack.unlock); }
   packs.set(pack.id, { id: pack.id, name: pack.name, count: pack.items.length, fixes: pack.overrides.length });
   return ids;

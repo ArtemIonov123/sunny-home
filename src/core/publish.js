@@ -6,6 +6,7 @@ import { listOwnRecipes } from './recipes.js';
 import { lockedList } from './access.js';
 import { ownZones } from './mapZones.js';
 import { ownWorld } from './world.js';
+import { ownHeroArt } from '../render/heroArt.js';
 import { loadImage, img } from '../assets.js';
 import { itemDef } from './catalog.js';
 
@@ -213,10 +214,11 @@ export async function publishForPlayers({ locked, gift }, onStep = () => {}) {
 // Комнаты и расстановка — это сохранение дома, не каталог: игрокам не отправляются.
 export async function sendGameUpdate(onStep = () => {}) {
   const items = listRecords().filter((r) => (r.animal || r.cloth) && r.give);
-  const overrides = listOverrides(), recipes = listOwnRecipes(), mapZones = ownZones(), world = ownWorld();
+  const overrides = listOverrides(), recipes = listOwnRecipes(), mapZones = ownZones(), world = ownWorld(), heroArt = ownHeroArt();
   const hasWorld = world.districts.length || Object.keys(world.places).length || Object.keys(world.finishes).length;
-  const gift = items.length || overrides.length || recipes.length || Object.keys(mapZones).length || hasWorld
-    ? { format: PACK_FORMAT, version: 1, id: GIFT_ID, name: 'Обновление игры', price: 0, gift: true, items, overrides, recipes, mapZones, ...(hasWorld ? { world } : {}) } : null;
+  const hasHero = Object.keys(heroArt).length > 0;
+  const gift = items.length || overrides.length || recipes.length || Object.keys(mapZones).length || hasWorld || hasHero
+    ? { format: PACK_FORMAT, version: 1, id: GIFT_ID, name: 'Обновление игры', price: 0, gift: true, items, overrides, recipes, mapZones, ...(hasWorld ? { world } : {}), ...(hasHero ? { heroArt } : {}) } : null;
   await publishForPlayers({ locked: lockedList().filter((id) => itemDef(id)), gift }, onStep);
   return { items: items.length, overrides: overrides.length, recipes: recipes.length, zones: Object.keys(mapZones).length, districts: world.districts.length, places: Object.keys(world.places).length, finishes: Object.keys(world.finishes).length };
 }

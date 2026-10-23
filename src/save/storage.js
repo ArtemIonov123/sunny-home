@@ -163,3 +163,15 @@ export async function saveWorldStore(v) {
   if (await idb(await db(), 'catalog', 'readwrite', 'world', v)) return;
   try { localStorage.setItem(WORLD_KEY, JSON.stringify(v)); } catch (e) { throw new Error('Не хватило места, чтобы сохранить карту'); }
 }
+
+// Замены картинок героев (студия → «Герои»): в IndexedDB рядом со своими предметами.
+const HERO_ART_KEY = 'sunny-home-hero-art-v1';
+export async function loadHeroArtStore() {
+  const remote = await idb(await db(), 'catalog', 'readonly', 'heroArt');
+  if (remote && typeof remote === 'object') return remote;
+  return readLocal(HERO_ART_KEY);
+}
+export async function saveHeroArtStore(v) {
+  if (await idb(await db(), 'catalog', 'readwrite', 'heroArt', v)) return;
+  try { localStorage.setItem(HERO_ART_KEY, JSON.stringify(v)); } catch (e) { throw new Error('Не хватило места, чтобы сохранить картинки героев'); }
+}

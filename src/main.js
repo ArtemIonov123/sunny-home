@@ -11,6 +11,7 @@ import { createHud } from './ui/hud.js';
 import { loadSave, loadLegacyRoom, writeSave } from './save/storage.js';
 import { validate, fromLegacyRoom } from './save/migrate.js';
 import { loadLibrary, loadBuiltinPacks } from './core/library.js';
+import { loadOwnHeroArt } from './render/heroArt.js';
 import { initShop, autoGifts } from './core/shop.js';
 import { studioLoad } from './core/access.js';
 import { findRecipe, isMachine } from './core/recipes.js';
@@ -41,6 +42,7 @@ async function boot() {
   await loadBuiltinPacks(); // паки, встроенные в игру (папка packs/)
   await initShop().catch(() => {}); // паки, скачанные в магазине
   if (__STUDIO__) await loadOwnWorld().catch(() => {}); // студия: свои районы и места (до чтения сохранения — места должны быть известны)
+  if (__STUDIO__) await loadOwnHeroArt().catch(() => {}); // студия: свои картинки героев (до сборки героев)
 
   if (__STUDIO__) studioLoad(); // студия: своя галочка «выдать игроку» (до нового дома — щенок)
 

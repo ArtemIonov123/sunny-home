@@ -76,10 +76,12 @@ export function createItemEditor({ store, actions, toast, onChange }) {
     const def = itemDef(id), base = originalDef(id), o = getOverride(id), key = sizeKey(id);
     const copy = (v) => (v === undefined ? undefined : JSON.parse(JSON.stringify(v)));
     return { builtin: true, id, name: def.name, group: def.group, place: def.place, sizeKey: key, size: def[key], baseSize: base[key], image: o?.image || '', origArt: base.art,
-      surfaces: copy(def.surfaces) || [], seats: copy(def.seats) || [], cover: copy(def.cover), power: copy(def.power), tap: def.tap, openArt: def.openArt, machine: copy(def.machine),
+      surfaces: copy(def.surfaces) || [], seats: copy(def.seats) || [], cover: copy(def.cover), power: copy(def.power), tap: def.tap, openArt: base.openArt, fullArt: base.fullArt, machine: copy(def.machine),
+      open: copy(o?.open), full: copy(o?.full), // своя картинка «открыто» / «полная» (у встроенных — правка)
       baseLiving: JSON.stringify([base.surfaces || [], base.seats || [], base.cover || null, base.power || null, base.tap || null, base.machine || null]) };
   }
   const imgSrc = (d) => d.image || (d.builtin ? img(d.origArt)?.src : '') || '';
+  const secondSrc = (d) => d.open?.image || d.full?.image || img(originalDef(d.id)?.openArt || originalDef(d.id)?.fullArt)?.src || '';
 
   function builtinForm() {
     const d = draft, changed = !!getOverride(d.id);
@@ -90,7 +92,9 @@ export function createItemEditor({ store, actions, toast, onChange }) {
         <div class="ie-fields">
           <label class="ie-upload"><img src="${imgSrc(d)}" alt=""><em>Заменить картинку</em><input type="file" accept="image/png,image/webp,image/jpeg" data-ie-file></label>
           ${d.image ? '<div class="ie-actions"><button data-ie-origimg>Вернуть исходную картинку</button></div>' : ''}
-          <p class="adm-help">Картинка от GPT: прозрачный фон или розовый #FF00FF. ${itemDef(d.id).openArt ? 'У этой вещи есть «открытая» картинка — она останется прежней.' : ''}</p>
+          ${d.openArt || d.fullArt ? `<label class="ie-upload small"><img src="${secondSrc(d)}" alt=""><em>Заменить картинку «${d.openArt ? 'открыто' : 'полная'}»</em><input type="file" accept="image/png,image/webp,image/jpeg" ${d.openArt ? 'data-ie-openfile' : 'data-ie-fullfile'}></label>
+          ${d.open || d.full ? `<div class="ie-actions"><button data-ie-orig2>Вернуть исходную «${d.openArt ? 'открыто' : 'полная'}»</button></div>` : ''}` : ''}
+          <p class="adm-help">Картинка от GPT: прозрачный фон или розовый #FF00FF.${d.openArt || d.fullArt ? ` У этой вещи две картинки: обычная и «${d.openArt ? 'открыто' : 'полная'}». Загрузи обе от GPT — одного размера, вещь на одном месте (промпт — в арт-гиде): они совместятся сами. Проверь кнопками «Закрыто / Открыто» ниже.` : ''}</p>
           <label class="adm-field">Название<input data-ie-name maxlength="40" value="${esc(d.name)}"></label>
           <label class="adm-field">Группа в каталоге<select data-ie-group>${opt(GROUPS, d.group)}</select></label>
           <p class="adm-help">Куда ставится: ${esc(PLACES[d.place] || d.place)} (у встроенных не меняется — от этого зависят полки и открывание).</p>
@@ -201,6 +205,7 @@ export function createItemEditor({ store, actions, toast, onChange }) {
     return (draft.w || 160) * ar;
   }
   const hasOpen = (d) => !!(d.open || (d.builtin && d.openArt));
+  // У встроенной миски вторая картинка — «полная»; в предпросмотре показываем её как «открыто».
   const closedSrc = (d) => imgSrc(d);
   const openSrc = (d) => d.open?.image || (d.builtin && d.openArt ? img(d.openArt)?.src : '');
   // Рамка закрытой картинки на холсте редактора и рамка «открытой» внутри неё.
@@ -387,6 +392,7 @@ export function createItemEditor({ store, actions, toast, onChange }) {
       const d = draft, base = originalDef(d.id);
       const livingChanged = JSON.stringify([d.surfaces || [], d.seats || [], d.cover || null, d.power || null, d.tap || null, d.machine || null]) !== d.baseLiving;
       await saveOverride({ id: d.id, name: d.name !== base.name ? d.name : undefined, group: d.group !== base.group ? d.group : undefined, size: d.size !== d.baseSize ? d.size : undefined, image: d.image || undefined,
+        open: d.openArt && d.open ? { image: d.open.image, box: d.open.box } : undefined, full: d.fullArt && d.full ? { image: d.full.image, box: d.full.box } : undefined,
         ...(livingChanged ? { surfaces: d.surfaces || [], seats: d.seats || [], cover: d.cover, power: d.power, tap: d.tap, machine: d.machine } : {}) });
       dirty = false;
       store.change((s) => normalize(s), { undo: false }); // новый размер — вещи в доме перестраиваются
@@ -415,7 +421,8 @@ export function createItemEditor({ store, actions, toast, onChange }) {
     else if (b.dataset.lvDelcover !== undefined) { read(); delete draft.cover; dirty = true; }
     else if (b.dataset.lvDelsurf !== undefined) { read(); draft.surfaces.splice(Number(b.dataset.lvDelsurf), 1); dirty = true; }
     else if (b.dataset.lvNoopen !== undefined) { read(); delete draft.open; draft.surfaces = (draft.surfaces || []).filter((s) => !s[3]); view = 'closed'; dirty = true; }
-    else if (b.dataset.ieOrigimg !== undefined) { read(); draft.image = ''; dirty = true; }
+    else if (b.dataset.ieOrigimg !== undefined) { read(); draft.image = ''; draft.crop = null; dirty = true; }
+    else if (b.dataset.ieOrig2 !== undefined) { read(); delete draft.open; delete draft.full; dirty = true; }
     else if (b.dataset.ieReset !== undefined) {
       if (!confirm(`Вернуть «${originalDef(draft.id).name}» как было?`)) return;
       try { await resetOverride(draft.id); store.change((s) => normalize(s), { undo: false }); toast('Вернули как было'); draft = builtinDraft(draft.id); dirty = false; }
@@ -443,14 +450,20 @@ export function createItemEditor({ store, actions, toast, onChange }) {
 
   const onChangeEv = async (e) => {
     if (!host?.contains(e.target)) return;
-    if (e.target.matches('[data-ie-file],[data-ie-openfile]')) {
+    if (e.target.matches('[data-ie-file],[data-ie-openfile],[data-ie-fullfile]')) {
       const file = e.target.files?.[0]; e.target.value = '';
       if (!file) return;
       read();
       try {
         toast('Готовлю картинку…');
         const res = await prepareImage(file);
-        if (e.target.matches('[data-ie-openfile]')) { draft.open = { image: res.src, box: openBoxOf(draft.crop, res.crop) }; view = 'open'; }
+        if (draft.builtin && (draft.openArt || draft.fullArt)) {
+          // Встроенная вещь с двумя картинками: рамка второй — по положению на исходниках GPT (одного размера).
+          const k = draft.openArt ? 'open' : 'full';
+          if (e.target.matches('[data-ie-openfile],[data-ie-fullfile]')) { draft[k] = { image: res.src, box: openBoxOf(draft.crop, res.crop), crop: res.crop }; if (k === 'open') view = 'open'; }
+          else { draft.image = res.src; draft.crop = res.crop; if (draft[k]) draft[k].box = openBoxOf(res.crop, draft[k].crop); }
+          if (!draft.image && draft[k]) toast('Совет: загрузи и обычную картинку от GPT того же размера — тогда обе встанут точно друг на друга');
+        } else if (e.target.matches('[data-ie-openfile]')) { draft.open = { image: res.src, box: openBoxOf(draft.crop, res.crop) }; view = 'open'; }
         else { draft.image = res.src; draft.crop = res.crop; if (draft.open) draft.open.box = openBoxOf(res.crop, null); }
         if (!draft.name) draft.name = file.name.replace(/\.[^.]+$/, '').replace(/[_-]+/g, ' ').slice(0, 40);
         dirty = true; render();

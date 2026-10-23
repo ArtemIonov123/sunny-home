@@ -65,6 +65,7 @@ export function createRenderer(canvas, store, camera) {
       const def = itemDef(i.def), r = lay.byId.get(i.room); if (!r || !def) continue;
       let b = itemBounds(i);
       if (i.lift) b = { ...b, y: b.y - i.lift }; // игрушка в пасти у животного
+      if (!i.open && i.full && def.fullArt && def.fullBox) { const [ox, oy, ow, oh] = def.fullBox; b = { x: b.x + ox * b.w, y: b.y + oy * b.h, w: ow * b.w, h: oh * b.h }; } // своя «полная» картинка
       if (i.open && def.openBox) { const [ox, oy, ow, oh] = def.openBox; b = { x: b.x + ox * b.w, y: b.y + oy * b.h, w: ow * b.w, h: oh * b.h }; } // своя «открытая» картинка другого размера
       add('item', i, b, i.open && def.openArt ? def.openArt : i.full && def.fullArt ? def.fullArt : def.art, r.x0); // миска с кормом — своя картинка
     }

@@ -57,7 +57,7 @@ export function createClothesEditor({ store, actions, toast, onChange }) {
       <h4>Свои</h4>
       ${list.length ? `<div class="ie-grid">${list.map((r) => `<button class="ie-card" data-ce-edit="${esc(r.id)}"><img src="${r.image}" alt=""><b>${esc(r.name)}</b><small>${WEAR_TYPES[r.cloth.type].icon} ${WEAR_TYPES[r.cloth.type].name}${r.give ? ' · ✓ игрокам' : ''}</small></button>`).join('')}</div>` : '<p class="adm-help">Пока нет. Нажми «＋ Новая вещь» или «Сделать похожую» на встроенной.</p>'}
       <h4>Встроенные — сделать похожую</h4>
-      <p class="adm-help">Нажми на встроенную вещь — откроется новая вещь того же типа с её картинкой. Поменяй картинку, цвет или размер и сохрани под своим именем.</p>
+      <p class="adm-help">Нажми на встроенную вещь — откроется новая вещь того же типа с её картинкой. Поменяй картинку, цвет или размер и сохрани под своим именем. Заменить саму встроенную вещь — вкладка «Герои» → «👕 Одежда».</p>
       <div class="ie-grid">${BUILTIN_WEAR.map((w) => `<button class="ie-card" data-ce-like="${w}"><img src="${builtinThumb(w)}" alt=""><b>${BUILTIN_NAMES[w]}</b><small>${WEAR_TYPES[WEAR[w].type].icon} ${WEAR_TYPES[WEAR[w].type].name}</small></button>`).join('')}</div>`;
   }
 

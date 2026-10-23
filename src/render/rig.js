@@ -96,6 +96,8 @@ const PART_BONES = {
   wear_pants_hips: 'torso', wear_pants_leg_left: 'legL', wear_pants_leg_right: 'legR',
 };
 // Как вещь режется по костям — по её типу (core/looks.js).
+// Встроенные вещи, которым заменили картинку (студия → «Герои»): старые части от GPT им уже не подходят.
+export const replacedWear = new Set();
 const cutOf = (w) => WEAR_TYPES[WEAR[w]?.type]?.cut || 'free';
 const has = (layer) => !!(HERO_LAYERS[`hero/${layer}_t`] || HERO_LAYERS[`hero/${layer}_f`]);
 
@@ -121,12 +123,10 @@ function partSources(look, grip) {
   }
   for (const w of bodyWear(look.wear)) {
     const c = look.wear[w];
-    if (WEAR[w].custom) { // своя вещь: поделена по костям заранее (render/garment.js) или режется по контурам
-      const bones = garmentBones(w);
-      if (bones) for (const bone of bones) out.push([`wear_${w}__${bone}`, c, 'bone:' + bone]);
-      else out.push(['wear_' + w, c, cutOf(w)]);
-      continue;
-    }
+    // Своя вещь или заменённая встроенная: поделена по костям заранее (render/garment.js) или режется по контурам.
+    const bones = garmentBones(w);
+    if (bones) { for (const bone of bones) out.push([`wear_${w}__${bone}`, c, 'bone:' + bone]); continue; }
+    if (WEAR[w].custom || replacedWear.has(w)) { out.push(['wear_' + w, c, cutOf(w)]); continue; }
     if (w === 'tshirt' || w === 'dress') { add(`wear_${w}_body`, c); add(`wear_${w}_sleeve_left`, c); add(`wear_${w}_sleeve_right`, c); }
     else if (w === 'pants') { add('wear_pants_hips', c); add('wear_pants_leg_left', c); add('wear_pants_leg_right', c); }
     else if (w === 'sneakers') out.push(['wear_sneakers', c, 'legs']); // кеды делим пополам: левый и правый

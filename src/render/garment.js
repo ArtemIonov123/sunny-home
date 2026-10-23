@@ -87,6 +87,8 @@ export function colored(src, tint, color, w = src.width, h = src.height) {
 const BONE_SUBS = ['torso', 'armUpL', 'armLoL', 'armUpR', 'armLoR', 'legL', 'legR'];
 const HIP = 585, LAP = 596, SHOULDER = 188, ARMPIT = 400; // ниже HIP у штанов — штанины; ниже LAP у верха и платья — подол (на туловище)
 let masks = null;
+// Тело заменили (студия → «Герои») — маски посчитать заново.
+export function resetBodyMasks() { masks = null; }
 function bodyMasks() {
   if (masks) return masks;
   if (!img('hero/body_torso_f') && !img('hero/body_torso_t')) return null; // нет отдельных частей тела — режем по контурам (rig.js)
@@ -159,6 +161,16 @@ function forgetBones(id) {
   for (const bone of boneLayers.get(id) || []) for (const s of ['t', 'f']) { const k = `hero/wear_${id}__${bone}_${s}`; forgetImage(k); delete HERO_LAYERS[k]; }
   boneLayers.delete(id);
 }
+// Поделить вещь по костям и поставить её слои костей (верх, платье, штаны; остальное режет rig.js).
+export function setGarmentBones(id, parts, box, type) {
+  forgetBones(id);
+  if (!['top', 'dress', 'pants'].includes(type)) return;
+  const bones = splitBones(parts, box, type);
+  if (!bones) return;
+  for (const [bone, r] of Object.entries(bones)) for (const s of ['t', 'f']) if (r[s]) { const k = `hero/wear_${id}__${bone}_${s}`; registerImage(k, r[s]); HERO_LAYERS[k] = r.at.slice(); }
+  boneLayers.set(id, Object.keys(bones));
+}
+export { forgetBones as forgetGarmentBones };
 // Поставить вещь на героя: слои + место в списке одежды. im — загруженная картинка cloth.image.
 export function registerGarment(id, cloth, im) {
   const [x, y, w, h] = cloth.box;
@@ -169,14 +181,7 @@ export function registerGarment(id, cloth, im) {
     if (layer) { registerImage(k, layer); HERO_LAYERS[k] = [Math.round(x), Math.round(y)]; }
     else { forgetImage(k); delete HERO_LAYERS[k]; }
   }
-  forgetBones(id);
-  if (['top', 'dress', 'pants'].includes(cloth.type)) {
-    const bones = splitBones(parts, cloth.box, cloth.type);
-    if (bones) {
-      for (const [bone, r] of Object.entries(bones)) for (const s of ['t', 'f']) if (r[s]) { const k = `hero/wear_${id}__${bone}_${s}`; registerImage(k, r[s]); HERO_LAYERS[k] = r.at.slice(); }
-      boneLayers.set(id, Object.keys(bones));
-    }
-  }
+  setGarmentBones(id, parts, cloth.box, cloth.type);
   registerWear(id, cloth.type, cloth.color);
   heroArtChanged();
 }

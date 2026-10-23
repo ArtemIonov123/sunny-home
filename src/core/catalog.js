@@ -167,7 +167,10 @@ export function applyOverride(o) {
   const d = ITEMS[o.id]; if (!d) return false;
   if (!original.has(o.id)) original.set(o.id, { ...d });
   const base = original.get(o.id);
+  for (const k of ['openBox', 'fullBox']) if (!(k in base)) delete d[k];
   Object.assign(d, base); // сначала вернуть исходное, потом наложить правку
+  if (o.openArt) { d.openArt = o.openArt; d.openBox = o.openBox; }
+  if (o.fullArt) { d.fullArt = o.fullArt; d.fullBox = o.fullBox; }
   if (o.name) d.name = o.name;
   if (o.group && GROUPS[o.group]) d.group = o.group;
   if (o.size) d[sizeKey(o.id)] = o.size;
