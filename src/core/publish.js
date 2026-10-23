@@ -214,9 +214,9 @@ export async function publishForPlayers({ locked, gift }, onStep = () => {}) {
 export async function sendGameUpdate(onStep = () => {}) {
   const items = listRecords().filter((r) => r.animal && r.give);
   const overrides = listOverrides(), recipes = listOwnRecipes(), mapZones = ownZones(), world = ownWorld();
-  const hasWorld = world.districts.length || Object.keys(world.places).length;
+  const hasWorld = world.districts.length || Object.keys(world.places).length || Object.keys(world.finishes).length;
   const gift = items.length || overrides.length || recipes.length || Object.keys(mapZones).length || hasWorld
     ? { format: PACK_FORMAT, version: 1, id: GIFT_ID, name: 'Обновление игры', price: 0, gift: true, items, overrides, recipes, mapZones, ...(hasWorld ? { world } : {}) } : null;
   await publishForPlayers({ locked: lockedList().filter((id) => itemDef(id)), gift }, onStep);
-  return { items: items.length, overrides: overrides.length, recipes: recipes.length, zones: Object.keys(mapZones).length, districts: world.districts.length, places: Object.keys(world.places).length };
+  return { items: items.length, overrides: overrides.length, recipes: recipes.length, zones: Object.keys(mapZones).length, districts: world.districts.length, places: Object.keys(world.places).length, finishes: Object.keys(world.finishes).length };
 }

@@ -466,3 +466,9 @@ button.st-name:active { background: #f4ecdf; }
 .mz-place.here { outline: 3px solid #f2b84b; }
 .mz-place img, .mz-noart { width: 56px; height: 56px; object-fit: contain; font-size: 36px; text-align: center; }
 .mz-place input { flex: 1; min-width: 120px; min-height: 40px; border-radius: 10px; border: 1px solid #dfe3d2; padding: 0 10px; }
+.chip.own { background-image: linear-gradient(rgba(255,255,255,.55), rgba(255,255,255,.55)), var(--img); background-size: cover; background-position: center; }
+.fin-list { display: grid; gap: 6px; margin-top: 6px; }
+.fin-row { display: flex; gap: 8px; align-items: center; background: #fff8ec; border-radius: 10px; padding: 6px; }
+.fin-row img { width: 72px; height: 40px; object-fit: cover; border-radius: 6px; }
+.fin-row input { flex: 1; min-height: 36px; border-radius: 8px; border: 1px solid #dfe3d2; padding: 0 8px; }
+.adm-check { display: inline-flex; gap: 6px; align-items: center; font-size: 14px; }

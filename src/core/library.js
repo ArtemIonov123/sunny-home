@@ -197,7 +197,7 @@ export function validatePack(raw) {
   const unl = (Array.isArray(raw.unlock) ? raw.unlock : []).filter((id) => typeof id === 'string' && isBuiltin(id)).slice(0, 50);
   const zones = cleanAllZones(raw.mapZones); // живые здания на карте (студия → «Карта»)
   const world = cleanWorld(raw.world); // свои районы карты и места
-  const hasWorld = world.districts.length || Object.keys(world.places).length;
+  const hasWorld = world.districts.length || Object.keys(world.places).length || Object.keys(world.finishes).length;
   if (!items.length && !ovs.length && !recipes.length && !unl.length && !Object.keys(zones).length && !hasWorld) throw new Error('В паке нет предметов');
   const out = { format: PACK_FORMAT, version: 1, id: raw.id, name: String(raw.name || raw.id).slice(0, 40), items, overrides: ovs, ...(recipes.length ? { recipes } : {}) };
   if (unl.length) out.unlock = unl;

@@ -7,13 +7,16 @@ import { loadImage, registerImage } from '../assets.js';
 import { BUILTIN_PLACES, setCustomPlaces } from './places.js';
 import { loadWorldStore, saveWorldStore } from '../save/storage.js';
 import { cleanRoom } from '../save/migrate.js';
+import { setCustomFinishes, FINISH_RE } from './catalog.js';
+import { clearBackgrounds } from '../render/background.js';
 
 const IMG_RE = /^data:image\/(webp|png|jpeg);base64,[A-Za-z0-9+/]+=*$/;
 const DID = /^d_[a-z0-9]{3,30}$/, PID = /^p_[a-z0-9]{3,30}$/;
-const empty = () => ({ districts: [], places: {} });
+const empty = () => ({ districts: [], places: {}, finishes: {} });
 let own = empty(), fromPacks = empty();
 
 export const newDistrictId = () => 'd_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5);
+export const newFinishId = (kind) => (kind === 'floor' ? 'f_' : 'w_') + Date.now().toString(36) + Math.random().toString(36).slice(2, 5);
 export const newPlaceId = () => 'p_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5);
 const name = (v, d) => (typeof v === 'string' && v.trim() ? v.trim().slice(0, 30) : d);
 
@@ -37,6 +40,12 @@ export function cleanWorld(raw) {
     if (!lay.rooms.length) continue;
     out.places[id] = { name: name(p.name, 'Место'), ...lay, ...(typeof p.art === 'string' && IMG_RE.test(p.art) && p.art.length < 2_000_000 ? { art: p.art } : {}) };
   }
+  // Свои отделки: стена или пол (картинка-фактура), tint — серая, перекрашивается цветом комнаты.
+  for (const [id, f] of Object.entries(raw.finishes || {}).slice(0, 40)) {
+    const kind = f?.kind === 'floor' ? 'floor' : 'wall';
+    if (!FINISH_RE[kind].test(id) || typeof f.image !== 'string' || !IMG_RE.test(f.image) || f.image.length > 2_000_000) continue;
+    out.finishes[id] = { kind, name: name(f.name, kind === 'floor' ? 'Пол' : 'Стены'), image: f.image, tint: f.tint === true };
+  }
   for (const d of (Array.isArray(raw.districts) ? raw.districts : []).slice(0, 20)) {
     if (!d || !DID.test(d.id) || typeof d.image !== 'string' || !IMG_RE.test(d.image) || d.image.length > 4_000_000) continue;
     out.districts.push({ id: d.id, name: name(d.name, 'Район'), image: d.image, ...(typeof d.place === 'string' && /^[a-z0-9_]{2,40}$/.test(d.place) ? { place: d.place } : {}) });
@@ -46,16 +55,19 @@ export function cleanWorld(raw) {
 
 // Всё вместе: паки, поверх — своё из студии (по id).
 function merged() {
-  const places = { ...fromPacks.places, ...own.places };
+  const places = { ...fromPacks.places, ...own.places }, finishes = { ...fromPacks.finishes, ...own.finishes };
   const ds = new Map(); for (const d of [...fromPacks.districts, ...own.districts]) ds.set(d.id, d);
-  return { districts: [...ds.values()], places };
+  return { districts: [...ds.values()], places, finishes };
 }
 // Картинки районов и зданий — в общий список картинок игры; места — в core/places.js.
 async function apply() {
   const w = merged();
   for (const d of w.districts) { try { registerImage('world/' + d.id, await loadImage(d.image)); } catch (e) { /* битая картинка — район без неё */ } }
   for (const [id, p] of Object.entries(w.places)) if (p.art) { try { registerImage('world/' + id, await loadImage(p.art)); } catch (e) { /* без здания */ } }
+  for (const [id, f] of Object.entries(w.finishes)) { try { registerImage('world/' + id, await loadImage(f.image)); } catch (e) { /* без фактуры */ } }
   setCustomPlaces(w.places);
+  setCustomFinishes(w.finishes);
+  clearBackgrounds(); // фоны комнат перерисуются уже со своими отделками
 }
 
 // Список районов карты по порядку: встроенные, потом свои. image/art — ключи картинок.
@@ -78,7 +90,7 @@ export async function saveOwnWorld(next) { own = cleanWorld(next); await saveWor
 // Пак (подарок «📤 В игру» или из магазина) принёс районы и места.
 export async function setPackWorld(raw) {
   const w = cleanWorld(raw);
-  Object.assign(fromPacks.places, w.places);
+  Object.assign(fromPacks.places, w.places); Object.assign(fromPacks.finishes, w.finishes);
   const ids = new Set(w.districts.map((d) => d.id));
   fromPacks.districts = [...fromPacks.districts.filter((d) => !ids.has(d.id)), ...w.districts];
   await apply();

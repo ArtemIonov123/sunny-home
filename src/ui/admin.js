@@ -10,6 +10,8 @@ import { normalize } from '../core/actions.js';
 import { createItemEditor } from './itemEditor.js';
 import { createAnimalEditor } from './animalEditor.js';
 import { createMapEditor } from './mapEditor.js';
+import { ownWorld, saveOwnWorld, newFinishId } from '../core/world.js';
+import { loadImage } from '../assets.js';
 import { listRecords, listPacks, makePack, listOverrides } from '../core/library.js';
 import { resetShop, loadCatalog } from '../core/shop.js';
 import { getSettings, saveSettings, hasToken, testToken, readCatalog, publishPack, sendGameUpdate, removePack, fetchStorePack, makeCover, COVER_COLORS } from '../core/publish.js';
@@ -40,6 +42,47 @@ export function createAdmin({ root, store, camera, actions, toast, onChange }) {
   const open = () => { isOpen = true; el.hidden = false; render(); onChange(); };
   const close = () => { isOpen = false; el.hidden = true; onChange(); };
 
+  // Свои отделки: фактура стены или пола от GPT → новый вид в «🖌️ Отделка» для любой комнаты.
+  let finKind = 'wall', finTint = true;
+  function finishesHtml() {
+    const list = Object.entries(ownWorld().finishes || {});
+    return `<h4>Свои отделки</h4>
+      <p class="adm-help">Картинка-фактура от GPT: стены (кирпич, обои, неон…) или пол (доски, ковёр, плитка…), бесшовная по горизонтали. Серую фактуру можно перекрашивать цветом комнаты, цветную — ставить как есть. Потом выбирай её в режиме редактора → «🖌️ Отделка». Игрокам — «📤 В игру».</p>
+      <div class="adm-add"><select data-fin-kind><option value="wall"${finKind === 'wall' ? ' selected' : ''}>Стены</option><option value="floor"${finKind === 'floor' ? ' selected' : ''}>Пол</option></select>
+        <label class="adm-check"><input type="checkbox" data-fin-tint${finTint ? ' checked' : ''}> серая — перекрашивать цветом</label>
+        <label class="ie-upload small"><em>＋ Загрузить фактуру</em><input type="file" accept="image/png,image/webp,image/jpeg" data-fin-file></label></div>
+      <div class="fin-list">${list.map(([id, f]) => `<div class="fin-row"><img src="${f.image}" alt=""><input data-fin-name="${id}" maxlength="30" value="${esc(f.name)}"><small>${f.kind === 'floor' ? 'пол' : 'стены'}${f.tint ? ' · перекрашивается' : ''}</small><button class="danger" data-fin-del="${id}" aria-label="Убрать">×</button></div>`).join('') || '<p class="adm-help">Своих отделок пока нет.</p>'}</div>`;
+  }
+  // Фактура: высота стены 540 / полосы пола 360 (как у встроенных), ширина — до 1200.
+  async function finishImage(file, kind) {
+    if (!['image/png', 'image/webp', 'image/jpeg'].includes(file.type)) throw new Error('Выбери PNG, WebP или JPG');
+    const url = await new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(r.result); r.onerror = () => rej(new Error('Не удалось открыть файл')); r.readAsDataURL(file); });
+    const im = await loadImage(url), h = kind === 'floor' ? 360 : 540, w = Math.min(1200, Math.round(im.width * h / im.height));
+    const B = Math.min(80, Math.round(w * 0.12)); // столько пикселей сводим, чтобы стык при повторе не был виден
+    const src = document.createElement('canvas'); src.width = w; src.height = h;
+    const g = src.getContext('2d', { willReadFrequently: true }); g.drawImage(im, 0, 0, w, h);
+    const d = g.getImageData(0, 0, w, h), px = d.data;
+    if (finTint) { // серая фактура: в оттенки серого и «основной тон почти белый» — тогда цвет комнаты получается тем, что выбрали
+      const lum = new Uint32Array(256);
+      for (let k = 0; k < px.length; k += 4) { const v = Math.round(px[k] * 0.3 + px[k + 1] * 0.59 + px[k + 2] * 0.11); px[k] = px[k + 1] = px[k + 2] = v; lum[v]++; }
+      let acc = 0, wp = 255; for (let v = 0; v < 256; v++) { acc += lum[v]; if (acc >= (w * h) * 0.8) { wp = Math.max(1, v); break; } }
+      for (let k = 0; k < px.length; k += 4) { const v = Math.min(255, Math.round(px[k] * 255 / wp)); px[k] = px[k + 1] = px[k + 2] = v; }
+    }
+    // Бесшовно: правые B пикселей плавно переходят в левые, ширина уменьшается на B.
+    const out = document.createElement('canvas'); out.width = w - B; out.height = h;
+    const o = out.getContext('2d'), od = o.createImageData(w - B, h), op = od.data;
+    for (let y = 0; y < h; y++) for (let x = 0; x < w - B; x++) {
+      const i = (y * w + x) * 4, j = (y * (w - B) + x) * 4;
+      if (x < B) { const t = x / B, r = (y * w + (w - B + x)) * 4; for (let c = 0; c < 4; c++) op[j + c] = px[r + c] * (1 - t) + px[i + c] * t; }
+      else for (let c = 0; c < 4; c++) op[j + c] = px[i + c];
+    }
+    o.putImageData(od, 0, 0);
+    return out.toDataURL('image/webp', 0.85);
+  }
+  async function finishChange(fn, msg) {
+    try { const w = ownWorld(); w.finishes ||= {}; fn(w.finishes); await saveOwnWorld(w); if (msg) toast(msg); } catch (err) { toast(err.message, true); }
+    render(); onChange();
+  }
   function roomsTab() {
     const rows = store.state.rooms.map((r, i, all) => {
       const lawn = r.type === 'lawn';
@@ -55,10 +98,12 @@ export function createAdmin({ root, store, camera, actions, toast, onChange }) {
         <button data-del class="danger"${lawn ? ' disabled' : ''} aria-label="Убрать комнату">×</button>
       </div>`;
     }).join('');
-    const types = Object.entries(ROOM_TYPES).filter(([t, d]) => t !== 'lawn' && !d.place).map(([t, d]) => `<option value="${t}">${d.name}</option>`).join('');
+    const inHome = (store.state.place || 'home') === 'home'; // в своих местах можно и комнату-магазин
+    const types = Object.entries(ROOM_TYPES).filter(([t, d]) => t !== 'lawn' && (!d.place || !inHome)).map(([t, d]) => `<option value="${t}">${d.name}</option>`).join('');
     return `<p class="adm-help">Порядок слева направо. Лужайка всегда первая — через неё вход. Вещи едут вместе со своей комнатой.</p>
       <div class="adm-list">${rows}</div>
-      <div class="adm-add"><select class="adm-type-new">${types}</select><button data-addroom class="primary"${store.state.rooms.length >= MAX_ROOMS ? ' disabled' : ''}>+ Добавить комнату</button></div>`;
+      <div class="adm-add"><select class="adm-type-new">${types}</select><button data-addroom class="primary"${store.state.rooms.length >= MAX_ROOMS ? ' disabled' : ''}>+ Добавить комнату</button></div>
+      ${finishesHtml()}`;
   }
 
   function markupTab() {
@@ -234,7 +279,7 @@ export function createAdmin({ root, store, camera, actions, toast, onChange }) {
     sending = true; render();
     try {
       const n = await sendGameUpdate();
-      toast(`Отправлено игрокам: правок ${n.overrides}, рецептов ${n.recipes}, животных ${n.items}, зон карты ${n.zones}, своих районов ${n.districts}, мест ${n.places}. В игре появится через 1–5 минут (после перезапуска игры)`);
+      toast(`Отправлено игрокам: правок ${n.overrides}, рецептов ${n.recipes}, животных ${n.items}, зон карты ${n.zones}, своих районов ${n.districts}, мест ${n.places}, отделок ${n.finishes}. В игре появится через 1–5 минут (после перезапуска игры)`);
     } catch (e) { toast(e.message, true); }
     sending = false; render();
   }
@@ -269,6 +314,7 @@ export function createAdmin({ root, store, camera, actions, toast, onChange }) {
     const id = b.closest('.adm-row')?.dataset.id;
     if (b.dataset.x !== undefined) { if (items.dirty && tab === 'items') toast('Черновик предмета сохранится до следующего открытия админки'); return close(); }
     if (b.dataset.send !== undefined) { sendUpdate(); return; }
+    if (b.dataset.finDel) { if (!confirm('Убрать эту отделку? Комнаты с ней станут однотонными.')) return; const fid = b.dataset.finDel; finishChange((f) => { delete f[fid]; }, 'Отделка убрана'); return; }
     if (b.dataset.tab) { tab = b.dataset.tab; render(); onChange(); return; }
     if (b.dataset.up !== undefined) actions.moveRoom(id, -1);
     else if (b.dataset.down !== undefined) actions.moveRoom(id, 1);
@@ -359,6 +405,14 @@ export function createAdmin({ root, store, camera, actions, toast, onChange }) {
     if (e.target.matches('.adm-name')) actions.renameRoom(id, e.target.value);
     else if (e.target.matches('.adm-width')) actions.setWidth(id, Number(e.target.value));
     else if (e.target.matches('[data-file]')) return importJson(e.target);
+    else if (e.target.matches('[data-fin-kind]')) { finKind = e.target.value; return; }
+    else if (e.target.matches('[data-fin-tint]')) { finTint = e.target.checked; return; }
+    else if (e.target.matches('[data-fin-name]')) { const fid = e.target.dataset.finName, v = e.target.value; finishChange((f) => { if (f[fid]) f[fid].name = v; }); return; }
+    else if (e.target.matches('[data-fin-file]')) {
+      const file = e.target.files?.[0]; e.target.value = ''; if (!file) return;
+      finishImage(file, finKind).then((image) => finishChange((f) => { f[newFinishId(finKind)] = { kind: finKind, name: finKind === 'floor' ? 'Мой пол' : 'Мои стены', image, tint: finTint }; }, 'Отделка добавлена — выбирай её в «🖌️ Отделка»')).catch((err) => toast(err.message, true));
+      return;
+    }
     else if (e.target.matches('[data-pk]')) { if (e.target.checked) packPick.add(e.target.dataset.pk); else packPick.delete(e.target.dataset.pk); }
     else if (e.target.matches('[data-pkname]')) { packName = e.target.value; return; }
     else if (e.target.matches('[data-pkprice]')) { packPrice = Number(e.target.value) || 0; return; }

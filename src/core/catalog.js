@@ -202,6 +202,13 @@ export const ROOM_TYPES = {
 };
 
 export const WALL_PATTERNS = { plain: 'Однотонные', stripes: 'Полоски', dots: 'Горошек', flowers: 'Ромашки', tile: 'Кафель', brick: 'Кирпич' };
+// Свои отделки из студии (core/world.js): стены w_…, полы f_… — { id: название }.
+export const CUSTOM_FINISHES = { wall: {}, floor: {} };
+export const FINISH_RE = { wall: /^w_[a-z0-9]{3,30}$/, floor: /^f_[a-z0-9]{3,30}$/ };
+export function setCustomFinishes(list) {
+  CUSTOM_FINISHES.wall = {}; CUSTOM_FINISHES.floor = {};
+  for (const [id, f] of Object.entries(list || {})) CUSTOM_FINISHES[f.kind === 'floor' ? 'floor' : 'wall'][id] = f;
+}
 export const FLOOR_MATERIALS = { wood: 'Деревянный пол', tile: 'Плитка', shop: 'Большая плитка' };
 
 // Палитры для быстрого выбора в «Отделке».

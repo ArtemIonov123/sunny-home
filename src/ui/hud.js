@@ -1,7 +1,7 @@
 // Интерфейс поверх сцены: кнопки, кнопки комнат, панели «Вещи», «Отделка» и админка.
 // Кнопки задаются в обычных CSS-пикселях, поэтому на телефоне они не мельчают.
 import { VERSION, STUDIO } from '../config.js';
-import { itemDef, allItemDefs, GROUPS, ROOM_TYPES, WALL_PATTERNS, FLOOR_MATERIALS, WALL_SWATCHES, FLOOR_SWATCHES } from '../core/catalog.js';
+import { itemDef, allItemDefs, GROUPS, ROOM_TYPES, WALL_PATTERNS, FLOOR_MATERIALS, WALL_SWATCHES, FLOOR_SWATCHES, CUSTOM_FINISHES } from '../core/catalog.js';
 import { img } from '../assets.js';
 import { escapeHtml as esc } from '../util.js';
 import { createAdmin } from './admin.js';
@@ -169,9 +169,9 @@ export function createHud({ root, store, camera, actions, onChange }) {
       <header><b>Отделка</b><small>${esc(room.name)}</small><button class="close" data-close>×</button></header>
       <h4>Стены</h4>
       <div class="swatches">${sw(WALL_SWATCHES, 'wall', room.wall.color)}<label class="swatch custom" aria-label="Свой цвет стены"><input type="color" data-wallcolor value="${room.wall.color}"></label></div>
-      <div class="chips">${Object.entries(WALL_PATTERNS).map(([k, n]) => `<button class="chip${room.wall.pattern === k ? ' on' : ''}" data-pattern="${k}">${n}</button>`).join('')}</div>
+      <div class="chips">${Object.entries(WALL_PATTERNS).map(([k, n]) => `<button class="chip${room.wall.pattern === k ? ' on' : ''}" data-pattern="${k}">${n}</button>`).join('')}${Object.entries(CUSTOM_FINISHES.wall).map(([k, f]) => `<button class="chip own${room.wall.pattern === k ? ' on' : ''}" data-pattern="${k}" style="--img:url(${f.image})">${esc(f.name)}</button>`).join('')}</div>
       <h4>Пол</h4>
-      <div class="chips">${Object.entries(FLOOR_MATERIALS).map(([k, n]) => `<button class="chip${room.floor.material === k ? ' on' : ''}" data-material="${k}">${n}</button>`).join('')}</div>
+      <div class="chips">${Object.entries(FLOOR_MATERIALS).map(([k, n]) => `<button class="chip${room.floor.material === k ? ' on' : ''}" data-material="${k}">${n}</button>`).join('')}${Object.entries(CUSTOM_FINISHES.floor).map(([k, f]) => `<button class="chip own${room.floor.material === k ? ' on' : ''}" data-material="${k}" style="--img:url(${f.image})">${esc(f.name)}</button>`).join('')}</div>
       <div class="swatches">${sw(FLOOR_SWATCHES, 'floor', room.floor.color)}<label class="swatch custom" aria-label="Свой цвет пола"><input type="color" data-floorcolor value="${room.floor.color}"></label></div>`;
   }
 

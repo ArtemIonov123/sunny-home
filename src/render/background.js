@@ -2,6 +2,7 @@
 // и потом просто копируется на экран. Перерисовывается, только когда меняется отделка.
 import { VIEW_H } from '../config.js';
 import { img } from '../assets.js';
+import { CUSTOM_FINISHES } from '../core/catalog.js';
 import { drawLawn } from './lawn.js';
 
 const cache = new Map(); // roomId → { key, canvas, used, bytes }
@@ -117,12 +118,17 @@ function drawIndoor(c, room) {
   // Стена: цвет → узор → серая фактура умножением (тени и штукатурка).
   c.fillStyle = room.wall.color; c.fillRect(0, 0, W, wallH);
   drawPattern(c, room.wall.pattern, W, wallH);
-  tile(c, room.wall.pattern === 'brick' ? 'rooms/shop/wall' : 'rooms/living/wall', 0, wallH, W); // кирпич — своя серая фактура
+  const own = CUSTOM_FINISHES.wall[room.wall.pattern]; // своя стена из студии: серая — перекрашивается цветом, цветная — как есть
+  if (own && img('world/' + room.wall.pattern)) tile(c, 'world/' + room.wall.pattern, 0, wallH, W, own.tint ? 'multiply' : 'source-over');
+  else tile(c, room.wall.pattern === 'brick' ? 'rooms/shop/wall' : 'rooms/living/wall', 0, wallH, W); // кирпич — своя серая фактура
   if (room.wall.pattern === 'tile') drawTiles(c, W, wallH);
 
   // Пол.
   c.fillStyle = room.floor.color; c.fillRect(0, wallH, W, floorH);
-  if (room.floor.material === 'shop') {
+  const ownF = CUSTOM_FINISHES.floor[room.floor.material];
+  if (ownF && img('world/' + room.floor.material)) {
+    tile(c, 'world/' + room.floor.material, wallH, floorH, W, ownF.tint ? 'multiply' : 'source-over');
+  } else if (room.floor.material === 'shop') {
     // Большая плитка: ряды плиток, ближе к нам — крупнее (одна плитка от GPT, умножением на цвет пола).
     const im = img('rooms/shop/floor_tile');
     if (im) {

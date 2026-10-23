@@ -1,7 +1,7 @@
 // Проверка и обновление формата сохранения.
 // Правило: новое поле или изменение формата → schema+1 и функция в MIGRATIONS.
 // Старые сохранения никогда не выбрасываются молча.
-import { ITEMS, itemDef, CHARS, ROOM_TYPES, WALL_PATTERNS, FLOOR_MATERIALS } from '../core/catalog.js';
+import { ITEMS, itemDef, CHARS, ROOM_TYPES, WALL_PATTERNS, FLOOR_MATERIALS, FINISH_RE } from '../core/catalog.js';
 import { defaultState, newRoom, MAX_ROOMS, NEW_IN_INVENTORY, BATH_START, BEDROOM_START, BEDROOM_SMALL, PET_START, PET_INV } from '../core/house.js';
 import { clamp, isHex } from '../util.js';
 import { cleanLook } from '../core/looks.js';
@@ -156,10 +156,10 @@ export function cleanRoom(raw, used) {
     walkTop: num(raw.walkTop, 0.46, 0.88, base.walkTop),
     wall: {
       color: isHex(raw.wall?.color) ? raw.wall.color : base.wall.color,
-      pattern: WALL_PATTERNS[raw.wall?.pattern] ? raw.wall.pattern : 'plain',
+      pattern: WALL_PATTERNS[raw.wall?.pattern] || FINISH_RE.wall.test(raw.wall?.pattern || '') ? raw.wall.pattern : 'plain', // своя стена из студии — даже если её картинки пока нет
     },
     floor: {
-      material: floorMaterials.includes(raw.floor?.material) ? raw.floor.material : base.floor.material,
+      material: floorMaterials.includes(raw.floor?.material) || (raw.type !== 'lawn' && FINISH_RE.floor.test(raw.floor?.material || '')) ? raw.floor.material : base.floor.material,
       color: isHex(raw.floor?.color) ? raw.floor.color : base.floor.color,
     },
   };
