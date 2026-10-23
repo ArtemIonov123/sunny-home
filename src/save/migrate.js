@@ -143,7 +143,7 @@ const MIGRATIONS = {
 
 const num = (v, a, b, d) => (Number.isFinite(v) ? clamp(v, a, b) : d);
 
-function cleanRoom(raw, used) {
+export function cleanRoom(raw, used) {
   if (!raw || !ROOM_TYPES[raw.type] || typeof raw.id !== 'string' || used.has(raw.id)) return null;
   used.add(raw.id);
   const base = newRoom(raw.type, raw.id);
@@ -178,6 +178,10 @@ export function validate(raw) {
   }
   if (s.schema !== SCHEMA) throw new Error('Сохранение из более новой версии игры.');
 
+  if (s.place && !PLACE_IDS.includes(s.place) && s.places?.home) { // своё место убрали из игры — игрок дома (шкафчик — с ним)
+    const inv = (Array.isArray(s.items) ? s.items : []).filter((i) => i?.inv === true);
+    s = { ...s, place: 'home', rooms: s.places.home.rooms, items: [...(s.places.home.items || []), ...inv], places: { ...s.places, home: undefined } };
+  }
   const place = PLACE_IDS.includes(s.place) ? s.place : 'home';
   const ids = new Set();
   // Комнаты и вещи одного места (текущего или лежащего в state.places). Номера вещей — общие на всю игру.

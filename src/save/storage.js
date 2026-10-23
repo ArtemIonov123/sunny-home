@@ -151,3 +151,15 @@ export async function loadOldStudio() {
   const local = readLocal('sunny-home-studio-v1');
   return Array.isArray(local) && local.length ? local : null;
 }
+
+// Свои районы карты и места (студия → «Карта»): картинки и обстановка — одним объектом.
+const WORLD_KEY = 'sunny-home-world-v1';
+export async function loadWorldStore() {
+  const remote = await idb(await db(), 'catalog', 'readonly', 'world');
+  if (remote && typeof remote === 'object') return remote;
+  return readLocal(WORLD_KEY);
+}
+export async function saveWorldStore(v) {
+  if (await idb(await db(), 'catalog', 'readwrite', 'world', v)) return;
+  try { localStorage.setItem(WORLD_KEY, JSON.stringify(v)); } catch (e) { throw new Error('Не хватило места, чтобы сохранить карту'); }
+}

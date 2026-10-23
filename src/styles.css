@@ -461,3 +461,8 @@ button.st-name:active { background: #f4ecdf; }
 
 /* Студия → «Карта» (ui/mapEditor.js) */
 .mz-canvas { width: 100%; max-width: 1000px; aspect-ratio: 2 / 1; border-radius: 12px; touch-action: none; display: block; margin: 6px 0 10px; }
+.mz-places { display: grid; gap: 8px; }
+.mz-place { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; background: #fff8ec; border-radius: 12px; padding: 8px; }
+.mz-place.here { outline: 3px solid #f2b84b; }
+.mz-place img, .mz-noart { width: 56px; height: 56px; object-fit: contain; font-size: 36px; text-align: center; }
+.mz-place input { flex: 1; min-width: 120px; min-height: 40px; border-radius: 10px; border: 1px solid #dfe3d2; padding: 0 10px; }

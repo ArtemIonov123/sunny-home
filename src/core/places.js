@@ -4,7 +4,16 @@
 // Магазин при каждом приходе пополняется: на свои полки снова встаёт товар (stock).
 import { newRoom } from './house.js';
 
-export const PLACE_IDS = ['home', 'shop', 'disco', 'cafe', 'salon'];
+export const BUILTIN_PLACES = ['home', 'shop', 'disco', 'cafe', 'salon'];
+// Все места: встроенные + свои из студии (core/world.js добавляет и убирает их здесь же, массив живой).
+export const PLACE_IDS = [...BUILTIN_PLACES];
+const custom = new Map(); // id → { name, rooms, items } — обстановка своего места (из студии или пака)
+export function setCustomPlaces(map) {
+  custom.clear();
+  for (const [id, p] of Object.entries(map || {})) custom.set(id, p);
+  PLACE_IDS.length = 0; PLACE_IDS.push(...BUILTIN_PLACES, ...custom.keys());
+}
+export const customPlace = (id) => custom.get(id) || null;
 
 // Первая обстановка места: мебель [def, x, y] и товар [номер мебели, полка, dx, def].
 const PLACES = {
@@ -23,10 +32,18 @@ const PLACES = {
     ],
   },
 };
-export const isReady = (id) => id === 'home' || !!PLACES[id];
+export const isReady = (id) => id === 'home' || !!PLACES[id] || custom.has(id);
 
 // Новое место: комнаты и мебель с товаром. nextId() — следующий номер вещи (общий на всю игру).
 export function newPlace(id, nextId) {
+  const c = custom.get(id);
+  if (c) { // своё место: копия обстановки из студии, вещам — новые номера (мебель и то, что на ней)
+    const rooms = JSON.parse(JSON.stringify(c.rooms || []));
+    const map = new Map(), items = [];
+    for (const it of c.items || []) map.set(it.id, nextId());
+    for (const it of c.items || []) { const o = JSON.parse(JSON.stringify(it)); o.id = map.get(it.id); if (o.on) { if (map.has(o.on.id)) o.on.id = map.get(o.on.id); else delete o.on; } delete o.held; items.push(o); }
+    return { rooms, items };
+  }
   const p = PLACES[id]; if (!p) return null;
   const rooms = p.rooms.map(([type, rid]) => newRoom(type, rid));
   const items = p.furniture.map(([def, x, y]) => ({ id: nextId(), def, room: rooms[0].id, x, y }));

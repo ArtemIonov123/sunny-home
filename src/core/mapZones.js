@@ -2,7 +2,6 @@
 // звук и, если нужно, место, куда через это здание заходят (place).
 // Встроенные зоны — ниже. Студия («Карта») сохраняет свои (localStorage), игрокам они уходят в паке-подарке
 // (поле mapZones, «📤 В игру»).
-import { PLACE_IDS } from './places.js';
 
 export const ZONE_SOUNDS = { boing: 'Пружинит', pop: 'Хлоп', ding: 'Динь', ring: 'Звонок', squeak: 'Пищит', yum: 'Ням', chomp: 'Хрум', gulp: 'Глоток', chirp: 'Птички', bubble: 'Бульк', buzz: 'Жужжит', whoosh: 'Вжух' };
 
@@ -15,18 +14,19 @@ export const DEFAULT_ZONES = {
   salon: [z(0.22, 0.21, 0.33, 0.38, 'pop'), z(0.37, 0.17, 0.48, 0.36, 'pop'), z(0.52, 0.19, 0.63, 0.37, 'squeak'), z(0.68, 0.2, 0.8, 0.4, 'pop'), z(0.16, 0.42, 0.29, 0.61, 'pop'), z(0.72, 0.45, 0.84, 0.62, 'squeak'), z(0.2, 0.74, 0.31, 0.95, 'pop'), z(0.35, 0.78, 0.46, 0.94, 'pop'), z(0.54, 0.77, 0.66, 0.94, 'squeak'), z(0.69, 0.75, 0.8, 0.95, 'pop')],
 };
 
+const ID_RE = /^[a-z0-9_]{2,40}$/; // район или место (встроенные и свои: d_…, p_…)
 const frac = (v) => Number.isFinite(v) && v >= 0 && v <= 1;
 // Проверить зоны одного района (из студии или из пака).
 export function cleanZones(list) {
   return (Array.isArray(list) ? list : []).slice(0, 30).map((q) => {
     const b = q?.box;
     if (!Array.isArray(b) || b.length !== 4 || !b.every(frac) || b[2] - b[0] < 0.01 || b[3] - b[1] < 0.01) return null;
-    return { box: b.map((v) => Math.round(v * 1000) / 1000), snd: ZONE_SOUNDS[q.snd] ? q.snd : 'boing', ...(PLACE_IDS.includes(q.place) ? { place: q.place } : {}) };
+    return { box: b.map((v) => Math.round(v * 1000) / 1000), snd: ZONE_SOUNDS[q.snd] ? q.snd : 'boing', ...(typeof q.place === 'string' && ID_RE.test(q.place) ? { place: q.place } : {}) };
   }).filter(Boolean);
 }
 export function cleanAllZones(raw) {
   const out = {};
-  if (raw && typeof raw === 'object') for (const id of PLACE_IDS) if (Array.isArray(raw[id])) out[id] = cleanZones(raw[id]);
+  if (raw && typeof raw === 'object') for (const id of Object.keys(raw).slice(0, 60)) if (ID_RE.test(id) && Array.isArray(raw[id])) out[id] = cleanZones(raw[id]);
   return out;
 }
 

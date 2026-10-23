@@ -24,6 +24,7 @@ import { refreshHero } from './render/hero.js';
 import { rigAnims, getRig, drawRig, LIE } from './render/rig.js';
 import { animalAnims, setupAnimal } from './render/animal.js';
 import { createPets } from './core/pets.js';
+import { loadOwnWorld } from './core/world.js';
 import { createMap } from './ui/map.js';
 import { createVisit } from './net/visit.js';
 
@@ -39,6 +40,7 @@ async function boot() {
   for (const d of allItemDefs()) if (d.builtin && d.animal) setupAnimal(d); // встроенные животные — на скелет
   await loadBuiltinPacks(); // паки, встроенные в игру (папка packs/)
   await initShop().catch(() => {}); // паки, скачанные в магазине
+  if (__STUDIO__) await loadOwnWorld().catch(() => {}); // студия: свои районы и места (до чтения сохранения — места должны быть известны)
 
   if (__STUDIO__) studioLoad(); // студия: своя галочка «выдать игроку» (до нового дома — щенок)
 

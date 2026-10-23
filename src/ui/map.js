@@ -1,5 +1,5 @@
-// Карта мира (как в Toca Boca World): огромная круглая земля, мы видим её кусочек — кварталы с местами,
-// дорогой, деревьями; за ними на горизонте холмы. Тянешь пальцем — земля крутится, край по бокам
+// Карта мира (как в Toca Boca World): огромная круглая земля, мы видим её кусочек — район с главным зданием
+// и живыми домиками; за ними на горизонте горы и город. Тянешь пальцем — земля крутится, край по бокам
 // заворачивается вниз (видно, что она круглая), следующий квартал выезжает из-за горизонта.
 // Нажал на здание — заходишь внутрь. Готовые места — core/places.js (isReady); остальные — 🚧 (скоро).
 // Своё окно поверх игры со своим холстом; кадры рисуются только пока что-то движется.
@@ -8,55 +8,16 @@ import { MAX_DPR } from '../config.js';
 import { play } from '../audio.js';
 import { isReady } from '../core/places.js';
 import { zonesOf } from '../core/mapZones.js';
+import { districtList } from '../core/world.js';
 
 const H = 900;                 // высота экрана в единицах карты (как VIEW_H у дома)
-// Земля — цилиндр радиуса RC, повёрнутый к нам боком и наклонённый: «долгота» a — вдоль земли,
-// «широта» lat — глубина (больше — дальше к горизонту). Места стоят на LAT, перед ними — дорога.
-const RC = 1500;               // радиус земли (больше — меньше заметен изгиб)
-const LAT = 0.72;              // глубина, на которой стоят места
+// Земля — огромный цилиндр, повёрнутый к нам боком: районы лежат по кругу, края по бокам уходят вниз (DROP).
+const RC = 1500;               // радиус для горизонта (он дальше районов)
 const HZ = 300;                // линия горизонта посередине экрана
 const DROP = 0.55;             // насколько края земли уходят вниз
-// Районы: по картинке от GPT на каждое место (1600×800). На картинке земля начинается с VH (доля высоты),
-// главное здание района стоит на площадке посередине (низ — LOT_V). Районы плавно переходят друг в друга.
+// Районы — картинки 1600×800 (встроенные от GPT и свои из студии, core/world.js): земля начинается с VH
+// (доля высоты), главное здание района стоит на площадке посередине (низ — LOT_V); соседние районы — внахлёст OVER.
 const DW = 1600, DH = 800, VH = 0.244, LOT_V = 0.6, OVER = 0.08;
-const ROAD = [0.6, 0.71];      // дорога: от и до (глубина g, 0 — горизонт, 1 — низ экрана)
-// Что стоит на планете: долгота, широта, картинка, ширина. place — место, куда можно зайти.
-export const PLACES = [
-  { id: 'home', art: 'map/iso_home' },
-  { id: 'shop', art: 'map/iso_shop' },
-  { id: 'disco', art: 'map/iso_disco' },
-  { id: 'cafe', art: 'map/iso_cafe' },
-  { id: 'salon', art: 'map/iso_salon' },
-];
-const THINGS = [];
-// Украшения по сторонам от дорожки: [картинка, доля пути между местами, сдвиг широты, ширина, отклик].
-const PROPS = [
-  [['map/pond', 0.5, 0.42, 250, 'splash'], ['map/tree_pine', 0.22, 0.26, 130], ['map/flowerbed', 0.7, -0.2, 120, 'pop'], ['map/mushrooms', 0.38, -0.16, 70, 'boing']],
-  [['map/fountain', 0.5, 0.4, 200, 'splash'], ['map/tree_blossom', 0.75, 0.28, 175], ['map/bench', 0.3, -0.19, 110, 'pop'], ['map/rocks', 0.62, -0.22, 95, 'pop']],
-  [['map/tree_blossom', 0.3, 0.3, 170], ['map/flowerbed', 0.6, 0.45, 130, 'pop'], ['map/tree_pine', 0.72, 0.24, 135], ['map/mushrooms', 0.5, -0.18, 70, 'boing']],
-  [['map/tree_pine', 0.25, 0.32, 140], ['map/rocks', 0.55, 0.42, 100, 'pop'], ['map/bench', 0.68, -0.19, 110, 'pop'], ['map/flowerbed', 0.4, -0.21, 115, 'pop']],
-  [['map/flowerbed', 0.45, 0.45, 140, 'pop'], ['map/tree_blossom', 0.5, 0.25, 160], ['map/bench', 0.62, 0.5, 105, 'pop'], ['map/mushrooms', 0.28, -0.17, 70, 'boing'], ['map/rocks', 0.75, -0.2, 90, 'pop']],
-];
-PLACES.forEach((p, k) => {
-  const a = (k / PLACES.length) * Math.PI * 2, step = (Math.PI * 2) / PLACES.length;
-  THINGS.push({ a, lat: LAT, art: p.art, w: 520, sink: 0.12, place: p });
-  for (const [art, f, dl, w, tap] of PROPS[k]) THINGS.push({ a: a + step * f, lat: LAT + dl, art, w, tap, id: 'p' + THINGS.length });
-  THINGS.push({ a: a + step * 0.15, lat: LAT + 0.55, art: k % 2 ? 'map/tree' : 'map/tree_pine', w: 120 });
-  for (const f of [0.25, 0.75]) THINGS.push({ a: a + step * f, lat: LAT - 0.04, art: 'map/lamp', w: 42, tap: 'lamp', lamp: true, id: 'l' + THINGS.length });
-  THINGS.push({ a: a + step * 0.88, lat: LAT + 0.12, art: 'map/bush', w: 100, tap: 'pop', id: 'b' + THINGS.length });
-});
-// Россыпь деревьев, кустов и цветов (одна и та же каждый раз): сзади — у горизонта, спереди — у края.
-const hsh = (n) => { const x = Math.sin(n * 127.1 + 311.7) * 43758.5453; return x - Math.floor(x); };
-const SCATTER = ['map/tree', 'map/tree_pine', 'map/tree_blossom', 'map/bush', 'map/flowerbed', 'map/tree_pine', 'map/bush', 'map/rocks'];
-const SCW = { 'map/tree': 150, 'map/tree_pine': 120, 'map/tree_blossom': 150, 'map/bush': 95, 'map/flowerbed': 100, 'map/rocks': 80, 'map/mushrooms': 60 };
-for (let n = 0; n < 150; n++) {
-  const a = hsh(n) * Math.PI * 2, back = hsh(n + 500) < 0.62, lat = back ? LAT + 0.12 + hsh(n + 900) * 0.45 : LAT - 0.2 - hsh(n + 900) * 0.18;
-  const near = PLACES.some((_, k) => { let d = Math.abs(a - (k / PLACES.length) * Math.PI * 2) % (Math.PI * 2); d = Math.min(d, Math.PI * 2 - d); return d < 0.22 && lat < LAT + 0.3; });
-  if (near) continue;
-  const LOW = ['map/bush', 'map/flowerbed', 'map/rocks', 'map/mushrooms'], list = back ? SCATTER : LOW; // спереди — только низкое, чтобы не закрывать дорогу
-  const art = list[Math.floor(hsh(n + 33) * list.length)];
-  THINGS.push({ a, lat, art, w: SCW[art] * (0.8 + hsh(n + 71) * 0.4), tap: 'pop', id: 's' + n });
-}
 const CLOUDS = [0, 1, 2, 3, 4, 5, 6, 7].map((k) => ({ x: k * 520 + (k % 3) * 90, y: 60 + (k % 4) * 55, w: 170 + (k % 3) * 45, drift: 6 + (k % 4) * 3 }));
 // Горизонт: длинные полосы от GPT (горы, холмы, город) по кругу, стык — плавный.
 const HORIZON = ['mountains', 'hills', 'city', 'mountains', 'hills', 'city'];
@@ -71,9 +32,10 @@ export function createMap({ root, viewport, isNight = () => false, getPlace = ()
 
   let rot = 0; try { rot = Number(localStorage.getItem(ROT_KEY)) || 0; } catch (e) { /* пусто */ }
   let vel = 0, k = 1, W = 1600, raf = 0, lastT = 0, open = false, boxes = [], focus = null;
-  let zoom = { t0: 0, from: 1, to: 1, dur: 0, then: null }, bounce = new Map(), soon = null, splash = new Map(), wiggles = new Map();
-  const lampsOn = new Set();
-  const STEP = (Math.PI * 2) / PLACES.length; // один квартал — одно место
+  let zoom = { t0: 0, from: 1, to: 1, dur: 0, then: null }, bounce = new Map(), soon = null, wiggles = new Map();
+  // Районы (встроенные + свои): перечитываются при открытии карты. STEP — угол одного района, RD — радиус земли.
+  let D = districtList(), STEP = (Math.PI * 2) / D.length, RD = DW / STEP;
+  function refresh() { D = districtList(); STEP = (Math.PI * 2) / D.length; RD = DW / STEP; }
   let snap = null; // долёт до квартала: { from, to, t0, dur }
   function snapTo(to) { vel = 0; snap = { from: rot, to, t0: now(), dur: Math.min(0.7, 0.3 + Math.abs(to - rot) * 0.6) }; }
   const now = () => performance.now() / 1000;
@@ -86,18 +48,15 @@ export function createMap({ root, viewport, isNight = () => false, getPlace = ()
   }
 
   const center = () => ({ cx: W / 2, cy: HZ });
-  const depth = (lat) => (lat >= LAT ? 0.5 - (lat - LAT) * 0.85 : 0.5 + (LAT - lat) * 2.0);
-  // Точка земли (глубина g: 0 — горизонт, 1 — низ экрана; угол th) → экран. s — масштаб вещи, v — видна ли (>0).
+  // Точка дальней земли (горизонт): угол th → экран.
   function at(g, th) {
     const R = RC * (0.78 + 0.44 * g), c = Math.cos(th);
-    return { x: W / 2 + R * Math.sin(th), y: HZ + g * 640 + R * (1 - c) * DROP, s: (0.5 + 0.62 * g) * (0.7 + 0.3 * c), v: c - 0.25, g };
+    return { x: W / 2 + R * Math.sin(th), y: HZ + g * 640 + R * (1 - c) * DROP };
   }
-  const proj = (lat, lon) => at(depth(lat), norm(lon));
-  // Точка района: a — угол района (середина), u, v — доли его картинки. Земля — цилиндр радиуса RD.
-  const RD = DW / ((Math.PI * 2) / PLACES.length);
+  // Точка района: a — угол района (середина), u, v — доли его картинки.
   function distPos(a, u, v) {
-    const th = norm(a + (u - 0.5) * ((Math.PI * 2) / PLACES.length) + rot), c = Math.cos(th);
-    return { x: W / 2 + RD * Math.sin(th), y: HZ + (v - VH) * DH + RD * (1 - c) * DROP, s: 0.75 + 0.25 * c, v: c - 0.2, g: v };
+    const th = norm(a + (u - 0.5) * STEP + rot), c = Math.cos(th);
+    return { x: W / 2 + RD * Math.sin(th), y: HZ + (v - VH) * DH + RD * (1 - c) * DROP, s: 0.75 + 0.25 * c, v: c - 0.2, th };
   }
   // Здание на картинке района (зона) → рамка на экране (по изгибу: низ — по середине рамки).
   function zoneRect(k, q) {
@@ -109,7 +68,7 @@ export function createMap({ root, viewport, isNight = () => false, getPlace = ()
   function drawWiggles(t) {
     for (const [key, t0] of wiggles) {
       const q2 = (t - t0) / 0.6; if (q2 >= 1) { wiggles.delete(key); continue; }
-      const [k, i] = key.split(':').map(Number), zn = zonesOf(PLACES[k].id)[i], im = img('map/district_' + PLACES[k].id);
+      const [k, i] = key.split(':').map(Number), zn = D[k] && zonesOf(D[k].id)[i], im = D[k] && img(D[k].image);
       if (!zn || !im) continue;
       const r = zoneRect(k, zn); if (r.vis < 0) continue;
       const [u0, v0, u1, v1] = zn.box, s2 = Math.sin(q2 * Math.PI * 3) * 0.07 * (1 - q2);
@@ -126,7 +85,7 @@ export function createMap({ root, viewport, isNight = () => false, getPlace = ()
   }
   function hitZone(p) {
     let best = null;
-    PLACES.forEach((pl, k) => zonesOf(pl.id).forEach((zn, i) => {
+    D.forEach((dd, k) => zonesOf(dd.id).forEach((zn, i) => {
       const r = zoneRect(k, zn); if (r.vis < 0.1) return;
       if (p.x > r.x0 && p.x < r.x1 && p.y > r.y0 && p.y < r.y1) { const area = (r.x1 - r.x0) * (r.y1 - r.y0); if (!best || area < best.area) best = { k, i, zn, area }; }
     }));
@@ -146,10 +105,10 @@ export function createMap({ root, viewport, isNight = () => false, getPlace = ()
   // Районы — картинки, порезанные на столбики и уложенные по изгибу (в пикселях экрана встык, без щелей).
   // Каждый район чуть шире своего места (OVER) и на стыке плавно проявляется поверх соседа.
   function drawDistricts(night) {
-    const M = ctx.getTransform(), seg = (Math.PI * 2) / PLACES.length, cols = 140;
+    const M = ctx.getTransform(), seg = STEP, cols = 140;
     ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0);
     const one = (k, from, to) => {
-      const im = img('map/district_' + PLACES[k].id); if (!im) return;
+      const im = img(D[k].image); if (!im) return;
       const span = seg * (1 + OVER), a0 = k * seg - span / 2, da = span / cols, sw = im.width / cols, fadeCols = Math.round(cols * OVER / (1 + OVER));
       for (let c = from; c < to; c++) {
         const th = norm(a0 + c * da + rot), c0 = Math.cos(th); if (c0 < 0.05) continue;
@@ -160,7 +119,7 @@ export function createMap({ root, viewport, isNight = () => false, getPlace = ()
         ctx.drawImage(im, c * sw, 0, sw, im.height, x0, y, x1 - x0, DH * M.d);
       }
     };
-    for (let k = 0; k < PLACES.length; k++) one(k, 0, cols);
+    for (let k = 0; k < D.length; k++) one(k, 0, cols);
     one(0, 0, Math.round(cols * OVER / (1 + OVER))); // начало первого — поверх конца последнего
     ctx.restore();
   }
@@ -209,64 +168,26 @@ export function createMap({ root, viewport, isNight = () => false, getPlace = ()
       strip(0, -F, 0); // начало первой полосы — поверх конца последней
       ctx.restore();
     }
-    const DIST = !!img('map/district_' + PLACES[0].id); // районы нарисованы — земля, дорога и россыпь не нужны
-    if (DIST) { drawDistricts(night); drawWiggles(t); }
-    else {
-    // Земля: клетки (угол × глубина) с фактурой травы, край по бокам заворачивается вниз.
-    const grass = img('map/grass'), NL = 44, span2 = 2.6, dth = span2 / NL, G = [0, 0.18, 0.36, 0.55, 0.75, 1, 1.4];
-    const i0 = Math.floor((-span2 / 2 - rot) / dth);
-    ctx.fillStyle = '#86c95e'; ctx.beginPath();
-    for (let i = 0; i <= 60; i++) { const p = at(0, -1.35 + 2.7 * i / 60); if (i) ctx.lineTo(p.x, p.y); else ctx.moveTo(p.x, p.y); }
-    ctx.lineTo(W + 400, H + 400); ctx.lineTo(-400, H + 400); ctx.closePath(); ctx.fill();
-    for (let i = i0; i < i0 + NL + 1; i++) {
-      const th0 = i * dth + rot, th1 = th0 + dth;
-      for (let j = 0; j < G.length - 1; j++) {
-        const p0 = at(G[j], th0), p1 = at(G[j], th1), p2 = at(G[j + 1], th0), p3 = at(G[j + 1], th1);
-        if (!grass) continue;
-        const gw = grass.width / 4, gh = grass.height / 3;
-        ctx.save();
-        ctx.transform((p1.x - p0.x) / gw, (p1.y - p0.y) / gw, (p2.x - p0.x) / gh, (p2.y - p0.y) / gh, p0.x, p0.y);
-        ctx.drawImage(grass, (((i % 4) + 4) % 4) * gw, (j % 3) * gh, gw, gh, 0, 0, gw * 1.03, gh * 1.03); // чуть внахлёст — без щелей
-        ctx.restore();
-      }
-    }
-    // Край земли у горизонта — тёмная кромка, и лёгкая дымка вдали.
-    ctx.beginPath();
-    for (let i = 0; i <= 60; i++) { const p = at(0, -1.3 + 2.6 * i / 60); if (i) ctx.lineTo(p.x, p.y); else ctx.moveTo(p.x, p.y); }
-    ctx.strokeStyle = '#4f9a45'; ctx.lineWidth = 6; ctx.stroke();
-    const hz = ctx.createLinearGradient(0, HZ - 40, 0, HZ + 150); hz.addColorStop(0, 'rgba(225,242,255,0)'); hz.addColorStop(0.25, 'rgba(225,242,255,.4)'); hz.addColorStop(1, 'rgba(225,242,255,0)');
-    ctx.fillStyle = hz; ctx.fillRect(-400, HZ - 40, W + 800, 190);
-    // Дорога вдоль земли (асфальт с разметкой) — перед местами.
-    for (let i = i0 * 2; i < (i0 + NL + 1) * 2; i++) {
-      const th0 = i * dth / 2 + rot, th1 = th0 + dth / 2;
-      const a0 = at(ROAD[0], th0), a1 = at(ROAD[0], th1), b0 = at(ROAD[1], th0), b1 = at(ROAD[1], th1);
-      ctx.fillStyle = '#a7b6c8'; ctx.beginPath(); ctx.moveTo(a0.x, a0.y); ctx.lineTo(a1.x, a1.y); ctx.lineTo(b1.x, b1.y); ctx.lineTo(b0.x, b0.y); ctx.closePath(); ctx.fill();
-      ctx.strokeStyle = '#e9ecef'; ctx.lineWidth = 5; ctx.beginPath(); ctx.moveTo(a0.x, a0.y); ctx.lineTo(a1.x, a1.y); ctx.moveTo(b0.x, b0.y); ctx.lineTo(b1.x, b1.y); ctx.stroke();
-      if (i % 3 === 0) { const m0 = at((ROAD[0] + ROAD[1]) / 2, th0), m1 = at((ROAD[0] + ROAD[1]) / 2, th0 + dth / 3); ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 3.5; ctx.beginPath(); ctx.moveTo(m0.x, m0.y); ctx.lineTo(m1.x, m1.y); ctx.stroke(); }
-    }
-    }
-    // Места и деревья: дальние первыми, ближние поверх.
+    drawDistricts(night); drawWiggles(t);
+    // Главные здания районов — на площадке посередине; дальние первыми.
     const vis = [];
-    for (const th of THINGS) { if (DIST && !th.place) continue; const p = DIST ? distPos(th.a, 0.5, LOT_V) : proj(th.lat, th.a + rot); if (p.v > 0) vis.push({ th, p }); }
-    vis.sort((u, v) => u.p.g - v.p.g || u.p.y - v.p.y);
+    D.forEach((dd, k) => { if (!dd.art) return; const p = distPos(k * STEP, 0.5, LOT_V); if (p.v > 0) vis.push({ dd, k, p }); });
+    vis.sort((u, v) => u.p.y - v.p.y);
     boxes = [];
-    for (const { th, p } of vis) {
-      const im = img(th.art); if (!im) continue;
-      const w = (DIST && th.place ? 360 : th.w) * p.s, h = w * im.height / im.width;
+    for (const { dd, k, p } of vis) {
+      const im = img(dd.art); if (!im) continue;
+      const w = 360 * p.s, h = w * im.height / im.width, sink = 0.12;
       ctx.save(); ctx.globalAlpha = Math.min(1, p.v / 0.12);
-      ctx.translate(p.x, p.y + (th.sink || 0) * h); ctx.rotate(Math.sin(norm(th.a + rot)) * 0.25); // по краям — наклон вместе с землёй
-      const key = th.place?.id || th.id, b = key && bounce.get(key);
-      if (b) { const q = (t - b) / 0.5; if (q < 1) { const s2 = Math.sin(q * Math.PI); ctx.translate(0, -40 * s2 * Math.min(1, w / 200)); ctx.scale(1 - 0.06 * s2, 1 + 0.08 * s2); } else bounce.delete(key); }
+      ctx.translate(p.x, p.y + sink * h); ctx.rotate(Math.sin(p.th) * 0.25); // по краям — наклон вместе с землёй
+      const b = bounce.get(dd.id);
+      if (b) { const q = (t - b) / 0.5; if (q < 1) { const s2 = Math.sin(q * Math.PI); ctx.translate(0, -40 * s2); ctx.scale(1 - 0.06 * s2, 1 + 0.08 * s2); } else bounce.delete(dd.id); }
       ctx.drawImage(im, -w / 2, -h, w, h);
-      if (th.lamp && (night || lampsOn.has(th.id))) { ctx.globalCompositeOperation = 'lighter'; const gl = ctx.createRadialGradient(0, -h * 0.82, 2, 0, -h * 0.82, w * 1.6); gl.addColorStop(0, 'rgba(255,220,130,.9)'); gl.addColorStop(1, 'rgba(255,200,100,0)'); ctx.fillStyle = gl; ctx.fillRect(-w * 1.6, -h * 0.82 - w * 1.6, w * 3.2, w * 3.2); ctx.globalCompositeOperation = 'source-over'; }
-      const sp = splash.get(th.id); // брызги фонтана/пруда
-      if (sp) { const q = (t - sp) / 0.9; if (q < 1) { ctx.fillStyle = 'rgba(160,215,255,.9)'; for (let n = 0; n < 12; n++) { const an = -Math.PI / 2 + (n / 11 - 0.5) * 2.2, v = 1 + (n % 3) * 0.3; ctx.beginPath(); ctx.arc(Math.cos(an) * w * 0.5 * q * v, -h * 0.5 + Math.sin(an) * w * 0.45 * q * v + 160 * q * q, 5 * (1 - q) + 2, 0, Math.PI * 2); ctx.fill(); } } else splash.delete(th.id); }
-      if (soon && th.place?.id === soon.id) { // ещё строится
+      if (soon && dd.id === soon.id) { // ещё строится
         const q = (t - soon.t0) / 1.4;
         if (q < 1) { ctx.globalAlpha = Math.min(1, (1 - q) * 4); ctx.font = '64px sans-serif'; ctx.textAlign = 'center'; ctx.fillText('🚧', 0, -h - 20 - q * 30); } else soon = null;
       }
       ctx.restore();
-      if (th.place || th.tap) boxes.push({ th, x0: p.x - w / 2, x1: p.x + w / 2, y0: p.y + (th.sink || 0) * h - h, y1: p.y + (th.sink || 0) * h, d: p.g });
+      boxes.push({ dd, k, x0: p.x - w / 2, x1: p.x + w / 2, y0: p.y + sink * h - h, y1: p.y + sink * h });
     }
     if (night) { ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.fillStyle = 'rgba(28,40,85,.25)'; ctx.fillRect(0, 0, cv.width, cv.height); }
     // Затемнение при входе
@@ -280,7 +201,7 @@ export function createMap({ root, viewport, isNight = () => false, getPlace = ()
     draw();
     const t = now();
     if (zoom.dur && t - zoom.t0 >= zoom.dur) { const f = zoom.then; zoom = { dur: 0 }; f?.(); if (!open) return; }
-    const busy = drag || snap || zoom.dur || bounce.size || soon || splash.size || wiggles.size;
+    const busy = drag || snap || zoom.dur || bounce.size || soon || wiggles.size;
     if (busy) kick(); else { lastT = 0; idle = setTimeout(kick, 120); } // облака плывут — редкие кадры
   }
   let idle = 0;
@@ -302,7 +223,7 @@ export function createMap({ root, viewport, isNight = () => false, getPlace = ()
     if (!drag) return;
     const p = toWorld(e), dx = p.x - drag.x, t = now();
     if (Math.abs(p.x - drag.x0) > 10) drag.moved = true;
-    const da = dx / RC; rot += da;
+    const da = dx / RD; rot += da;
     const dt = Math.max(0.008, t - drag.tl); vel = vel * 0.6 + (da / dt) * 0.4;
     drag.x = p.x; drag.tl = t;
     kick();
@@ -324,46 +245,34 @@ export function createMap({ root, viewport, isNight = () => false, getPlace = ()
   cv.addEventListener('pointerup', up); cv.addEventListener('pointercancel', up);
 
   function hitPlace(p) {
-    for (const bx of [...boxes].sort((u, v) => (v.th.place ? 1 : 0) - (u.th.place ? 1 : 0) || v.d - u.d)) if (p.x > bx.x0 && p.x < bx.x1 && p.y > bx.y0 && p.y < bx.y1) return bx.th;
+    for (const bx of [...boxes].reverse()) if (p.x > bx.x0 && p.x < bx.x1 && p.y > bx.y0 && p.y < bx.y1) return bx;
     return null;
   }
   function tap(p) {
-    const th = hitPlace(p);
-    if (!th) { // здание на картинке района
-      const hz = img('map/district_' + PLACES[0].id) && hitZone(p); if (!hz) return;
+    const bx = hitPlace(p);
+    if (!bx) { // здание на картинке района
+      const hz = hitZone(p); if (!hz) return;
       wiggles.set(hz.k + ':' + hz.i, now()); play(hz.zn.snd);
       if (hz.zn.place) {
         if (!isReady(hz.zn.place)) { play('boing'); kick(); return; }
-        const [u0, v0, u1, v1] = hz.zn.box, uc = (u0 + u1) / 2, th2 = (uc - 0.5) * STEP;
+        const [u0, v0, u1, v1] = hz.zn.box, th2 = ((u0 + u1) / 2 - 0.5) * STEP;
         setTimeout(() => enter(hz.zn.place, hz.k, W / 2 + RD * Math.sin(th2), HZ + ((v0 + v1) / 2 - VH) * DH + RD * (1 - Math.cos(th2)) * DROP), 250);
       }
       kick(); return;
     }
-    if (!th.place) { // украшение: подпрыгнуть, брызнуть, зажечься
-      bounce.set(th.id, now());
-      if (th.tap === 'splash') { splash.set(th.id, now()); play('bubble'); setTimeout(() => play('bubble'), 120); }
-      else if (th.tap === 'lamp') { if (lampsOn.has(th.id)) lampsOn.delete(th.id); else lampsOn.add(th.id); play('click'); }
-      else play(th.tap === 'boing' ? 'boing' : 'pop');
-      kick(); return;
-    }
-    bounce.set(th.place.id, now());
-    if (!isReady(th.place.id)) { soon = { id: th.place.id, t0: now() }; play('boing'); return; }
-    play('pop');
-    // Повернуть планету так, чтобы здание было посередине, и «войти» (приближение + светлая вспышка).
-    const target = rot - norm(th.a + rot), from = rot;
-    const t0 = now();
-    const spin = () => { const q = Math.min(1, (now() - t0) / 0.35); rot = from + (target - from) * q * (2 - q); if (q < 1) requestAnimationFrame(spin); };
-    vel = 0; snap = null; spin();
-    focus = { x: W / 2, y: HZ + 0.5 * 640 - 160 }; // здание повернётся вперёд — приближаем к нему
-    zoom = { t0: now() + 0.0, from: 1, to: 2.3, dur: 0.6, fade: 1, then: () => { close(true); onEnter(th.place.id); } };
-    setTimeout(() => play('whoosh'), 250);
-    kick();
+    bounce.set(bx.dd.id, now());
+    if (!bx.dd.place || !isReady(bx.dd.place)) { soon = { id: bx.dd.id, t0: now() }; play('boing'); kick(); return; }
+    enter(bx.dd.place, bx.k, W / 2, HZ + (LOT_V - VH) * DH - 160); // здание повернётся вперёд — приближаем к нему
   }
 
   function openMap() {
-    // Планета повёрнута к месту, где сейчас игрок.
-    const here = THINGS.find((t) => t.place?.id === getPlace());
-    if (here) rot = -here.a + Math.round((rot + here.a) / (Math.PI * 2)) * Math.PI * 2; // ровно на своём квартале
+    refresh();
+    // Земля повёрнута к району, где сейчас игрок (место — главное в районе или вход через домик района).
+    const pl = getPlace();
+    let k = D.findIndex((d) => d.place === pl);
+    if (k < 0) k = D.findIndex((d) => zonesOf(d.id).some((z) => z.place === pl));
+    if (k >= 0) { const a = k * STEP; rot = -a + Math.round((rot + a) / (Math.PI * 2)) * Math.PI * 2; } // ровно на своём районе
+    else rot = Math.round(rot / STEP) * STEP;
     if (open) return;
     open = true; el.hidden = false; resize(); lastT = 0;
     focus = null; zoom = { t0: now(), from: 1.8, to: 1, dur: 0.5, fade: -1 };

@@ -33,7 +33,8 @@ export function createAdmin({ root, store, camera, actions, toast, onChange }) {
   items.bind(el);
   const animals = createAnimalEditor({ store, actions, toast, onChange });
   animals.bind(el);
-  const mapEd = createMapEditor({ toast });
+  // «Зайти и обставить» своё место: закрыть админку и перейти туда (обставлять — обычным редактором).
+  const mapEd = createMapEditor({ toast, store, enterPlace: (id) => { if (actions.goPlace(id) || (store.state.place === id)) { camera.holdAt(0); camera.mode = 'idle'; close(); toast('Ты в своём месте. Обставь его и нажми ✎ Админка → «Карта» → «Сохранить обстановку»'); onChange(); } } });
   mapEd.bind(el);
 
   const open = () => { isOpen = true; el.hidden = false; render(); onChange(); };
@@ -233,7 +234,7 @@ export function createAdmin({ root, store, camera, actions, toast, onChange }) {
     sending = true; render();
     try {
       const n = await sendGameUpdate();
-      toast(`Отправлено игрокам: правок ${n.overrides}, рецептов ${n.recipes}, животных ${n.items}, районов карты ${n.zones}. В игре появится через 1–5 минут (после перезапуска игры)`);
+      toast(`Отправлено игрокам: правок ${n.overrides}, рецептов ${n.recipes}, животных ${n.items}, зон карты ${n.zones}, своих районов ${n.districts}, мест ${n.places}. В игре появится через 1–5 минут (после перезапуска игры)`);
     } catch (e) { toast(e.message, true); }
     sending = false; render();
   }
