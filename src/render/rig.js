@@ -181,7 +181,8 @@ export function buildRig(look, face = null, grip = {}) {
     }
     bones[name] = { cv, x: x0, y: y0, used: true };
   }
-  return { bones, h: HERO_LAYERS['hero/body_stand_f'][1] + (img('hero/body_stand_f')?.height || 600) };
+  const stiff = bodyWear(look.wear).some((w) => (WEAR[w].custom || replacedWear.has(w)) && (WEAR[w].type === 'top' || WEAR[w].type === 'dress'));
+  return { bones, stiff, h: HERO_LAYERS['hero/body_stand_f'][1] + (img('hero/body_stand_f')?.height || 600) };
 }
 
 // Где режется нога: бедро — выше колена, голень — ниже.
@@ -211,7 +212,16 @@ function reachMouth() {
 let biteCv = null;
 
 // held — вещи в руке: [{ im, w, h (в мире), bites, drink }].
+// В своей одежде с рукавами (студия) плечо почти не двигается — машет рука от локтя: так рукав,
+// нарисованный одной картинкой, не отрывается от платья или кофты.
+const STIFF_KEEP = 0.12;
+function stiffen(pose) {
+  const p = { ...pose };
+  for (const s of ['L', 'R']) { const up = p['armUp' + s] || 0; p['armUp' + s] = up * STIFF_KEEP; p['armLo' + s] = (p['armLo' + s] || 0) + up * (1 - STIFF_KEEP); }
+  return p;
+}
 export function drawRig(ctx, rig, b, pose = {}, held = []) {
+  if (rig.stiff) pose = stiffen(pose);
   const k = b.h / rig.h;
   ctx.save();
   ctx.translate(b.x + b.w / 2, b.y + b.h);
