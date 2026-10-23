@@ -87,7 +87,7 @@ async function boot() {
   });
   renderer.setPets(pets);
   // Карта-планета: дом и другие места (пока строятся).
-  const map = createMap({ root: $('app'), isNight: () => !!store.state.night, onEnter: () => { invalidate(); } });
+  const map = createMap({ root: $('app'), viewport, isNight: () => !!store.state.night, onEnter: () => { invalidate(); } });
   hud.setMap(() => map.open());
   // В гости к друзьям и гости у меня (net/visit.js).
   const visit = createVisit({

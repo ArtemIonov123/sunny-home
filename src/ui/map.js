@@ -30,7 +30,7 @@ PLACES.forEach((p, k) => {
 const CLOUDS = [0, 1, 2, 3, 4, 5, 6].map((k) => ({ a: k * 0.9 + 0.3, r: R + 470 + (k % 3) * 85, w: 190 + (k % 3) * 40, drift: 0.012 + (k % 4) * 0.004 }));
 const ROT_KEY = 'sunny-map-rot';
 
-export function createMap({ root, isNight = () => false, onEnter = () => {} }) {
+export function createMap({ root, viewport, isNight = () => false, onEnter = () => {} }) {
   const el = document.createElement('div');
   el.className = 'map-screen'; el.hidden = true;
   el.innerHTML = '<canvas aria-label="Карта"></canvas>';
@@ -43,8 +43,9 @@ export function createMap({ root, isNight = () => false, onEnter = () => {} }) {
   const now = () => performance.now() / 1000;
 
   function resize() {
-    const r = el.getBoundingClientRect(), dpr = Math.min(window.devicePixelRatio || 1, MAX_DPR);
-    cv.width = Math.round(r.width * dpr); cv.height = Math.round(r.height * dpr);
+    // Размер без поворота: телефон стоит вертикально — игра повёрнута (#app.rotated), и рамка на экране «боком».
+    const w = el.clientWidth, h = el.clientHeight, dpr = Math.min(window.devicePixelRatio || 1, MAX_DPR);
+    cv.width = Math.round(w * dpr); cv.height = Math.round(h * dpr);
     k = cv.height / H; W = cv.width / k;
     if (Math.abs(ringK - k) > 0.01) ring = null;
   }
@@ -138,7 +139,10 @@ export function createMap({ root, isNight = () => false, onEnter = () => {} }) {
 
   // ── Пальцем: крутить и нажимать ──
   let drag = null;
-  const toWorld = (e) => { const r = cv.getBoundingClientRect(); return { x: (e.clientX - r.left) / r.height * H, y: (e.clientY - r.top) / r.height * H }; };
+  const toWorld = (e) => {
+    const p = viewport ? viewport.toLocal(e.clientX, e.clientY) : (() => { const r = cv.getBoundingClientRect(); return { x: e.clientX - r.left, y: e.clientY - r.top }; })();
+    return { x: (p.x / el.clientHeight) * H, y: (p.y / el.clientHeight) * H };
+  };
   cv.addEventListener('pointerdown', (e) => {
     if (zoom.then) return;
     const p = toWorld(e); drag = { x0: p.x, y0: p.y, x: p.x, t0: now(), tl: now(), moved: false }; vel = 0;
@@ -201,7 +205,7 @@ export function createMap({ root, isNight = () => false, onEnter = () => {} }) {
     open = false; el.hidden = true; clearTimeout(idle); if (raf) cancelAnimationFrame(raf); raf = 0;
     try { localStorage.setItem(ROT_KEY, String(norm(rot))); } catch (err) { /* не важно */ }
   }
-  window.addEventListener('resize', () => { if (open) { resize(); kick(); } });
+  window.addEventListener('resize', () => { if (open) requestAnimationFrame(() => { resize(); kick(); }); }); // после того, как игра повернулась
 
   return { open: openMap, close, get isOpen() { return open; }, _hit: hitPlace, get rot() { return rot; }, set rot(v) { rot = v; kick(); } };
 }
