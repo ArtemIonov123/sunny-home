@@ -44,6 +44,8 @@ export const BONES = {
 // Порядок рисования: сзади вперёд. Руки — за туловищем: так в покое герой выглядит точно как цельная
 // картинка (платье и футболка поверх рук), а при подъёме руки плечо прячется под одеждой.
 export const ORDER = ['hairBack', 'shinL', 'shinR', 'legL', 'legR', 'armUpL', 'armLoL', 'armUpR', 'armLoR', 'torso', 'lap', 'head'];
+// В своей одежде (студия) руки от локтя — поверх неё: пышная юбка или подол от GPT не закрывают ладошки.
+const ORDER_HANDS = ['hairBack', 'shinL', 'shinR', 'legL', 'legR', 'armUpL', 'armUpR', 'torso', 'lap', 'armLoL', 'armLoR', 'head'];
 // Части пока вырезаны из цельного тела — большие повороты показали бы срезы, поэтому размах меньше.
 // Когда придут отдельные части от GPT (arm_upper_left…), размах станет полным.
 const FULL_PARTS = !!HERO_LAYERS['hero/arm_upper_left_t'] || !!HERO_LAYERS['hero/arm_upper_left_f'];
@@ -96,6 +98,8 @@ const PART_BONES = {
   wear_pants_hips: 'torso', wear_pants_leg_left: 'legL', wear_pants_leg_right: 'legR',
 };
 // Как вещь режется по костям — по её типу (core/looks.js).
+// Надета своя или заменённая вещь с подолом (верх, платье, юбка) — руки от локтя рисуем поверх одежды.
+export const handsOverWear = (look) => bodyWear(look.wear).some((w) => (WEAR[w].custom || replacedWear.has(w)) && ['top', 'dress', 'skirt'].includes(WEAR[w].type));
 // Встроенные вещи, которым заменили картинку (студия → «Герои»): старые части от GPT им уже не подходят.
 export const replacedWear = new Set();
 const cutOf = (w) => WEAR_TYPES[WEAR[w]?.type]?.cut || 'free';
@@ -182,7 +186,8 @@ export function buildRig(look, face = null, grip = {}) {
     bones[name] = { cv, x: x0, y: y0, used: true };
   }
   const stiff = bodyWear(look.wear).some((w) => (WEAR[w].custom || replacedWear.has(w)) && (WEAR[w].type === 'top' || WEAR[w].type === 'dress'));
-  return { bones, stiff, h: HERO_LAYERS['hero/body_stand_f'][1] + (img('hero/body_stand_f')?.height || 600) };
+  const handsFront = FULL_PARTS && handsOverWear(look);
+  return { bones, stiff, handsFront, h: HERO_LAYERS['hero/body_stand_f'][1] + (img('hero/body_stand_f')?.height || 600) };
 }
 
 // Где режется нога: бедро — выше колена, голень — ниже.
@@ -251,7 +256,8 @@ export function drawRig(ctx, rig, b, pose = {}, held = []) {
   let mHand = null, mHead = null;
   // Кости из pose.front рисуются сразу после туловища (перед ним), остальные — по порядку.
   const front = pose.front || [];
-  const order = front.length ? ORDER.filter((n) => !front.includes(n)).flatMap((n) => (n === 'torso' ? ['torso', ...front] : [n])) : ORDER;
+  const base = rig.handsFront ? ORDER_HANDS : ORDER;
+  const order = front.length ? base.filter((n) => !front.includes(n)).flatMap((n) => (n === 'torso' ? ['torso', ...front] : [n])) : base;
   for (const name of pose.only ? order.filter((n) => pose.only.includes(n)) : order) {
     const bn = rig.bones[name];
     if (name === 'armLoR' && held.length) { ctx.save(); apply(name); mHand = ctx.getTransform(); ctx.restore(); }
