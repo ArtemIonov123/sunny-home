@@ -45,7 +45,7 @@ export function createClothesEditor({ store, actions, toast, onChange }) {
   function listHtml() {
     const list = mine();
     return `<div class="ie-bar"><button class="primary" data-ce-new${listRecords().length >= LIBRARY_LIMIT ? ' disabled' : ''}>＋ Новая вещь</button>
-        <button data-ce-send${hasToken() && !sending ? '' : ' disabled'}>📤 Отправить игрокам</button>
+        <button data-ce-send${!sending ? '' : ' disabled'}>📤 Отправить игрокам</button>
         <span class="ie-title">${sending ? '⏳ ' + esc(sending) : `Своей одежды: ${list.length}`}</span></div>
       <ol class="ce-steps">
         <li><b>Тип</b> — что это: верх, платье, штаны, юбка, обувь, очки или шапка. От типа зависит, как вещь двигается.</li>
@@ -277,7 +277,7 @@ export function createClothesEditor({ store, actions, toast, onChange }) {
     if (d.ceNew !== undefined) { draft = fresh(); srcIm = null; uploadBox = null; dirty = false; mode = 'stand'; }
     else if (d.ceLike) { likeBuiltin(d.ceLike); mode = 'stand'; await autoArt(); }
     else if (d.ceEdit) { draft = JSON.parse(JSON.stringify(getRecord(d.ceEdit))); srcIm = null; uploadBox = null; dirty = false; mode = 'stand'; }
-    else if (d.ceSend !== undefined) { if (!sending) sendToPlayers(); return; }
+    else if (d.ceSend !== undefined) { if (!hasToken()) { toast('Нужен ключ GitHub: нажми вверху «🔑 В игру» и вставь ключ (или загрузи резервную копию студии в «Данные»)', true); return; } if (!sending) sendToPlayers(); return; }
     else if (d.ceBack !== undefined) { if (dirty && !confirm('Есть несохранённые изменения. Выйти без сохранения?')) return; draft = null; }
     else if (!draft) return;
     else if (d.ceType) { draft.cloth.type = d.ceType; if (draft.cloth.box && draft.cloth.image) setBox(fitToSample(draft.cloth.box[2] / draft.cloth.box[3], d.ceType)); dirty = true; play('click'); }

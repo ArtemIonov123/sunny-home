@@ -77,7 +77,7 @@ export function createAnimalEditor({ store, actions, toast, onChange }) {
     const mine = animals();
     const badge = (given) => (given ? '✓ у игрока' : '🔒 только в паках');
     return `<div class="ie-bar"><button class="primary" data-an-new>＋ Новое животное</button>
-        <button data-an-send${hasToken() && !sending ? '' : ' disabled'}>📤 Отправить игрокам</button>
+        <button data-an-send${!sending ? '' : ' disabled'}>📤 Отправить игрокам</button>
         <span class="ie-title">${sending ? '⏳ ' + esc(sending) : `Своих животных: ${mine.length}`}</span></div>
       <p class="adm-help"><b>Выдать игроку</b> — животное есть у всех игроков бесплатно. Без галочки — его получают только из пака (отметь его в «Паки»). Галочки и правки встроенных доходят до игроков после «📤 Отправить игрокам» (нужен ключ GitHub, как для паков); свои животные с галочкой приходят игрокам подарком сами.</p>
       <h4>Встроенные</h4>
@@ -254,7 +254,7 @@ export function createAnimalEditor({ store, actions, toast, onChange }) {
     if (b.dataset.anNew !== undefined) { draft = fresh(); dirty = false; mode = 'idle'; }
     else if (b.dataset.anEdit) { draft = JSON.parse(JSON.stringify(getRecord(b.dataset.anEdit))); dirty = false; mode = 'idle'; }
     else if (b.dataset.anBuiltin) { draft = builtinDraft(b.dataset.anBuiltin); dirty = false; mode = 'idle'; }
-    else if (b.dataset.anSend !== undefined) { if (!sending) sendToPlayers(); return; }
+    else if (b.dataset.anSend !== undefined) { if (!hasToken()) { toast('Нужен ключ GitHub: нажми вверху «🔑 В игру» и вставь ключ (или загрузи резервную копию студии в «Данные»)', true); return; } if (!sending) sendToPlayers(); return; }
     else if (b.dataset.anReset !== undefined) {
       if (!confirm('Вернуть встроенное животное как было (имя, размер, голос, суставы)?')) return;
       await resetOverride(draft.id); store.change((s) => normalize(s), { undo: false }); draft = builtinDraft(draft.id); dirty = false; toast('Как было'); onChange();

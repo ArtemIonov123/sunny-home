@@ -54,7 +54,7 @@ export function createHeroArtEditor({ store, actions, toast, onChange }) {
     return `<div class="ie-bar">
         <button class="primary" data-ha-save${dirty && !busy ? '' : ' disabled'}>💾 Сохранить</button>
         <button data-ha-cancel${dirty ? '' : ' disabled'}>Отменить изменения</button>
-        <button data-ha-send${hasToken() && !sending && !dirty ? '' : ' disabled'}>📤 Отправить игрокам</button>
+        <button data-ha-send${!sending && !dirty ? '' : ' disabled'}>📤 Отправить игрокам</button>
         <span class="ie-title">${sending ? '⏳ ' + esc(sending) : `Своих картинок: ${changed}${dirty ? ' · не сохранено' : ''}`}</span></div>
       <div class="ha-groups">${Object.entries(HERO_GROUPS).map(([k, g]) => `<button data-ha-group="${k}" class="${k === group ? 'on' : ''}">${g.icon} ${g.name}${g.slots.some(has) ? ' ✓' : ''}</button>`).join('')}</div>
       <p class="adm-help">${GROUP_HELP[group]}</p>
@@ -181,7 +181,7 @@ export function createHeroArtEditor({ store, actions, toast, onChange }) {
     } else if (d.haCancel !== undefined) {
       if (!confirm('Отменить несохранённые изменения картинок героев?')) return;
       work = ownHeroArt(); dirty = false; await apply();
-    } else if (d.haSend !== undefined) { if (!sending) sendToPlayers(); return; }
+    } else if (d.haSend !== undefined) { if (!hasToken()) { toast('Нужен ключ GitHub: нажми вверху «🔑 В игру» и вставь ключ (или загрузи резервную копию студии в «Данные»)', true); return; } if (!sending) sendToPlayers(); return; }
     else return;
     render();
   };

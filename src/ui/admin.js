@@ -11,6 +11,7 @@ import { createItemEditor } from './itemEditor.js';
 import { createAnimalEditor } from './animalEditor.js';
 import { createClothesEditor } from './clothesEditor.js';
 import { createHeroArtEditor } from './heroArtEditor.js';
+import { makeStudioBackup, restoreStudioBackup } from '../core/studioBackup.js';
 import { createMapEditor } from './mapEditor.js';
 import { ownWorld, saveOwnWorld, newFinishId } from '../core/world.js';
 import { loadImage } from '../assets.js';
@@ -276,7 +277,15 @@ export function createAdmin({ root, store, camera, actions, toast, onChange }) {
         <button data-import>↑ Загрузить из файла</button>
         <button data-reset class="danger">Начать дом заново</button>
       </div>
-      <input type="file" accept="application/json,.json" data-file hidden>`;
+      <input type="file" accept="application/json,.json" data-file hidden>
+      <h4>Студия целиком — для перехода на новую версию</h4>
+      <p class="adm-help">На телефоне каждый новый скачанный studio.html — как отдельная программа: он не видит ключ GitHub и работу прошлого файла (свои предметы, одежду, животных, правки, рецепты, карту, картинки героев). Перед переходом: в <b>старом</b> файле — «↓ Скачать студию», в <b>новом</b> — «↑ Загрузить студию». Дом (комнаты и расстановка) переносится кнопками выше.</p>
+      <label class="an-give"><input type="checkbox" data-bk-key> <b>Вместе с ключом GitHub</b><small>чтобы в новом файле не вставлять ключ заново. Такой файл никому не пересылай</small></label>
+      <div class="adm-buttons">
+        <button data-bk-export class="primary">↓ Скачать студию</button>
+        <button data-bk-import>↑ Загрузить студию</button>
+      </div>
+      <input type="file" accept="application/json,.json" data-bk-file hidden>`;
   }
 
   // «📤 В игру»: правки встроенных, свои рецепты и животные — всем игрокам (через магазин на GitHub).
@@ -305,7 +314,7 @@ export function createAdmin({ root, store, camera, actions, toast, onChange }) {
     const navX = el.querySelector('header nav')?.scrollLeft || 0; // перерисовка не должна сбрасывать прокрутку вкладок
     el.innerHTML = `<header><b>Админка</b>
         <nav>${Object.entries(tabs).map(([k, n]) => `<button class="tab${tab === k ? ' on' : ''}" data-tab="${k}">${n}</button>`).join('')}</nav>
-        <button class="adm-send" data-send${hasToken() && !sending ? '' : ' disabled'} title="${hasToken() ? 'Отправить правки, рецепты и животных всем игрокам' : 'Нужен ключ GitHub (Паки → публикация)'}">${sending ? '⏳' : '📤 В игру'}</button>
+        <button class="adm-send${hasToken() ? '' : ' nokey'}" data-send${sending ? ' disabled' : ''} title="${hasToken() ? 'Отправить всё из студии всем игрокам' : 'Нужен ключ GitHub — нажми, чтобы вставить'}">${sending ? '⏳' : hasToken() ? '📤 В игру' : '🔑 В игру'}</button>
         <button class="close" data-x aria-label="Закрыть">×</button></header>
       <div class="adm-body">${tab === 'rooms' ? roomsTab() : tab === 'markup' ? markupTab() : tab === 'items' ? '<div class="items-tab"></div>' : tab === 'animals' ? '<div class="animals-tab"></div>' : tab === 'clothes' ? '<div class="clothes-tab"></div>' : tab === 'heroes' ? '<div class="heroart-tab"></div>' : tab === 'map' ? '<div class="map-tab"></div>' : tab === 'packs' ? packsTab() : tab === 'recipes' ? recipesTab() : dataTab()}</div>`;
     const nav = el.querySelector('header nav'); if (nav) nav.scrollLeft = navX;
@@ -321,7 +330,14 @@ export function createAdmin({ root, store, camera, actions, toast, onChange }) {
     const b = e.target.closest('button'); if (!b || b.closest('.items-tab') || b.closest('.animals-tab') || b.closest('.clothes-tab') || b.closest('.heroart-tab') || b.closest('.map-tab')) return; // «Предметы» обрабатывает свой модуль
     const id = b.closest('.adm-row')?.dataset.id;
     if (b.dataset.x !== undefined) { if (items.dirty && tab === 'items') toast('Черновик предмета сохранится до следующего открытия админки'); return close(); }
-    if (b.dataset.send !== undefined) { sendUpdate(); return; }
+    if (b.dataset.send !== undefined) {
+      if (!hasToken()) { // новый файл студии не видит ключ прошлого — сразу к полю ключа
+        tab = 'packs'; showKey = true; render(); onChange();
+        toast('Нужен ключ GitHub. Вставь его сюда и нажми «Сохранить ключ». Новый файл студии не помнит ключ прошлого — или загрузи резервную копию студии («Данные»)', true);
+        return;
+      }
+      sendUpdate(); return;
+    }
     if (b.dataset.finDel) { if (!confirm('Убрать эту отделку? Комнаты с ней станут однотонными.')) return; const fid = b.dataset.finDel; finishChange((f) => { delete f[fid]; }, 'Отделка убрана'); return; }
     if (b.dataset.tab) { tab = b.dataset.tab; render(); onChange(); return; }
     if (b.dataset.up !== undefined) actions.moveRoom(id, -1);
@@ -399,7 +415,12 @@ export function createAdmin({ root, store, camera, actions, toast, onChange }) {
         download(JSON.stringify(pack), `pack_${pack.id}.json`);
         toast(`Пак «${pack.name}» скачан: ${pack.items.length} предм.` + (pack.overrides.length ? `, правок: ${pack.overrides.length}` : ''));
       } catch (err) { toast(err.message, true); }
-    } else if (b.dataset.export !== undefined) exportJson();
+    } else if (b.dataset.bkExport !== undefined) {
+      const withKey = !!el.querySelector('[data-bk-key]')?.checked;
+      download(JSON.stringify(makeStudioBackup(withKey)), 'Sunny_Home_Studio.json');
+      toast('Студия скачана. В новом файле студии: «Данные» → «↑ Загрузить студию»');
+    } else if (b.dataset.bkImport !== undefined) el.querySelector('[data-bk-file]').click();
+    else if (b.dataset.export !== undefined) exportJson();
     else if (b.dataset.import !== undefined) el.querySelector('[data-file]').click();
     else if (b.dataset.reset !== undefined) {
       if (!confirm('Начать дом заново? Это можно отменить кнопкой ↶.')) return;
@@ -413,6 +434,19 @@ export function createAdmin({ root, store, camera, actions, toast, onChange }) {
     if (e.target.matches('.adm-name')) actions.renameRoom(id, e.target.value);
     else if (e.target.matches('.adm-width')) actions.setWidth(id, Number(e.target.value));
     else if (e.target.matches('[data-file]')) return importJson(e.target);
+    else if (e.target.matches('[data-bk-file]')) {
+      const file = e.target.files?.[0]; e.target.value = '';
+      if (!file) return;
+      (async () => {
+        try {
+          toast('Загружаю студию…');
+          const n = await restoreStudioBackup(JSON.parse(await file.text()));
+          store.change((st) => normalize(st), { undo: false }); actions.restoreMissing();
+          toast(`Студия загружена: предметов ${n.items}, правок ${n.overrides}, рецептов ${n.recipes}, районов с зонами ${n.zones}, своих мест и отделок ${n.places}, картинок героев ${n.heroArt}${n.key ? ', ключ GitHub — есть' : ''}`);
+        } catch (err) { toast(err.message, true); }
+        render(); onChange();
+      })();
+    }
     else if (e.target.matches('[data-fin-kind]')) { finKind = e.target.value; return; }
     else if (e.target.matches('[data-fin-tint]')) { finTint = e.target.checked; return; }
     else if (e.target.matches('[data-fin-name]')) { const fid = e.target.dataset.finName, v = e.target.value; finishChange((f) => { if (f[fid]) f[fid].name = v; }); return; }

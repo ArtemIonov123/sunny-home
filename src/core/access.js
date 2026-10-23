@@ -18,6 +18,11 @@ export function studioSetGiven(id, given) {
   if (given) locked.delete(id); else locked.add(id);
   try { localStorage.setItem(STUDIO_KEY, JSON.stringify([...locked])); } catch (e) { /* не важно */ }
 }
+// Студия: весь список «не выдавать» сразу (из резервной копии студии).
+export function studioSetLocked(ids) {
+  setLocked(ids);
+  try { localStorage.setItem(STUDIO_KEY, JSON.stringify([...locked])); } catch (e) { /* не важно */ }
+}
 export function studioLoad() {
   try { const v = JSON.parse(localStorage.getItem(STUDIO_KEY) || 'null'); if (Array.isArray(v)) setLocked(v); } catch (e) { /* пусто */ }
 }
