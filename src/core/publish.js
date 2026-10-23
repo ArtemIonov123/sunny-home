@@ -4,6 +4,7 @@
 import { validatePack, listRecords, listOverrides, PACK_FORMAT } from './library.js';
 import { listOwnRecipes } from './recipes.js';
 import { lockedList } from './access.js';
+import { ownZones } from './mapZones.js';
 import { loadImage, img } from '../assets.js';
 import { itemDef } from './catalog.js';
 
@@ -211,9 +212,9 @@ export async function publishForPlayers({ locked, gift }, onStep = () => {}) {
 // Комнаты и расстановка — это сохранение дома, не каталог: игрокам не отправляются.
 export async function sendGameUpdate(onStep = () => {}) {
   const items = listRecords().filter((r) => r.animal && r.give);
-  const overrides = listOverrides(), recipes = listOwnRecipes();
-  const gift = items.length || overrides.length || recipes.length
-    ? { format: PACK_FORMAT, version: 1, id: GIFT_ID, name: 'Обновление игры', price: 0, gift: true, items, overrides, recipes } : null;
+  const overrides = listOverrides(), recipes = listOwnRecipes(), mapZones = ownZones();
+  const gift = items.length || overrides.length || recipes.length || Object.keys(mapZones).length
+    ? { format: PACK_FORMAT, version: 1, id: GIFT_ID, name: 'Обновление игры', price: 0, gift: true, items, overrides, recipes, mapZones } : null;
   await publishForPlayers({ locked: lockedList().filter((id) => itemDef(id)), gift }, onStep);
-  return { items: items.length, overrides: overrides.length, recipes: recipes.length };
+  return { items: items.length, overrides: overrides.length, recipes: recipes.length, zones: Object.keys(mapZones).length };
 }

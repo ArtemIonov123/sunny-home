@@ -7,6 +7,7 @@ import { img } from '../assets.js';
 import { MAX_DPR } from '../config.js';
 import { play } from '../audio.js';
 import { isReady } from '../core/places.js';
+import { zonesOf } from '../core/mapZones.js';
 
 const H = 900;                 // высота экрана в единицах карты (как VIEW_H у дома)
 // Земля — цилиндр радиуса RC, повёрнутый к нам боком и наклонённый: «долгота» a — вдоль земли,
@@ -70,7 +71,7 @@ export function createMap({ root, viewport, isNight = () => false, getPlace = ()
 
   let rot = 0; try { rot = Number(localStorage.getItem(ROT_KEY)) || 0; } catch (e) { /* пусто */ }
   let vel = 0, k = 1, W = 1600, raf = 0, lastT = 0, open = false, boxes = [], focus = null;
-  let zoom = { t0: 0, from: 1, to: 1, dur: 0, then: null }, bounce = new Map(), soon = null, splash = new Map();
+  let zoom = { t0: 0, from: 1, to: 1, dur: 0, then: null }, bounce = new Map(), soon = null, splash = new Map(), wiggles = new Map();
   const lampsOn = new Set();
   const STEP = (Math.PI * 2) / PLACES.length; // один квартал — одно место
   let snap = null; // долёт до квартала: { from, to, t0, dur }
@@ -97,6 +98,50 @@ export function createMap({ root, viewport, isNight = () => false, getPlace = ()
   function distPos(a, u, v) {
     const th = norm(a + (u - 0.5) * ((Math.PI * 2) / PLACES.length) + rot), c = Math.cos(th);
     return { x: W / 2 + RD * Math.sin(th), y: HZ + (v - VH) * DH + RD * (1 - c) * DROP, s: 0.75 + 0.25 * c, v: c - 0.2, g: v };
+  }
+  // Здание на картинке района (зона) → рамка на экране (по изгибу: низ — по середине рамки).
+  function zoneRect(k, q) {
+    const [u0, v0, u1, v1] = q.box, a = k * STEP;
+    const L = distPos(a, u0, v1), R = distPos(a, u1, v1), T = distPos(a, (u0 + u1) / 2, v0), B = distPos(a, (u0 + u1) / 2, v1);
+    return { x0: L.x, x1: R.x, y0: T.y, y1: B.y, cx: (L.x + R.x) / 2, vis: Math.min(L.v, R.v) };
+  }
+  // Нажатое здание района пружинит на месте (вырезаем его кусок картинки и сплющиваем), вокруг — звёздочки.
+  function drawWiggles(t) {
+    for (const [key, t0] of wiggles) {
+      const q2 = (t - t0) / 0.6; if (q2 >= 1) { wiggles.delete(key); continue; }
+      const [k, i] = key.split(':').map(Number), zn = zonesOf(PLACES[k].id)[i], im = img('map/district_' + PLACES[k].id);
+      if (!zn || !im) continue;
+      const r = zoneRect(k, zn); if (r.vis < 0) continue;
+      const [u0, v0, u1, v1] = zn.box, s2 = Math.sin(q2 * Math.PI * 3) * 0.07 * (1 - q2);
+      ctx.save(); ctx.translate(r.cx, r.y1); ctx.scale(1 - s2, 1 + s2); ctx.translate(-r.cx, -r.y1);
+      ctx.drawImage(im, u0 * im.width, v0 * im.height, (u1 - u0) * im.width, (v1 - v0) * im.height, r.x0, r.y0, r.x1 - r.x0, r.y1 - r.y0);
+      ctx.restore();
+      ctx.save(); ctx.fillStyle = '#ffd84a'; ctx.globalAlpha = 1 - q2;
+      for (let n = 0; n < 6; n++) {
+        const an = n * 1.05 + q2 * 2, rr = (r.x1 - r.x0) * (0.45 + 0.35 * q2), x = r.cx + Math.cos(an) * rr, y = (r.y0 + r.y1) / 2 + Math.sin(an) * rr * 0.6, st = 9 * (1 - q2 * 0.5);
+        ctx.beginPath(); for (let j = 0; j < 8; j++) { const rad = j % 2 ? st * 0.35 : st; ctx.lineTo(x + Math.cos(j * Math.PI / 4) * rad, y + Math.sin(j * Math.PI / 4) * rad); } ctx.fill();
+      }
+      ctx.restore();
+    }
+  }
+  function hitZone(p) {
+    let best = null;
+    PLACES.forEach((pl, k) => zonesOf(pl.id).forEach((zn, i) => {
+      const r = zoneRect(k, zn); if (r.vis < 0.1) return;
+      if (p.x > r.x0 && p.x < r.x1 && p.y > r.y0 && p.y < r.y1) { const area = (r.x1 - r.x0) * (r.y1 - r.y0); if (!best || area < best.area) best = { k, i, zn, area }; }
+    }));
+    return best;
+  }
+  // Зайти в место: повернуть землю к району k, приблизиться к точке (fx, fy) после поворота и войти.
+  function enter(placeId, k, fx, fy) {
+    play('pop');
+    const target = rot - norm(k * STEP + rot), from = rot, t0 = now();
+    const spin = () => { const q = Math.min(1, (now() - t0) / 0.35); rot = from + (target - from) * q * (2 - q); if (q < 1) requestAnimationFrame(spin); };
+    vel = 0; snap = null; spin();
+    focus = { x: fx, y: fy };
+    zoom = { t0: now(), from: 1, to: 2.3, dur: 0.6, fade: 1, then: () => { close(true); onEnter(placeId); } };
+    setTimeout(() => play('whoosh'), 250);
+    kick();
   }
   // Районы — картинки, порезанные на столбики и уложенные по изгибу (в пикселях экрана встык, без щелей).
   // Каждый район чуть шире своего места (OVER) и на стыке плавно проявляется поверх соседа.
@@ -165,7 +210,7 @@ export function createMap({ root, viewport, isNight = () => false, getPlace = ()
       ctx.restore();
     }
     const DIST = !!img('map/district_' + PLACES[0].id); // районы нарисованы — земля, дорога и россыпь не нужны
-    if (DIST) drawDistricts(night);
+    if (DIST) { drawDistricts(night); drawWiggles(t); }
     else {
     // Земля: клетки (угол × глубина) с фактурой травы, край по бокам заворачивается вниз.
     const grass = img('map/grass'), NL = 44, span2 = 2.6, dth = span2 / NL, G = [0, 0.18, 0.36, 0.55, 0.75, 1, 1.4];
@@ -235,7 +280,7 @@ export function createMap({ root, viewport, isNight = () => false, getPlace = ()
     draw();
     const t = now();
     if (zoom.dur && t - zoom.t0 >= zoom.dur) { const f = zoom.then; zoom = { dur: 0 }; f?.(); if (!open) return; }
-    const busy = drag || snap || zoom.dur || bounce.size || soon || splash.size;
+    const busy = drag || snap || zoom.dur || bounce.size || soon || splash.size || wiggles.size;
     if (busy) kick(); else { lastT = 0; idle = setTimeout(kick, 120); } // облака плывут — редкие кадры
   }
   let idle = 0;
@@ -283,7 +328,17 @@ export function createMap({ root, viewport, isNight = () => false, getPlace = ()
     return null;
   }
   function tap(p) {
-    const th = hitPlace(p); if (!th) return;
+    const th = hitPlace(p);
+    if (!th) { // здание на картинке района
+      const hz = img('map/district_' + PLACES[0].id) && hitZone(p); if (!hz) return;
+      wiggles.set(hz.k + ':' + hz.i, now()); play(hz.zn.snd);
+      if (hz.zn.place) {
+        if (!isReady(hz.zn.place)) { play('boing'); kick(); return; }
+        const [u0, v0, u1, v1] = hz.zn.box, uc = (u0 + u1) / 2, th2 = (uc - 0.5) * STEP;
+        setTimeout(() => enter(hz.zn.place, hz.k, W / 2 + RD * Math.sin(th2), HZ + ((v0 + v1) / 2 - VH) * DH + RD * (1 - Math.cos(th2)) * DROP), 250);
+      }
+      kick(); return;
+    }
     if (!th.place) { // украшение: подпрыгнуть, брызнуть, зажечься
       bounce.set(th.id, now());
       if (th.tap === 'splash') { splash.set(th.id, now()); play('bubble'); setTimeout(() => play('bubble'), 120); }

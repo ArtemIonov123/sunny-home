@@ -8,6 +8,7 @@ import { validateRecipe, setOwnRecipes, listOwnRecipes, addPackRecipes } from '.
 import { ANIMAL_PARTS, JOINT_PARTS, VOICES, setupAnimal, forgetAnimal } from '../render/animal.js';
 import { unlock } from './access.js';
 import { itemDef } from './catalog.js';
+import { cleanAllZones, setPackZones } from './mapZones.js';
 
 export const LIBRARY_LIMIT = 60;
 export const MIN_W = 40, MAX_W = 900;
@@ -193,9 +194,11 @@ export function validatePack(raw) {
   for (const r of Array.isArray(raw.recipes) ? raw.recipes : []) { try { recipes.push(validateRecipe(r)); } catch (e) { /* пропуск */ } }
   // unlock — встроенные предметы, которые пак «открывает» (щенок, если его не выдают всем).
   const unl = (Array.isArray(raw.unlock) ? raw.unlock : []).filter((id) => typeof id === 'string' && isBuiltin(id)).slice(0, 50);
-  if (!items.length && !ovs.length && !recipes.length && !unl.length) throw new Error('В паке нет предметов');
+  const zones = cleanAllZones(raw.mapZones); // живые здания на карте (студия → «Карта»)
+  if (!items.length && !ovs.length && !recipes.length && !unl.length && !Object.keys(zones).length) throw new Error('В паке нет предметов');
   const out = { format: PACK_FORMAT, version: 1, id: raw.id, name: String(raw.name || raw.id).slice(0, 40), items, overrides: ovs, ...(recipes.length ? { recipes } : {}) };
   if (unl.length) out.unlock = unl;
+  if (Object.keys(zones).length) out.mapZones = zones;
   if (raw.gift === true) out.gift = true;
   // Оформление обложки (для студии и магазина): цвет, своя картинка-фон или обложка целиком.
   const cs = raw.coverStyle;
@@ -240,6 +243,7 @@ export async function installPack(raw) {
   }
   for (const o of pack.overrides) if (!overrides.has(o.id)) await applyOv(o); // своя правка в студии важнее
   addPackRecipes(pack.recipes);
+  if (pack.mapZones) setPackZones(pack.mapZones);
   if (pack.unlock) { unlock(pack.unlock); ids.push(...pack.unlock); }
   packs.set(pack.id, { id: pack.id, name: pack.name, count: pack.items.length, fixes: pack.overrides.length });
   return ids;
