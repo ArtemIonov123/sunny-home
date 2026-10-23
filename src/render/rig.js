@@ -125,8 +125,12 @@ function partSources(look, grip) {
     const n = grip[side] && has('hand_grip_' + side) ? 'hand_grip_' + side : 'arm_lower_' + side;
     if (has(n)) out.push([n, look.skin, 'bone:' + bone]);
   }
+  // Есть своя (или заменённая) одежда на теле — встроенную под ней режем из той же цельной картинки, что и стоя:
+  // её отдельные части от GPT чуть крупнее и вылезали бы из-под своей вещи.
+  const mixed = bodyWear(look.wear).some((w) => WEAR[w].custom || replacedWear.has(w));
   for (const w of bodyWear(look.wear)) {
     const c = look.wear[w];
+    if (mixed && !WEAR[w].custom && !replacedWear.has(w) && !garmentBones(w)) { out.push(['wear_' + w, c, ['top', 'dress'].includes(WEAR[w].type) ? 'sleeves' : cutOf(w)]); continue; } // верх под своей вещью — без кусочков у предплечий
     // Своя вещь или заменённая встроенная: поделена по костям заранее (render/garment.js) или режется по контурам.
     const bones = garmentBones(w);
     if (bones) { for (const bone of bones) out.push([`wear_${w}__${bone}`, c, 'bone:' + bone]); continue; }

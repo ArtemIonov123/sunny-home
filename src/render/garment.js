@@ -111,7 +111,8 @@ function bodyMasks() {
 function boneAt(M, type, X, Y, sleeve) {
   if (X < 0 || Y < 0 || X >= M.W || Y >= M.H) return 'torso';
   const i = Y * M.W + X;
-  if (type === 'pants') return Y > HIP ? (X < M.W / 2 ? 'legL' : 'legR') : 'torso';
+  // Штаны: что лежит на туловище героя (с его шортиками) — туловищу, поверх шортиков; ниже — штанины.
+  if (type === 'pants') return Y > HIP && !M.torso[i] ? (X < M.W / 2 ? 'legL' : 'legR') : 'torso';
   if (Y > LAP || sleeve === 'none') return 'torso'; // без рукавов — всё на туловище
   // Рукав — всё, что дальше плечевого сустава (JOINTS.shoulder в rig.js) и выше подмышки, на руке.
   const left = X < M.W / 2;
@@ -248,4 +249,22 @@ export function templateCanvas(type) {
   c.filter = 'none';
   drawPart(c, 'wear_' + SAMPLE[type], '#9cc8f2');
   return cv;
+}
+
+// Длинный ли рукав: есть ли ткань у предплечья (ниже локтя, рядом с рукой, вне туловища). Для выбора по умолчанию.
+export function detectSleeve(im, box) {
+  const M = bodyMasks(); if (!M) return 'short';
+  const [x, y, w, h] = box.map(Math.round), cv = canvas(w, h), c = cv.getContext('2d', { willReadFrequently: true });
+  c.drawImage(im, 0, 0, cv.width, cv.height);
+  const px = c.getImageData(0, 0, cv.width, cv.height).data;
+  let n = 0;
+  for (let j = 0; j < cv.height; j++) {
+    const Y = y + j; if (Y < 450 || Y > WRIST) continue;
+    for (let i = 0; i < cv.width; i++) {
+      const X = x + i; if (X < 0 || X >= M.W || Y >= M.H) continue;
+      const k = Y * M.W + X;
+      if (px[(j * cv.width + i) * 4 + 3] > 100 && !M.torso[k] && (M.armLoL[k] || M.armLoR[k])) n++;
+    }
+  }
+  return n > 300 ? 'long' : 'short';
 }

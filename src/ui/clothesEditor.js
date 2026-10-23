@@ -11,7 +11,7 @@ import { normalize } from '../core/actions.js';
 import { drawHero, drawPart, partThumb } from '../render/hero.js';
 import { buildRig, drawRig, heroPose, rigAnims, HIP_Y } from '../render/rig.js';
 import { HERO_LAYERS } from '../render/heroLayout.js';
-import { registerGarment, unregisterGarment, fitUpload, fitToSample, sampleBox, layerRect, templateCanvas, templateOf, colored, grayShare, garmentBones } from '../render/garment.js';
+import { registerGarment, unregisterGarment, fitUpload, fitToSample, sampleBox, layerRect, templateCanvas, templateOf, colored, grayShare, garmentBones, detectSleeve } from '../render/garment.js';
 import { img, loadImage } from '../assets.js';
 import { play } from '../audio.js';
 import { escapeHtml as esc } from '../util.js';
@@ -23,7 +23,7 @@ const BUILTIN_COLORS = { tshirt: '#6fcfc0', dress: '#ffe27a', pants: '#7fb1f0', 
 const MODES = { stand: '🧍 Стоит', wave: '👋 Машет', cheer: '🎉 Руки вверх', hold: '✋ Держит', sit: '🪑 Сидит', walk: '🚶 Идёт', lie: '🛏 Лежит' };
 const SLEEVES = { none: 'Без рукавов', short: 'Короткие', long: 'Длинные' };
 const HAS_SLEEVES = ['top', 'outer', 'dress'];
-const defSleeve = (type) => (type === 'dress' ? 'short' : 'long');
+const defSleeve = () => 'short';
 const BONE_COLORS = { torso: '#4a90e2', armUpL: '#f5a623', armUpR: '#f5a623', armLoL: '#7ed321', armLoR: '#7ed321', legL: '#bd10e0', legR: '#bd10e0' };
 const W = 512;
 
@@ -247,6 +247,7 @@ export function createClothesEditor({ store, actions, toast, onChange }) {
     toast(onTemplate ? 'Картинка по образцу — встала ровно как нарисовано' : 'Картинка не по образцу (другой размер холста) — вписана в место встроенной вещи, подвинь, если нужно');
     srcIm = await loadImage(image);
     draft.cloth.tint = grayShare(srcIm) > 0.3;
+    if (HAS_SLEEVES.includes(draft.cloth.type)) draft.cloth.sleeve = detectSleeve(srcIm, box); // длинный рукав — если ткань есть у предплечья
     if (!draft.name) draft.name = file.name.replace(/\.(png|webp|jpe?g)$/i, '').replace(/^wear_/, '').replace(/_/g, ' ').slice(0, 40);
     dirty = true;
     await autoArt();
