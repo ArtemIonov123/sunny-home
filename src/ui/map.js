@@ -15,16 +15,16 @@ const SOIL = '#6b4127';        // земля внутри планеты
 
 // Что стоит на планете: угол (доли круга), картинка, ширина. place — место, куда можно зайти.
 export const PLACES = [
-  { id: 'home', art: 'map/house' },
-  { id: 'shop', art: 'map/shop' },
-  { id: 'disco', art: 'map/disco' },
-  { id: 'cafe', art: 'map/cafe' },
-  { id: 'salon', art: 'map/salon' },
+  { id: 'home', art: 'map/iso_home' },
+  { id: 'shop', art: 'map/iso_shop' },
+  { id: 'disco', art: 'map/iso_disco' },
+  { id: 'cafe', art: 'map/iso_cafe' },
+  { id: 'salon', art: 'map/iso_salon' },
 ];
 const THINGS = [];
 PLACES.forEach((p, k) => {
   const a = (k / PLACES.length) * Math.PI * 2, step = (Math.PI * 2) / PLACES.length;
-  THINGS.push({ a, art: p.art, w: 330, place: p });
+  THINGS.push({ a, art: p.art, w: 420, sink: 0.2, place: p }); // сценка: низ (травка) уходит в планету
   THINGS.push({ a: a + step * 0.33, art: 'map/tree', w: 175 });
   THINGS.push({ a: a + step * 0.62, art: k % 2 ? 'map/tree' : 'map/bush', w: k % 2 ? 150 : 125 });
 });
@@ -104,7 +104,7 @@ export function createMap({ root, viewport, isNight = () => false, getPlace = ()
       if (Math.abs(a) > 1.45) continue; // за горизонтом
       const im = img(th.art); if (!im) continue;
       const h = th.w * im.height / im.width;
-      ctx.save(); ctx.translate(cx, cy); ctx.rotate(a); ctx.translate(0, -R + 14);
+      ctx.save(); ctx.translate(cx, cy); ctx.rotate(a); ctx.translate(0, -R + 14 + (th.sink || 0) * h);
       const b = th.place && bounce.get(th.place.id);
       if (b) { const p = (t - b) / 0.5; if (p < 1) { const s = Math.sin(p * Math.PI); ctx.translate(0, -40 * s); ctx.scale(1 - 0.06 * s, 1 + 0.08 * s); } else bounce.delete(th.place.id); }
       ctx.drawImage(im, -th.w / 2, -h, th.w, h);
@@ -176,7 +176,7 @@ export function createMap({ root, viewport, isNight = () => false, getPlace = ()
       if (!th.place) continue;
       const a = norm(th.a + rot), im = img(th.art); if (!im || Math.abs(a) > 1.45) continue;
       const h = th.w * im.height / im.width, d = norm(phi - a);
-      const lx = r * Math.sin(d), lh = r * Math.cos(d) - (R - 14);
+      const lx = r * Math.sin(d), lh = r * Math.cos(d) - (R - 14 - (th.sink || 0) * h);
       if (Math.abs(lx) < th.w / 2 && lh > -20 && lh < h) return th;
     }
     return null;

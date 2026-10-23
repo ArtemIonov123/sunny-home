@@ -323,8 +323,10 @@ def build_map():
     im = seamless(im, 90)
     s = 220 / im.height
     save(im.resize((round(im.width * s), 220), Image.LANCZOS), 'map/ground.webp')
-    for n, mw in [('house', 460), ('shop', 460), ('disco', 460), ('cafe', 460), ('salon', 460), ('tree', 360), ('bush', 260), ('cloud', 360)]:
+    for n, mw in [('tree', 360), ('bush', 260), ('cloud', 360)]:
         sprite(f'map/map_{n}.png', f'map/{n}.webp', max_w=mw, max_h=mw)
+    for n in ('home', 'shop', 'disco', 'cafe', 'salon'):  # места в изометрии (сценки)
+        sprite(f'map/iso_{n}.png', f'map/iso_{n}.webp', max_w=560, max_h=560)
 
 
 def build_shop():
